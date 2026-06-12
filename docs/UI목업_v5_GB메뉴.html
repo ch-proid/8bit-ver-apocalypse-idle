@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>아포칼립스 키우기 — UI 목업 v5 (GB 메뉴)</title>
+<style>
+:root{
+  --bg:#18212a; --mid:#4e6a79; --light:#d8e3c8; --accent:#7da963;
+  --line:#26333f; --ink:#0a0e13;
+  --r-common:#8d93a0; --r-magic:#4a9be0; --r-rare:#e0c04a; --r-epic:#a45ae0; --r-leg:#e08a3a;
+  --blood:#c0303a; --gold:#e0c04a;
+  --shell:#5e8748; --shell-hi:#8db86e; --shell-lo:#39562d; --silk:#2c4222;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{background:#0a1208;display:flex;justify-content:center;
+  font-family:'Courier New',ui-monospace,monospace;color:var(--light)}
+.kr{font-family:-apple-system,'Apple SD Gothic Neo','Noto Sans KR',sans-serif}
+.num{font-weight:700}
+
+.console{width:100%;max-width:420px;height:100dvh;background:var(--shell);
+  display:flex;flex-direction:column;overflow:hidden;position:relative;
+  border-left:2px solid var(--shell-lo);border-right:2px solid var(--shell-lo)}
+.console::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;background:var(--shell-hi)}
+.bezel{margin:10px 12px 6px;background:#10150e;border-radius:8px 8px 34px 8px;
+  padding:7px 9px 11px;box-shadow:inset 0 2px 0 #000, inset 0 -1px 0 var(--shell-hi);
+  flex:1;display:flex;flex-direction:column;min-height:0}
+.bezel-top{display:flex;justify-content:space-between;align-items:center;padding:0 2px 6px}
+.silk{font-size:8px;letter-spacing:.3em;color:#56714a;text-transform:uppercase}
+.led{width:7px;height:7px;border-radius:50%;background:#3a1216;box-shadow:inset 0 1px 1px #000}
+.led.on{background:var(--blood);box-shadow:0 0 6px var(--blood);animation:blink 1.2s steps(2) infinite}
+@keyframes blink{50%{opacity:.55}}
+.led-wrap{display:flex;align-items:center;gap:6px}
+.dmg-sw{font-size:8px;letter-spacing:.18em;color:#56714a;border:1px solid #56714a;
+  background:none;padding:3px 7px;cursor:pointer;font-family:inherit}
+.dmg-sw.on{color:#9bbc0f;border-color:#9bbc0f}
+
+.screen{flex:1;min-height:0;background:#05080c;position:relative;
+  display:flex;flex-direction:column;overflow:hidden;border:2px solid #000}
+.screen::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:10;
+  background:repeating-linear-gradient(0deg, rgba(0,0,0,.16) 0 1px, transparent 1px 3px)}
+.game{position:relative;line-height:0;flex:0 0 auto;background:#000}
+.game canvas{width:100%;image-rendering:pixelated;display:block}
+.lcd-hud{display:flex;justify-content:space-between;align-items:center;gap:6px;
+  padding:5px 9px;background:var(--ink);border-bottom:1px solid var(--line);font-size:10px}
+.lcd-hud .grp{display:flex;align-items:center;gap:5px}
+.gb-bar{width:60px;height:9px;border:1px solid var(--light);background:var(--ink);padding:1px}
+.gb-bar i{display:block;height:100%;background:repeating-linear-gradient(90deg,var(--blood) 0 4px,var(--ink) 4px 5px)}
+.gb-bar.xp i{background:repeating-linear-gradient(90deg,var(--accent) 0 4px,var(--ink) 4px 5px)}
+
+/* ===== GB 메뉴: 전체화면 패널 ===== */
+.panel{position:absolute;inset:0;z-index:6;background:var(--bg);
+  padding:9px;display:none;flex-direction:column;gap:9px;overflow:hidden}
+.panel.on{display:flex}
+.win{border:2px solid var(--light);box-shadow:inset 0 0 0 2px var(--ink);
+  background:var(--bg);padding:10px 10px 8px;position:relative}
+.win-t{position:absolute;top:-8px;left:8px;background:var(--bg);padding:0 5px;
+  font-size:9px;letter-spacing:.25em;color:var(--light);font-weight:700}
+.mi{display:flex;align-items:center;gap:6px;padding:4px 2px;font-size:12px;cursor:pointer}
+.mi .dots{flex:1;border-bottom:1px dotted var(--mid);transform:translateY(-3px)}
+.mi .v{font-weight:700}
+.cur{color:var(--light);animation:curblink 1s steps(2) infinite;font-size:10px}
+@keyframes curblink{50%{opacity:0}}
+.inv-vid{background:var(--light);color:var(--ink);font-weight:700;text-align:center;
+  padding:6px 4px;cursor:pointer;font-size:12px;letter-spacing:.15em}
+.inv-vid:active{background:var(--mid)}
+.dim{color:var(--mid)} .bloodc{color:var(--blood)} .goldc{color:var(--gold)}
+.tiny{font-size:9px;color:var(--mid)}
+.row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.pbox{border:1px solid var(--light);width:24px;height:22px;display:flex;align-items:center;
+  justify-content:center;cursor:pointer;font-weight:700;font-size:13px;background:var(--ink)}
+.pbox:active{background:var(--light);color:var(--ink)}
+.statbar{display:flex;justify-content:space-between;font-size:11px;padding-bottom:2px}
+
+.slots{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.slot{aspect-ratio:1.3;border:1px solid var(--light);background:var(--ink);
+  display:flex;align-items:center;justify-content:center;cursor:pointer}
+.slot canvas{width:20px;height:20px;image-rendering:pixelated}
+.slot.leg{border-color:var(--r-leg)} .slot.epic{border-color:var(--r-epic)}
+.slot.rare{border-color:var(--r-rare)} .slot.magic{border-color:var(--r-magic)}
+.grid6{display:grid;grid-template-columns:repeat(6,1fr);gap:4px}
+.cell{aspect-ratio:1;border:1px solid var(--r-common);background:var(--ink);position:relative;
+  cursor:pointer;display:flex;align-items:center;justify-content:center}
+.cell canvas{width:14px;height:14px;image-rendering:pixelated}
+.shop{display:grid;grid-template-columns:repeat(6,1fr);gap:4px}
+.shop .cell .pr{position:absolute;bottom:0;left:0;right:0;text-align:center;font-size:7px;color:var(--gold)}
+
+.relics{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.relic{border:1px solid var(--line);background:var(--ink);padding:5px 3px;cursor:pointer;text-align:center}
+.relic.equip{border-color:var(--light)} .relic.none{opacity:.4}
+.relic .sin{font-size:11px;color:var(--light)} .relic.none .sin{color:var(--mid)}
+.relic .st{font-size:7px;margin-top:2px;color:var(--r-rare)} .relic .st .off{color:#33414e}
+.relic .lk{font-size:7px;color:var(--blood);margin-top:1px}
+.stars{color:var(--r-rare);font-size:10px} .stars .off{color:#33414e}
+
+/* 데크 */
+.deck{flex:0 0 auto;padding:8px 16px 10px;display:flex;justify-content:space-between;align-items:center}
+.tab-btns{display:flex;gap:11px}
+.pbtn{display:flex;flex-direction:column;align-items:center;gap:3px}
+.pbtn button{width:42px;height:42px;border-radius:50%;cursor:pointer;border:none;
+  background:var(--shell-lo);
+  box-shadow:inset 0 -3px 0 #1f3318, inset 0 2px 0 var(--shell-hi), 0 2px 0 #1f3318}
+.pbtn button:active,.pbtn.on button{box-shadow:inset 0 3px 4px #14230f;background:#2c4222}
+.pbtn.on button{outline:2px solid var(--light);outline-offset:-6px}
+.pbtn span{font-size:8px;letter-spacing:.18em;color:var(--silk);font-weight:700}
+.pills{display:flex;gap:10px;transform:rotate(-18deg)}
+.pill{display:flex;flex-direction:column;align-items:center;gap:3px}
+.pill button{width:44px;height:13px;border-radius:7px;border:none;cursor:pointer;
+  background:var(--shell-lo);box-shadow:inset 0 -2px 0 #1f3318, inset 0 1px 0 var(--shell-hi)}
+.pill button:active{box-shadow:inset 0 2px 3px #14230f}
+.pill span{font-size:7px;letter-spacing:.16em;color:var(--silk);font-weight:700}
+.grille{position:absolute;right:13px;bottom:8px;display:flex;gap:5px;transform:rotate(-65deg);transform-origin:bottom right}
+.grille i{width:3px;height:30px;background:var(--shell-lo);box-shadow:inset 1px 0 0 #2c4222;border-radius:2px}
+
+/* 팝업: GB 창 */
+.ov{position:absolute;inset:0;background:rgba(4,6,8,.82);display:none;align-items:center;justify-content:center;z-index:20;padding:18px}
+.ov.on{display:flex}
+.pop{width:100%;max-width:310px;border:2px solid var(--light);box-shadow:inset 0 0 0 2px var(--ink), 4px 4px 0 #000;
+  background:var(--bg);padding:12px 11px 10px}
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:7px;font-size:10px}
+.icard{border:1px solid var(--r-epic);background:var(--ink);padding:6px}
+.icard.leg{border-color:var(--r-leg)}
+.line{display:flex;justify-content:space-between;padding:2.5px 0;color:var(--mid)}
+.line.base{color:var(--light);border-bottom:1px dotted var(--line);margin-bottom:3px;padding-bottom:4px}
+.line.sin{color:var(--blood)}
+.line .up{color:var(--accent)} .line .dn{color:var(--blood)}
+.cp-delta{text-align:center;margin:8px 0 2px;font-size:11px;color:var(--mid)}
+.cp-delta .num{color:var(--accent);font-size:13px}
+.menu{margin-top:8px}
+.menu .mi{justify-content:flex-start}
+.fail-line{font-size:14px;text-align:center;margin:4px 0 10px;color:var(--blood)}
+.ret-row{display:flex;justify-content:space-between;font-size:11px;padding:4px 0;border-bottom:1px dotted var(--line)}
+.ret-note{margin:9px 0 2px;text-align:center;font-size:11px;color:var(--blood)}
+.dev-silk{display:flex;gap:10px;justify-content:center;padding:0 0 7px}
+.dev-silk a{font-size:8px;letter-spacing:.12em;color:var(--silk);cursor:pointer;text-decoration:underline}
+@media(max-height:640px){
+  .win{padding:7px 8px 6px} .panel{gap:6px} .mi{padding:3px 2px;font-size:11px}
+  .cell canvas{width:12px;height:12px} .slot canvas{width:17px;height:17px}
+}
+</style>
+</head>
+<body>
+
+<div class="console">
+  <div class="bezel">
+    <div class="bezel-top">
+      <span class="silk">Apocalypse</span>
+      <div class="led-wrap"><i class="led on" id="led"></i><button class="dmg-sw" id="dmg">DMG</button></div>
+    </div>
+    <div class="screen">
+      <div class="game"><canvas id="gv" width="160" height="90"></canvas></div>
+      <div class="lcd-hud">
+        <div class="grp"><span class="num">1-3</span></div>
+        <div class="grp"><span class="goldc">G</span><span class="num">12,480</span></div>
+        <div class="grp"><div class="gb-bar"><i style="width:100%"></i></div></div>
+      </div>
+
+      <!-- STAT : 전체화면 GB 메뉴 -->
+      <div class="panel" id="p-grow">
+        <div class="statbar"><span class="num">LV 38</span><span class="dim num">CP 128,400</span><span class="num goldc">G 12,480</span></div>
+        <div class="win"><span class="win-t">STATUS</span>
+          <div class="mi"><span>EXP</span><div class="gb-bar xp" style="flex:1;width:auto"><i style="width:62%"></i></div></div>
+          <div class="mi"><span>ATK</span><span class="dots"></span><span class="v">142</span><span class="pbox">+</span></div>
+          <div class="mi"><span>DEF</span><span class="dots"></span><span class="v">61</span><span class="pbox">+</span></div>
+          <div class="mi"><span>HP</span><span class="dots"></span><span class="v">2,340</span><span class="pbox">+</span></div>
+          <div class="mi"><span>REG</span><span class="dots"></span><span class="v">14</span><span class="pbox">+</span></div>
+          <div class="mi"><span class="cur">&#9654;</span><span>PT</span><span class="v" style="color:var(--accent)">6</span>
+            <span class="dots"></span><span class="dim">ATK&middot;BAL&middot;VIT&middot;MAN</span></div>
+        </div>
+        <div class="win"><span class="win-t">REBIRTH</span>
+          <div class="mi"><span class="bloodc num">&times;2.4</span><span class="dots"></span><span class="dim">RUN 2</span></div>
+          <div class="inv-vid" style="margin-top:4px">&#9654; REBIRTH</div>
+        </div>
+        <div class="win"><span class="win-t">RECORD</span>
+          <div class="mi"><span>LV</span><span class="dots"></span><span class="v">47</span></div>
+          <div class="mi"><span>CP</span><span class="dots"></span><span class="v">128,400</span></div>
+          <div class="mi"><span>RE</span><span class="dots"></span><span class="v">2-3</span></div>
+        </div>
+      </div>
+
+      <!-- GEAR -->
+      <div class="panel" id="p-gear">
+        <div class="statbar"><span class="num">LV 38</span><span class="dim num">37/60</span><span class="num goldc">G 12,480</span></div>
+        <div class="win"><span class="win-t">EQUIP</span>
+          <div class="slots">
+            <div class="slot leg" id="bt-item"><canvas data-ico="sword" width="11" height="11"></canvas></div>
+            <div class="slot epic"><canvas data-ico="helm" width="11" height="11"></canvas></div>
+            <div class="slot rare"><canvas data-ico="armor" width="11" height="11"></canvas></div>
+            <div class="slot magic"><canvas data-ico="ring" width="11" height="11"></canvas></div>
+          </div>
+        </div>
+        <div class="win"><span class="win-t">BAG</span>
+          <div class="grid6" id="inv"></div>
+          <div class="mi" style="margin-top:5px;padding-bottom:0">
+            <span class="cur">&#9654;</span><span>CUBE</span><span class="dim">/</span><span>SELL</span>
+            <span class="dots"></span><span class="dim">AUTO &#9679;</span>
+          </div>
+        </div>
+        <div class="win"><span class="win-t">SHOP</span>
+          <div class="shop" id="shop"></div>
+          <div class="mi" style="margin-top:5px;padding-bottom:0">
+            <span class="dim num">14:22</span><span class="dots"></span>
+            <span class="cur">&#9654;</span><span>RENEW</span><span class="goldc num">2,000</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ALTAR -->
+      <div class="panel" id="p-altar">
+        <div class="statbar"><span class="num bloodc">BLOOD</span><span class="num">1,250 / 1,250</span><span class="dim num">RITE 12</span></div>
+        <div class="win"><span class="win-t">ALTAR</span>
+          <div class="gb-bar" style="width:100%;height:12px"><i style="width:100%"></i></div>
+          <div class="row" style="margin-top:7px;gap:6px">
+            <div class="inv-vid" style="flex:1">&#9654; SUMMON</div>
+            <div class="inv-vid" style="flex:1;background:var(--ink);color:var(--mid);border:1px solid var(--line)">PICK 4/5</div>
+          </div>
+        </div>
+        <div class="win"><span class="win-t">RELIC</span>
+          <div class="mi"><span class="kr">망령 군주</span><span class="dots"></span>
+            <span class="stars">&#9733;&#9733;<span class="off">&#9733;&#9733;&#9733;</span></span></div>
+          <div class="tiny kr" style="line-height:1.7">부채꼴 &middot; 처치 &rarr; 망령 (4)<br>&#9733;2 망령 +20% &nbsp; <span style="color:#3a4a58">&#9733;3 ?</span></div>
+        </div>
+        <div class="win"><span class="win-t">CODEX 2/6</span>
+          <div class="relics" id="relics"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="deck">
+    <div class="tab-btns">
+      <div class="pbtn" data-t="grow"><button aria-label="STAT"></button><span>STAT</span></div>
+      <div class="pbtn" data-t="gear"><button aria-label="GEAR"></button><span>GEAR</span></div>
+      <div class="pbtn" data-t="altar"><button aria-label="ALTAR"></button><span>ALTAR</span></div>
+    </div>
+    <div class="pills">
+      <div class="pill"><button id="bt-summon" aria-label="SELECT"></button><span>SELECT</span></div>
+      <div class="pill"><button id="bt-fail" aria-label="START"></button><span>START</span></div>
+    </div>
+    <div class="grille"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  </div>
+  <div class="dev-silk">
+    <a data-pop="ov-item">DEV&middot;CMP</a><a data-pop="ov-fail">DEV&middot;FAIL</a><a data-pop="ov-ret">DEV&middot;AFK</a>
+  </div>
+
+  <div class="ov" id="ov-item"><div class="pop">
+    <div class="cmp">
+      <div class="icard">
+        <div class="line base"><span>ATK</span><span class="num">+118</span></div>
+        <div class="line"><span>CRI</span><span>+9%</span></div>
+        <div class="line"><span>SPD</span><span>+12%</span></div>
+        <div class="line"><span>DMG</span><span>+15%</span></div>
+      </div>
+      <div class="icard leg">
+        <div class="line base"><span>ATK</span><span class="num">+131 <span class="up">&#9650;</span></span></div>
+        <div class="line"><span>CRI</span><span>+11% <span class="up">&#9650;</span></span></div>
+        <div class="line"><span>CRD</span><span>+34%</span></div>
+        <div class="line"><span>SPD</span><span>+8% <span class="dn">&#9660;</span></span></div>
+        <div class="line"><span>DMG</span><span>+18% <span class="up">&#9650;</span></span></div>
+        <div class="line sin"><span>SIN&middot;<span class="kr">망령</span></span><span>+18%</span></div>
+      </div>
+    </div>
+    <div class="cp-delta"><span class="num">+4.2%</span></div>
+    <div class="menu">
+      <div class="mi"><span class="cur">&#9654;</span><span>EQUIP</span></div>
+      <div class="mi"><span style="width:10px"></span><span>REROLL</span><span class="dots"></span><span class="goldc num">1,800</span></div>
+      <div class="mi"><span style="width:10px"></span><span>SELL</span></div>
+    </div>
+  </div></div>
+
+  <div class="ov" id="ov-fail"><div class="pop">
+    <div class="fail-line kr">화력이 부족하다</div>
+    <div class="menu">
+      <div class="mi"><span class="cur">&#9654;</span><span>GO 1-3</span></div>
+      <div class="mi"><span style="width:10px"></span><span class="dim">STAY</span></div>
+    </div>
+  </div></div>
+
+  <div class="ov" id="ov-ret"><div class="pop">
+    <div class="ret-row"><span class="num">7:12:00</span><span></span></div>
+    <div class="ret-row"><span class="goldc">G</span><span class="num">+48,200</span></div>
+    <div class="ret-row"><span>EXP</span><span class="num">+3.2</span></div>
+    <div class="ret-row"><span>LOOT</span><span class="num">12 <span style="color:var(--r-epic)">&#9679;1</span></span></div>
+    <div class="ret-row"><span class="bloodc">BLOOD</span><span class="num bloodc">MAX</span></div>
+    <div class="ret-note kr">제단이 깨어났다.</div>
+    <div class="menu"><div class="mi"><span class="cur">&#9654;</span><span>CLAIM</span></div></div>
+  </div></div>
+</div>
+
+<script>
+
+const SCENE=["1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111", "1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111", "1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111", "1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111", "1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111", "1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111", "0000000000000000000000000000000000000000000000000000000000000000000000000000000110000000000000000000000000000000000000000000000000000000000000000000000000000000", "0000000000000000000000000000000000000000000000000000000000000000000000000000000110000000000000000000000000000000000000000000000000000000000000000000000000000000", "0000000000000000000000000000000000000000000200000000000000000000000000000000000110000000000000000000002220000000000000000000000000000000000000000000000000000000", "0000000000200000000000000000000000000000000000020000000000000000000000000000000110000000000000000000000000000000000000000000000000000000000000000000000000000000", "0000000000000000000000000000000000000000000000000000000000002000000000000000000120000000000000000000000000000000000000000000000000000000000000000000000000000000", "0000000000000000000000000000000000000000000000000000000000000000000000000000002110000000000000000000000000000000000000000000000000000000000000000000000000000000", "0000000000000000000200000000002222222220000000000000020000222222222000000000330110000000300000002222222220000000000000000000222222222000002000000000000000000000", "0000002000000000000000000000002222222220000000000000000000222222222002300030030110000000030000202222222220000000000000000000222222222000000000000000000000000000", "0000000000000000000000000000002222222220000000000000000000222222222340300000000130400000300000002222222220000000000000000000222222222000000000000000000000000000", "0000200000000000000000000000002222222220000000000000000000222222222040000004000110400000040000002222222220000000000000000000222222222000000000000000000020000000", "0000000000000000000000000000002222222220000000000000000000222222222111111111111111111211111111002222222220000000000000000000222222222000000000000000000000000000", "0000000000000000000000020000002222222220000000000000000000222222222222222222222222222222222221002222222220000000000000000000222222222000000000000000000000000000", "0000000000000000111111110000002222222220001112111100000000222222222111111111111111111111111111002222222220000011111111000000222222222000111111110000020000000000", "0000000000000000111111110000002222222220001111111100000000222222222000000000000000000000000000002222222220000011111111000000222222222000111112110000000000000000", "0000000000000000111111110000002222222220001211111100000000222222222000000000000000000000000002002222222220000011111111000000222222222000111111110000000020000000", "0000000000000000111111110000002222222220001211111100000000222222222000000000000000000000000000002222222220000011111111000000222222222000111111110000000000000000", "0000000000000000111211110000002222222220001111111100000000222222222000000000000000000000000000002222222220000011111111000000222222222000111111110000000000000000", "0000000000000000111111110000002222222220001111111100000000222222222000000000000000000000000000002222222220000011111111000000222222222000111112110000000000000000", "0000000000000000111111110000002222222220001111111100000000222222222000000000000000000000000000002222222220000012111111000000222222222000111111110000000000000000", "0000000000000000111111110000002222222220001111111100000000222222222000000000000000000000000200002222222220000011112111200000222222222000111111110000000000000000", "0000000000000000111111110000002222222220001111111100000000222222222000000000000000000000000000002222222220000011111121000000222222222002111111110000000000000000", "0000000000000000111111110000002222222220001111112100000000222222222000000000000000000000000000002222222220000011111111000000222222222000111111110020000000000000", "0000000000000000111111110000002222222220001111111100000000222222222000000000000000000000000000002222222220000011111111000000222222222000111111110000000000000000", "0000000000000000111211110000002222222220001111111100000000222222222000000000000000000000002000002222222220000011111111000000222222222000111111110000000000000000", "0000000000000000111111110000002222222220001111111100000000222222222000000000000000000000000000002222222220000011121111000000222222222000111111110000000000000000", "0000002000000000111111110000002222222220021111111100000000222222222000200000000000000000000000002222222220000011111111000000222222222000211111110000000000000000", "0000000000000000111211110000002222222220001111111100000000222222222000000000000000000000000000202222222220000011111111000000222222222000111111110000000000000000", "0000000000000000111111110000002222222222001111111100000000222222222000000000000000000000000000002222222220000021112121000000222222222000111111110000000000000000", "0000000000200000211111210000002222222220001121111100000000222222222000000000000002000000000000002222222220000011111111200000222222222000111112110000000000000000", "0000000000000000121112110000002222222220001111111100000000222222222000000000000000000000000000002222222220000011111111020000200222222000111111110000000000000000", "0000000000000000111111110000002222222220001111111102000000222222222000000000000000000000000000002222222220000011111111000000202022220000111111110000000000000000", "0000000000000000111111110000002222222220001111111100000000222022222000000000000002000000000000002222222220000011111111000000000000000000111111110000000000000200", "0000000000000000111111110000002222222220001111211100000000002220022000000000000000000000000000002222222220000011111111000000000000000000111112110000000000000000", "2000000000000000111111110000002222222220001111111100000000000000000000000000002000000000000000002222222220000011111111000000000000000000111111110000000000000000", "0000000000000000111111110000002222222220001111111100000000000000000000000000000000000000000000002222222220000011111111000000000000000000111211110000000000000000", "0000000000000000111111110000000022200020001111111100000000000000000000000000000000000000000000002222222220002011111111000000000200000000111111110000000000000000", "0000000000000000121111110000000202022200001111111200000000000000000002000000000000000000000000002222222220000011111111020000000000000000111111110200000000000000", "0000000000000000111121110000000000000000001111111100000000000000000000000000000000000000000000002222222220000011121111000000000000000000111221110000000000000000", "0000000000000000211111110000000000000000001111111100000000000000000000000000000000000000000000002002022000000011111111000000000000000000111111110000000000000000", "0000000000000000111111110000000000000000001111111100000000000000020000000000020000000000000000000000000000000011111111000000000000200000111111110000000000000000", "0000000000000002111111110000000000000000001112111100000000000000000000000000000000000002000000000000002000000021111111000000000000000000111111110000000000000000", "0000000000000000111111110000000000000000001111111100000000000000002000000000000000000000000000000000000000000011111111000000000000000000111112110000000000000000", "0000000000000000111111110000000000000000001111211100000200000000000000000000000002000000000000000000000000020011111111000000000000000000112111110000000000000000", "0000000000000000111131210000000000000000001111311100000000000000000000000000000000000000000000000000000000000011113111000000000000000000111132110000000000000000", "0000000000000000112111110000000000000000001111111100000000000000000000000000000000000000000020000000000000000011111111000000000000000000111112110000000000000000", "0000020000022000121121110000000000000000001111112100000000000000000000000000000000000000000000000000000000000011111111000000000000000000111111110000000000000200", "0000000000000000112411110000000000000000001114111100000000000000000000000000000000000000000000000000000000000011141111000000000000000000111411110000000000000000", "0020000200000000111111110000000000000000001111211100000000000000000000000000000000000000000020000000000000000011111111000000000000000000111111110000000000000000", "0000000000000000111111110000000000000000001111111100000000000000000020000000000000000000000000000000000000000011111111000000000000000000111111110000000000020200", "0000000000000000111111110002000020000000001111111100000000000000000000000000000000000000000000000000020000000011111111000000000000000000111111110000000000000000", "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000", "0000000000000000000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000000000000000000000", "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000", "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000", "0000000000000000000000000000000000000000400000000000000000000000004000000000000000000000000040000000000000000000000000400000000000000000000000000000000000000000", "0000000000000000000000000000000000000000400000000000000000000000004000000000000000000000000040000000000000000000000000400000000000000000000000000000000000000000", "0000000000000000000000333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333330000000000000000000000", "0000000000000000000000333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333330000000000000000000000", "0000000000000000000000222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222220000000000000000000000", "0000000000000000000000222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222220000000000000000000000", "0000000000000000000000222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222220000000000000000000000", "0000000000000000000000222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222220000000000000000000000", "0000000000000000000000222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222220000000000000000000000", "0000000000000000000000222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222220000000000000000000000", "0000000000000000000000000011100000000000000000000000000000000000000000000000001110000000000000000000000000000000000000000000000000011100000000000000000000000000", "0000000000000000000000000011100000000000000000000000000000000000000000000000001110000000000000000000000000000000000000000000000000011100000000000000000000000000", "0000000000000000000000000011100000000000000000000000000000000000000000000000001110000000000000000000000000000000000000000000000000011100000000000000000000000000", "0000000000000000000000000011100000000000000000000000000000000000000000000000001110000000000000000000000000000000000000000000000000011100000000000000000000000000", "0000000000000000000000000011100000000000000000000000000000000000000000000000001110000000000000000000000000000000000000000000000000011100000000000000000000000000", "0000000000000000000000000011100000000000000000000000000000000000000000000000001110000000000000000000000000000000000000000000000000011100000000000000000000000000", "0000000000000000000000000011100000000000000000000000000000000000000000000000001110000000000000000000000000000000000000000000000000011100000000000000000000000000", "0000000000000000000000000011100000000000000000000000000000000000000000000000001110000000000000000000000000000000000000000000000000011100000000000000000000000000", "1111111111111111211111111112111111111112111111111111111111111112111111111111211111111111111111111112111111111221111111111111111111112111111111111111111111111111", "1111111211111111111112111111111111111111111111111111121111112111111111111121111111111111111112111111211111112111111111111121121111111111111111111111111111121111", "1111111112111111121121121111111111111111111221112222222222222222221111111111111112111121111121111122222222222211111211111111112111111111111111111111111111111111", "1111111111121111111111111111111111121111111111212222222222222222221111111111111211111111211111111122222222222211112111111121121111111111111112111111111111111111", "1111112111111111111111111111111111111111111111111122222222222222111111111111111111111111111111111111222222221111111111111112111111111111111111111111111111111111", "1111111111111111111111111111111111111121111111111111111111111111111111111111211121111111111111111211111111111111121111112111112111111111111111111111112111111111", "1111211211111111111121111111111111111121211112111211111111111111111111111111111111121111111111111111111111111111111111111111111111112111111111111111111111111111", "1211111111111111111111112111111111111111111111111111211111111111111111111111111111112111111111211122111111211111112111111111111111111111111111111111111111111111", "1111112111111111111111111111111111121111111111111111111111111111121121111211111121211111111111111111111111111111111111112111111111111111111111111111111111111111", "1111112111111111111111111112111111111121111111111111111111111111211111111112111111111111111111111112111111111111111211111111111121121211111111111111111111111111", "1111111111111111111111111111211111111121111111111111111111111111111111111111111111111112111111111111111211111111111111111111111111111111111121111112111111211111", "1111111112111111111111111111111112121111111111111111111111111112111111111111111111112111111111111112211121111111111211111111111111111111111121112211111111111111"], KNIGHT=["...1....1...", "...111111...", "..12222221..", "..12244221..", "..12222221..", "....1331....", "..13333331..", ".1333443331.", ".1313443131.", ".1133333311.", "...133331...", "...131131...", "..1331.1331.", "..11....11.."], SLIME=["..122221..", ".12222221.", "1221221221", "1223223221", "1222222221", ".11111111."];
+const PAL_CH1=["#170509","#2b0a10","#56141d","#93303a","#e0707a"];
+const PAL_DMG=["#081820","#0f380f","#346856","#88c070","#e0f8d0"];
+const HPAL=["#18212a","#0f151c","#4e6a79","#d8e3c8","#7da963"];
+const RAR=["#8d93a0","#4a9be0","#e0c04a","#a45ae0","#e08a3a"];
+let dmgMode=false;
+const gv=document.getElementById('gv'), g=gv.getContext('2d');
+function buildBase(pal){
+  const off=document.createElement('canvas'); off.width=160; off.height=90;
+  const c=off.getContext('2d'), im=c.createImageData(160,90);
+  for(let y=0;y<90;y++)for(let x=0;x<160;x++){const h=pal[+SCENE[y][x]],k=(y*160+x)*4;
+    im.data[k]=parseInt(h.slice(1,3),16);im.data[k+1]=parseInt(h.slice(3,5),16);
+    im.data[k+2]=parseInt(h.slice(5,7),16);im.data[k+3]=255;}
+  c.putImageData(im,0,0); return off;}
+const base=buildBase(PAL_CH1), baseDmg=buildBase(PAL_DMG);
+function spr(ctx,rows,ox,oy,pal,flash){rows.forEach((r,j)=>[...r].forEach((ch,i)=>{
+  if(ch!=='.'){ctx.fillStyle=flash?pal[3]:pal[+ch];ctx.fillRect(ox+i,oy+j,1,1);}}));}
+let t=0; const dmg=[];
+function tick(){
+  t++; const hp=dmgMode?PAL_DMG:HPAL;
+  g.drawImage(dmgMode?baseDmg:base,0,0);
+  spr(g,KNIGHT,60,64-14+((t>>3)&1),hp,false);
+  spr(g,SLIME,84,78-6,hp,(t%50)<3);
+  spr(g,SLIME,100,78-6,hp,((t+25)%50)<3);
+  if(t%50===0)dmg.push({x:86,y:68,v:142+((Math.random()*30)|0),c:dmgMode?'#e0f8d0':'#d8e3c8',s:1});
+  if((t+25)%50===0)dmg.push({x:102,y:68,v:486,c:dmgMode?'#e0f8d0':'#e08a3a',s:1.4});
+  g.font='6px monospace'; g.textAlign='center';
+  for(let i=dmg.length-1;i>=0;i--){const d=dmg[i];
+    g.fillStyle=d.c; g.save(); g.scale(d.s,d.s);
+    g.fillText(d.v,(d.x/d.s)|0,(d.y/d.s)|0); g.restore();
+    d.y-=.4; if((d.life=(d.life||0)+1)>30)dmg.splice(i,1);}
+  requestAnimationFrame(tick);
+} tick();
+
+let cur=null;
+function setTab(t){
+  cur=(cur===t)?null:t;
+  document.querySelectorAll('.pbtn').forEach(x=>x.classList.toggle('on',x.dataset.t===cur));
+  document.querySelectorAll('.panel').forEach(x=>x.classList.toggle('on',x.id==='p-'+cur));}
+document.querySelectorAll('.pbtn').forEach(b=>b.querySelector('button').onclick=()=>setTab(b.dataset.t));
+document.getElementById('bt-summon').onclick=()=>{if(cur!=='altar')setTab('altar');};
+document.getElementById('bt-fail').onclick=()=>show('ov-fail');
+document.getElementById('dmg').onclick=function(){dmgMode=!dmgMode;this.classList.toggle('on',dmgMode);};
+
+const ICONS={
+ sword:["....1......","...121.....","...121.....","...121.....","...121.....","1..121..1..",".11121211..","..11211....","...121.....","...1.1.....","..1...1...."],
+ helm:["...1111....","..122221...",".12222221..",".12222221..",".11111111..",".121..121..",".121..121..",".111..111..","...........","...........","..........."],
+ armor:["1.111111.1.","1122222211.","1122222211.",".11222211..","..122221...","..122221...","..122221...","..111111...","...........","...........","..........."],
+ ring:["...1111....","..122221...",".121..121..",".12....21..",".12....21..",".121..121..","..122221...","...1111....","....33.....","...........","..........."]};
+function drawIcon(cv){spr(cv.getContext('2d'),ICONS[cv.dataset.ico]||ICONS.sword,0,0,
+  ["#0a0e13","#10161d","#8d93a0","#e0c04a","#4e6a79"],false);}
+document.querySelectorAll('canvas[data-ico]').forEach(drawIcon);
+
+const inv=document.getElementById('inv');
+[4,3,3,2,2,2,1,1,1,1,0,0].forEach((r,i)=>{const d=document.createElement('div');
+  d.className='cell'; d.style.borderColor=RAR[r];
+  d.innerHTML=`<canvas data-ico="${['sword','helm','armor','ring'][i%4]}" width="11" height="11"></canvas>`;
+  d.onclick=()=>show('ov-item'); inv.appendChild(d); drawIcon(d.querySelector('canvas'));});
+const shop=document.getElementById('shop');
+[[3,'9.4k'],[2,'4.8k'],[4,'24k'],[1,'1.9k'],[2,'5.2k'],[3,'11k']].forEach(([r,p],i)=>{
+  const d=document.createElement('div');d.className='cell';d.style.borderColor=RAR[r];
+  d.innerHTML=`<canvas data-ico="${['ring','armor','sword','helm'][i%4]}" width="11" height="11"></canvas><span class="pr num">${p}</span>`;
+  shop.appendChild(d); drawIcon(d.querySelector('canvas'));});
+
+const RELICS=[['오만',2,true,false],['탐식',1,false,true],['비탄',0,false,false],
+ ['광신',0,false,false],['심연',0,false,false],['절망',0,false,false]];
+const rl=document.getElementById('relics');
+RELICS.forEach(([sin,st,eq,lk])=>{
+  const d=document.createElement('div');d.className='relic'+(eq?' equip':'')+(st===0?' none':'');
+  const stars=st===0?'?':'\u2605'.repeat(st)+'<span class="off">'+'\u2605'.repeat(5-st)+'</span>';
+  d.innerHTML=`<div class="sin kr">${st===0?'?':sin}</div><div class="st">${stars}</div>${lk?'<div class="lk">3\u2605</div>':''}`;
+  rl.appendChild(d);});
+
+function show(id){document.getElementById(id).classList.add('on');}
+document.querySelectorAll('[data-pop]').forEach(b=>b.onclick=()=>show(b.dataset.pop));
+document.querySelectorAll('.ov').forEach(o=>o.onclick=e=>{if(e.target===o)o.classList.remove('on');});
+
+</script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.DS_Store
+IMPLEMENTATION_PLAN_v1.md
+pixel-style-analysis.html
+pixel-style-analysis-preview.png
