@@ -1,8 +1,11 @@
 import { FLOATING_TEXT, MONSTER_BALANCE } from "../data/balance";
 import { STAGES } from "../data/stages";
 import { dealPlayerDamage, distanceBetween } from "./combat";
+import { rollMonsterDrop } from "./drop";
+import { addItemToInventory } from "./inventory";
 import { applyGravity, jump, moveAndCollide } from "./physics";
 import { addFloatingText, cloneProgress, grantRewards } from "./progression";
+import { cloneRngState } from "./rng";
 import { getPlatformById, platformCenterX } from "./stage";
 import type { Monster, SimulationState } from "./types";
 
@@ -21,6 +24,7 @@ export function stepSimulation(input: SimulationState, dt: number): SimulationSt
     progress: cloneProgress(progress),
     world: {
       ...world,
+      rng: cloneRngState(world.rng),
       player: {
         ...world.player,
         position: { ...world.player.position },
@@ -70,6 +74,7 @@ function updatePlayerAi(state: SimulationState, dt: number): void {
       if (target.hp <= 0) {
         killMonster(state, target);
         grantRewards(progress, world, target.experience, target.gold);
+        grantDrop(state);
       }
     }
 
@@ -197,6 +202,22 @@ function killMonster(state: SimulationState, monster: Monster): void {
   if (stage) {
     addFloatingText(state.world, "+BLOOD", monster.position.x, monster.position.y - 12, "#c0303a");
   }
+}
+
+function grantDrop(state: SimulationState): void {
+  const item = rollMonsterDrop(state.progress, state.world.rng);
+  if (!item) {
+    return;
+  }
+
+  const result = addItemToInventory(state.progress, item);
+  addFloatingText(
+    state.world,
+    result.kept ? "ITEM" : `+${result.soldGold}G`,
+    state.world.player.position.x,
+    state.world.player.position.y - 18,
+    "#e0c04a",
+  );
 }
 
 function respawnMonster(monster: Monster): void {

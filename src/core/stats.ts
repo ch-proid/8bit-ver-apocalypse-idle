@@ -1,4 +1,5 @@
 import { COMBAT_POWER, PLAYER_BALANCE, STAT_GROWTH } from "../data/balance";
+import { calculateEquipmentStats } from "./equipment";
 import type { Player, ProgressState, StatAllocation, StatDistributionState, StatKey, StatPreset } from "./types";
 
 export interface PlayerStats {
@@ -77,7 +78,7 @@ export function resetStatDistribution(preset: StatPreset = "ATK"): StatDistribut
 export function calculatePlayerStats(progress: ProgressState): PlayerStats {
   const distributionStats = statsFromAllocation(progress.statDistribution.assigned);
   const permanentStats = statsFromAllocation(progress.rebirth.permanentStats);
-  const equipmentStats = createEmptyStats();
+  const equipmentStats = statsFromEquipmentAllocation(calculateEquipmentStats(progress.inventory.equipped));
 
   return {
     attack: PLAYER_BALANCE.attack + distributionStats.attack + permanentStats.attack + equipmentStats.attack,
@@ -144,5 +145,14 @@ function statsFromAllocation(allocation: StatAllocation): PlayerStats {
     defense: allocation.def * STAT_GROWTH.defensePerPoint,
     maxHp: allocation.hp * STAT_GROWTH.hpPerPoint,
     hpRegen: allocation.reg * STAT_GROWTH.regenPerPoint,
+  };
+}
+
+function statsFromEquipmentAllocation(allocation: StatAllocation): PlayerStats {
+  return {
+    attack: allocation.atk,
+    defense: allocation.def,
+    maxHp: allocation.hp,
+    hpRegen: allocation.reg,
   };
 }

@@ -1,0 +1,18 @@
+import type { ItemRarity, ItemSlot, StatKey } from "../core/types";
+
+export const ITEM_SLOTS: ItemSlot[] = ["weapon", "helmet", "armor", "accessory"];
+export const ITEM_RARITIES: ItemRarity[] = ["common", "magic", "rare", "epic", "legendary"];
+
+export const ITEM_SLOT_BASE_STAT: Record<ItemSlot, StatKey> = {
+  weapon: "atk",
+  helmet: "hp",
+  armor: "def",
+  accessory: "reg",
+};
+
+export const NEXT_RARITY: Partial<Record<ItemRarity, ItemRarity>> = {
+  common: "magic",
+  magic: "rare",
+  rare: "epic",
+  epic: "legendary",
+};

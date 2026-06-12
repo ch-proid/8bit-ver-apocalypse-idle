@@ -11,6 +11,8 @@ export function Hud() {
   const unlockRebirthForDebug = useGameStore((state) => state.unlockRebirthForDebug);
   const rebirthNow = useGameStore((state) => state.rebirthNow);
   const logPhase3ADemo = useGameStore((state) => state.logPhase3ADemo);
+  const equipBestItems = useGameStore((state) => state.equipBestItems);
+  const logPhase3BDemo = useGameStore((state) => state.logPhase3BDemo);
   const offlineReward = useGameStore((state) => state.lastOfflineReward);
   const expPercent = Math.min(100, Math.floor((progress.experience / progress.nextExperience) * 100));
   const distribution = progress.statDistribution;
@@ -61,6 +63,9 @@ export function Hud() {
         <button type="button" onClick={logPhase3ADemo}>
           LOG
         </button>
+        <button type="button" onClick={logPhase3BDemo}>
+          LOG3B
+        </button>
       </div>
 
       <div className="phase3-panel stat-panel">
@@ -85,6 +90,9 @@ export function Hud() {
         </button>
         <button type="button" onClick={() => spendStatPoint("atk")}>
           +A
+        </button>
+        <button type="button" onClick={equipBestItems}>
+          EQUIP
         </button>
         <span>{distribution.preset}</span>
       </div>

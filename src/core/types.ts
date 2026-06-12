@@ -14,6 +14,26 @@ export interface Platform {
 export type PlayerAiState = "IDLE" | "MOVE" | "ATTACK";
 export type StatKey = "atk" | "def" | "hp" | "reg";
 export type StatPreset = "ATK" | "BAL" | "VIT" | "MANUAL";
+export type ItemSlot = "weapon" | "helmet" | "armor" | "accessory";
+export type ItemRarity = "common" | "magic" | "rare" | "epic" | "legendary";
+export type GeneralAffixKey =
+  | "critChance"
+  | "critDamage"
+  | "attackSpeed"
+  | "damageIncrease"
+  | "finalDamage"
+  | "defPenetration"
+  | "lifeSteal"
+  | "goldGain"
+  | "damageReduction";
+export type SinAffixKey =
+  | "specterDamage"
+  | "bloodLeech"
+  | "plagueSpread"
+  | "martyrPain"
+  | "executionThreshold"
+  | "despairBurst";
+export type ItemAffixKey = GeneralAffixKey | SinAffixKey;
 
 export interface StatAllocation {
   atk: number;
@@ -51,6 +71,53 @@ export interface RebirthState {
   count: number;
   experienceMultiplier: number;
   permanentStats: StatAllocation;
+}
+
+export interface ItemOption {
+  key: ItemAffixKey;
+  value: number;
+  sin: boolean;
+}
+
+export interface EquipmentItem {
+  id: string;
+  slot: ItemSlot;
+  rarity: ItemRarity;
+  itemLevel: number;
+  baseStat: StatKey;
+  baseValue: number;
+  options: ItemOption[];
+}
+
+export type EquippedItems = Record<ItemSlot, EquipmentItem | null>;
+export type AutoSellSettings = Record<ItemRarity, boolean>;
+
+export interface InventoryState {
+  capacity: number;
+  nextItemId: number;
+  items: EquipmentItem[];
+  equipped: EquippedItems;
+  autoSell: AutoSellSettings;
+}
+
+export interface RerollState {
+  countsByItemId: Record<string, number>;
+}
+
+export interface ShopOffer {
+  id: string;
+  item: EquipmentItem;
+  price: number;
+}
+
+export interface ShopState {
+  nextOfferId: number;
+  refreshedAt: number;
+  offers: ShopOffer[];
+}
+
+export interface RngState {
+  seed: number;
 }
 
 export interface Player {
@@ -115,6 +182,9 @@ export interface ProgressState {
   currentStage: number;
   nextExperience: number;
   statDistribution: StatDistributionState;
+  inventory: InventoryState;
+  reroll: RerollState;
+  shop: ShopState;
   rebirth: RebirthState;
   rebirthRecords: RebirthRecord[];
   records: ProgressRecords;
@@ -122,6 +192,7 @@ export interface ProgressState {
 
 export interface WorldState {
   elapsed: number;
+  rng: RngState;
   platforms: Platform[];
   player: Player;
   monsters: Monster[];

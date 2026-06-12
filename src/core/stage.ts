@@ -1,13 +1,15 @@
-import { PLAYER_BALANCE, PROGRESSION } from "../data/balance";
+import { PLAYER_BALANCE, PROGRESSION, RNG_BALANCE } from "../data/balance";
 import { MONSTERS } from "../data/monsters";
 import { STAGE_1, STAGES, type StageDefinition } from "../data/stages";
 import { createDefaultProgress } from "./progression";
+import { createRngState } from "./rng";
 import { applyPlayerStats } from "./stats";
 import type { Monster, Platform, ProgressState, SimulationState } from "./types";
 
 export function createInitialSimulation(
   stageId: number = PROGRESSION.initialStageId,
   progressOverride?: ProgressState,
+  seed: number = RNG_BALANCE.defaultSeed,
 ): SimulationState {
   const stage = STAGES[stageId] ?? STAGE_1;
   const platforms = stage.platforms.map((platform) => ({ ...platform }));
@@ -42,6 +44,7 @@ export function createInitialSimulation(
     progress,
     world: {
       elapsed: 0,
+      rng: createRngState(seed),
       platforms,
       player,
       monsters: createStageMonsters(stage, platforms),

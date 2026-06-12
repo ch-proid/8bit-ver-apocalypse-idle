@@ -1,11 +1,14 @@
 import { create } from "zustand";
-import { EXPERIENCE_CURVE, nextExperienceForLevel, PROGRESSION } from "../data/balance";
-import { gainExperience } from "../core/progression";
+import { EXPERIENCE_CURVE, FIXED_DELTA, nextExperienceForLevel, PHASE_3B_DEBUG, PROGRESSION, TICK_RATE } from "../data/balance";
+import { calculateItemValue } from "../core/equipment";
+import { bestInventoryItemForSlot, equipItem } from "../core/inventory";
+import { cloneProgress, gainExperience } from "../core/progression";
 import { calculateRebirthExperienceMultiplier, rebirthSimulation, unlockRebirth } from "../core/rebirth";
+import { cloneRngState } from "../core/rng";
 import { createInitialSimulation } from "../core/stage";
 import { stepSimulation } from "../core/simulation";
 import { applyPlayerStats, combatPowerEstimate, setStatPreset as setStatDistributionPreset, spendStatPoint } from "../core/stats";
-import type { SimulationState, StatKey, StatPreset } from "../core/types";
+import type { ItemSlot, SimulationState, StatKey, StatPreset } from "../core/types";
 import { calculateOfflineReward, loadGame, saveGame } from "../save/saveGame";
 
 interface GameStore {
@@ -20,6 +23,8 @@ interface GameStore {
   unlockRebirthForDebug: () => void;
   rebirthNow: () => void;
   logPhase3ADemo: () => void;
+  equipBestItems: () => void;
+  logPhase3BDemo: () => void;
   hydrate: () => Promise<void>;
   saveNow: () => Promise<void>;
 }
@@ -109,6 +114,58 @@ export const useGameStore = create<GameStore>((set, get) => ({
     ]);
   },
 
+  equipBestItems: () => {
+    set((state) => {
+      const simulation = cloneSimulation(state.simulation);
+      equipBestBySlot(simulation);
+      return { simulation };
+    });
+  },
+
+  logPhase3BDemo: () => {
+    const source = get().simulation;
+    let demo = createInitialSimulation(
+      source.progress.currentStage,
+      cloneProgress(source.progress),
+      PHASE_3B_DEBUG.demoSeed,
+    );
+    const before = {
+      atk: demo.world.player.attack,
+      def: demo.world.player.defense,
+      hp: demo.world.player.maxHp,
+      reg: demo.world.player.hpRegen,
+      items: demo.progress.inventory.items.length,
+    };
+
+    for (let i = 0; i < PHASE_3B_DEBUG.idleSeconds * TICK_RATE; i += 1) {
+      demo = stepSimulation(demo, FIXED_DELTA);
+    }
+
+    equipBestBySlot(demo);
+    const after = {
+      atk: demo.world.player.attack,
+      def: demo.world.player.defense,
+      hp: demo.world.player.maxHp,
+      reg: demo.world.player.hpRegen,
+      items: demo.progress.inventory.items.length,
+    };
+
+    console.table([
+      { checkpoint: "BEFORE", ...before },
+      { checkpoint: "AFTER_60S_EQUIP", ...after },
+    ]);
+    console.table(demo.progress.inventory.items.map((item) => ({
+      id: item.id,
+      slot: item.slot,
+      rarity: item.rarity,
+      level: item.itemLevel,
+      value: calculateItemValue(item),
+      options: item.options.map((option) => `${option.sin ? "SIN:" : ""}${option.key}+${option.value}`).join(" "),
+    })));
+
+    set({ simulation: demo });
+  },
+
   hydrate: async () => {
     const save = await loadGame();
     if (!save) {
@@ -138,26 +195,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
 function cloneSimulation(simulation: SimulationState): SimulationState {
   return {
-    progress: {
-      ...simulation.progress,
-      statDistribution: {
-        assigned: { ...simulation.progress.statDistribution.assigned },
-        unspentPoints: simulation.progress.statDistribution.unspentPoints,
-        preset: simulation.progress.statDistribution.preset,
-      },
-      rebirth: {
-        ...simulation.progress.rebirth,
-        permanentStats: { ...simulation.progress.rebirth.permanentStats },
-      },
-      rebirthRecords: simulation.progress.rebirthRecords.map((record) => ({ ...record })),
-      records: {
-        highestLevel: { ...simulation.progress.records.highestLevel },
-        dummyScore: { ...simulation.progress.records.dummyScore },
-        highestRebirthStage: { ...simulation.progress.records.highestRebirthStage },
-      },
-    },
+    progress: cloneProgress(simulation.progress),
     world: {
       ...simulation.world,
+      rng: cloneRngState(simulation.world.rng),
       platforms: simulation.world.platforms.map((platform) => ({ ...platform })),
       player: {
         ...simulation.world.player,
@@ -176,4 +217,14 @@ function cloneSimulation(simulation: SimulationState): SimulationState {
       })),
     },
   };
+}
+
+function equipBestBySlot(simulation: SimulationState): void {
+  const slots: ItemSlot[] = ["weapon", "helmet", "armor", "accessory"];
+  for (const slot of slots) {
+    const item = bestInventoryItemForSlot(simulation.progress, slot);
+    if (item) {
+      equipItem(simulation.progress, simulation.world.player, item.id);
+    }
+  }
 }

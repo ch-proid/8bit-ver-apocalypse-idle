@@ -1,4 +1,6 @@
 import { FLOATING_TEXT, nextExperienceForLevel, PROGRESSION, REBIRTH_BALANCE, STAT_GROWTH } from "../data/balance";
+import { createDefaultRerollState, createDefaultShopState, normalizeRerollState, normalizeShopState } from "./gold";
+import { cloneInventory, createDefaultInventory, normalizeInventory } from "./inventory";
 import { applyLevelStatPoints, applyPlayerStats, createDefaultStatDistribution, emptyAllocation } from "./stats";
 import type { ProgressRecords, ProgressState, RebirthState, RecordEntry, WorldState } from "./types";
 
@@ -10,6 +12,9 @@ export function createDefaultProgress(stageId: number = PROGRESSION.initialStage
     currentStage: stageId,
     nextExperience: nextExperienceForLevel(1),
     statDistribution: createDefaultStatDistribution(),
+    inventory: createDefaultInventory(),
+    reroll: createDefaultRerollState(),
+    shop: createDefaultShopState(),
     rebirth: createDefaultRebirthState(),
     rebirthRecords: [],
     records: createDefaultRecords(),
@@ -17,7 +22,7 @@ export function createDefaultProgress(stageId: number = PROGRESSION.initialStage
 }
 
 export function normalizeProgress(input?: Partial<ProgressState>): ProgressState {
-  const defaults = createDefaultProgress(input?.currentStage ?? 1);
+  const defaults = createDefaultProgress(input?.currentStage ?? PROGRESSION.initialStageId);
   const rebirth = normalizeRebirth(input?.rebirth);
   const progress: ProgressState = {
     ...defaults,
@@ -31,6 +36,9 @@ export function normalizeProgress(input?: Partial<ProgressState>): ProgressState
         ...input?.statDistribution?.assigned,
       },
     },
+    inventory: normalizeInventory(input?.inventory),
+    reroll: normalizeRerollState(input?.reroll),
+    shop: normalizeShopState(input?.shop),
     rebirth,
     rebirthRecords: input?.rebirthRecords?.map((record) => ({ ...record })) ?? defaults.rebirthRecords,
     records: normalizeRecords(input?.records),
@@ -47,6 +55,21 @@ export function cloneProgress(progress: ProgressState): ProgressState {
       assigned: { ...progress.statDistribution.assigned },
       unspentPoints: progress.statDistribution.unspentPoints,
       preset: progress.statDistribution.preset,
+    },
+    inventory: cloneInventory(progress.inventory),
+    reroll: {
+      countsByItemId: { ...progress.reroll.countsByItemId },
+    },
+    shop: {
+      nextOfferId: progress.shop.nextOfferId,
+      refreshedAt: progress.shop.refreshedAt,
+      offers: progress.shop.offers.map((offer) => ({
+        ...offer,
+        item: {
+          ...offer.item,
+          options: offer.item.options.map((option) => ({ ...option })),
+        },
+      })),
     },
     rebirth: {
       ...progress.rebirth,

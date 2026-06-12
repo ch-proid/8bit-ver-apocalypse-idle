@@ -1,4 +1,5 @@
 import { REBIRTH_BALANCE } from "../data/balance";
+import { cloneInventory } from "./inventory";
 import { createDefaultProgress, updateRecordAt } from "./progression";
 import { createInitialSimulation } from "./stage";
 import { combatPowerEstimate, emptyAllocation } from "./stats";
@@ -17,6 +18,21 @@ export function rebirthSimulation(input: SimulationState, occurredAt: number): S
   const nextProgress = createDefaultProgress(REBIRTH_BALANCE.resetStageId);
 
   nextProgress.gold = previousProgress.gold;
+  nextProgress.inventory = cloneInventory(previousProgress.inventory);
+  nextProgress.reroll = {
+    countsByItemId: { ...previousProgress.reroll.countsByItemId },
+  };
+  nextProgress.shop = {
+    nextOfferId: previousProgress.shop.nextOfferId,
+    refreshedAt: previousProgress.shop.refreshedAt,
+    offers: previousProgress.shop.offers.map((offer) => ({
+      ...offer,
+      item: {
+        ...offer.item,
+        options: offer.item.options.map((option) => ({ ...option })),
+      },
+    })),
+  };
   nextProgress.rebirth = {
     canRebirth: false,
     count: nextCount,
