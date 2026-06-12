@@ -191,6 +191,92 @@ export const PHASE_3B_DEBUG = {
   demoSeed: 9,
 } as const;
 
+export const DAMAGE_FORMULA = {
+  // TODO(Phase 7): Tune after 3D dummy scoring exists.
+  unarmedStyleMultiplier: 0.75,
+  critChanceCap: 75,
+  attackSpeedCap: 100,
+  lifeStealCap: 10,
+  damageReductionCap: 50,
+  defaultCritDamage: 1.5,
+  variance: 0.05,
+  defenseScale: 100,
+  minimumDamage: 1,
+} as const;
+
+export const ALTAR_BALANCE = {
+  // TODO(Phase 7): Tune to first relic at 5-8 minutes and stable summon every 15-30 minutes.
+  bloodByKillType: {
+    normal: 1,
+    elite: 5,
+    boss: 100,
+  },
+  stageBloodMultiplier: 0.05,
+  baseSummonBlood: 30,
+  summonGrowth: 1.22,
+  unownedWeightMultiplier: 2,
+  pityEverySummons: 5,
+  maxStars: 5,
+  bossGateStar: 3,
+} as const;
+
+export const RELIC_BALANCE = {
+  // TODO(Phase 7): Tune each build against Chapter 1 vertical slice.
+  specterLord: {
+    styleMultiplier: 1.05,
+    maxSpecters: 4,
+    fiveStarExtraSpecters: 2,
+    specterTtlSeconds: 20,
+    specterDamageMultiplier: 0.35,
+    explosionDamage: 12,
+  },
+  bloodBerserker: {
+    styleMultiplier: 0.72,
+    cooldownMultiplier: 0.5,
+    lifeSteal: 8,
+    hpLeakPerSecondPercent: 1,
+    threeStarAttackSpeedBonus: 25,
+    fiveStarKillPauseSeconds: 3,
+  },
+  plagueDoctor: {
+    styleMultiplier: 0,
+    stackDamage: 6,
+    directStackGain: 1,
+    spreadStacks: 1,
+    cloudHealPerSecond: 1.2,
+  },
+  martyr: {
+    styleMultiplier: 1,
+    selfDamagePercent: 2,
+    damagePerMissingHpPercent: 1.5,
+    lowHpThresholdPercent: 30,
+    threeStarCritChanceBonus: 25,
+  },
+  executioner: {
+    styleMultiplier: 1.15,
+    cooldownMultiplier: 1.45,
+    markPerHit: 1,
+    markThreshold: 3,
+    executeHpPercent: 35,
+    bossExecuteHpPercent: 8,
+  },
+  kingsShadow: {
+    styleMultiplier: 0.9,
+    gaugePerHit: 25,
+    overdriveThreshold: 100,
+    overdriveSeconds: 4,
+    overdriveStyleMultiplier: 1.6,
+    overdriveKillBonusSeconds: 0.5,
+    exhaustionSeconds: 2,
+  },
+} as const;
+
+export const PHASE_3C_DEBUG = {
+  // TODO(Phase 4): Remove this console-only verification path when formal altar UI lands.
+  demoSeconds: 20,
+  demoSeed: 3237998081,
+} as const;
+
 export function nextExperienceForLevel(level: number): number {
   const normalizedLevel = Math.max(1, Math.floor(level));
   const firstKneeCost = EXPERIENCE_CURVE.baseNextExperience

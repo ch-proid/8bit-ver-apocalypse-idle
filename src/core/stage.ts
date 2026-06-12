@@ -2,6 +2,7 @@ import { PLAYER_BALANCE, PROGRESSION, RNG_BALANCE } from "../data/balance";
 import { MONSTERS } from "../data/monsters";
 import { STAGE_1, STAGES, type StageDefinition } from "../data/stages";
 import { createDefaultProgress } from "./progression";
+import { createDefaultRelicCombatState } from "./relics";
 import { createRngState } from "./rng";
 import { applyPlayerStats } from "./stats";
 import type { Monster, Platform, ProgressState, SimulationState } from "./types";
@@ -45,6 +46,7 @@ export function createInitialSimulation(
     world: {
       elapsed: 0,
       rng: createRngState(seed),
+      relicCombat: createDefaultRelicCombatState(),
       platforms,
       player,
       monsters: createStageMonsters(stage, platforms),

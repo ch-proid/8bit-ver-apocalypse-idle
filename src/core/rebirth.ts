@@ -1,4 +1,5 @@
 import { REBIRTH_BALANCE } from "../data/balance";
+import { cloneAltarState } from "./altar";
 import { cloneInventory } from "./inventory";
 import { createDefaultProgress, updateRecordAt } from "./progression";
 import { createInitialSimulation } from "./stage";
@@ -33,6 +34,7 @@ export function rebirthSimulation(input: SimulationState, occurredAt: number): S
       },
     })),
   };
+  nextProgress.altar = cloneAltarState(previousProgress.altar);
   nextProgress.rebirth = {
     canRebirth: false,
     count: nextCount,

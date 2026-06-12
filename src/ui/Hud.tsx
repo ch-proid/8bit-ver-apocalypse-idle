@@ -1,4 +1,5 @@
 import { DEBUG_GRANTS } from "../data/balance";
+import { RELIC_IDS } from "../data/relics";
 import { useGameStore } from "../store/gameStore";
 
 export function Hud() {
@@ -13,6 +14,9 @@ export function Hud() {
   const logPhase3ADemo = useGameStore((state) => state.logPhase3ADemo);
   const equipBestItems = useGameStore((state) => state.equipBestItems);
   const logPhase3BDemo = useGameStore((state) => state.logPhase3BDemo);
+  const summonRelicForDebug = useGameStore((state) => state.summonRelicForDebug);
+  const equipRelicForDebug = useGameStore((state) => state.equipRelicForDebug);
+  const logPhase3CDemo = useGameStore((state) => state.logPhase3CDemo);
   const offlineReward = useGameStore((state) => state.lastOfflineReward);
   const expPercent = Math.min(100, Math.floor((progress.experience / progress.nextExperience) * 100));
   const distribution = progress.statDistribution;
@@ -29,6 +33,7 @@ export function Hud() {
         <span>RB {progress.rebirth.count}</span>
         <span>EXP x{progress.rebirth.experienceMultiplier.toFixed(2)}</span>
         <span>PT {distribution.unspentPoints}</span>
+        <span>BLD {Math.floor(progress.altar.blood)}</span>
       </div>
 
       <div className="bar-row">
@@ -66,6 +71,12 @@ export function Hud() {
         <button type="button" onClick={logPhase3BDemo}>
           LOG3B
         </button>
+        <button type="button" onClick={summonRelicForDebug}>
+          SUM
+        </button>
+        <button type="button" onClick={logPhase3CDemo}>
+          LOG3C
+        </button>
       </div>
 
       <div className="phase3-panel stat-panel">
@@ -95,6 +106,15 @@ export function Hud() {
           EQUIP
         </button>
         <span>{distribution.preset}</span>
+      </div>
+
+      <div className="phase3-panel button-panel">
+        <span>RELIC {progress.altar.equippedRelicId ?? "NONE"}</span>
+        {RELIC_IDS.map((relicId) => (
+          <button key={relicId} type="button" onClick={() => equipRelicForDebug(relicId)}>
+            {relicId.slice(0, 3).toUpperCase()}
+          </button>
+        ))}
       </div>
 
       {offlineReward ? (

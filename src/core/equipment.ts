@@ -11,6 +11,8 @@ import type {
   ItemSlot,
   RngState,
   SinAffixKey,
+  CombatAffixStats,
+  SinAffixStats,
   StatAllocation,
 } from "./types";
 
@@ -93,7 +95,42 @@ export function calculateEquipmentStats(equipped: EquippedItems): StatAllocation
       continue;
     }
     stats[item.baseStat] += item.baseValue;
-    // TODO(Phase 3C): Apply combat-facing affixes through the formal damage pipeline, not here.
+  }
+
+  return stats;
+}
+
+export function calculateCombatAffixStats(equipped: EquippedItems): CombatAffixStats {
+  const stats = createEmptyCombatAffixStats();
+
+  for (const item of Object.values(equipped)) {
+    if (!item) {
+      continue;
+    }
+    for (const option of item.options) {
+      if (option.sin || !(option.key in stats)) {
+        continue;
+      }
+      stats[option.key as keyof CombatAffixStats] += option.value;
+    }
+  }
+
+  return stats;
+}
+
+export function calculateSinAffixStats(equipped: EquippedItems): SinAffixStats {
+  const stats = createEmptySinAffixStats();
+
+  for (const item of Object.values(equipped)) {
+    if (!item) {
+      continue;
+    }
+    for (const option of item.options) {
+      if (!option.sin || !(option.key in stats)) {
+        continue;
+      }
+      stats[option.key as keyof SinAffixStats] += option.value;
+    }
   }
 
   return stats;
@@ -183,4 +220,29 @@ function rollSinAffixValue(rng: RngState, key: SinAffixKey): number {
 function roundTo(value: number, digits: number): number {
   const scale = 10 ** digits;
   return Math.round(value * scale) / scale;
+}
+
+function createEmptyCombatAffixStats(): CombatAffixStats {
+  return {
+    critChance: 0,
+    critDamage: 0,
+    attackSpeed: 0,
+    damageIncrease: 0,
+    finalDamage: 0,
+    defPenetration: 0,
+    lifeSteal: 0,
+    goldGain: 0,
+    damageReduction: 0,
+  };
+}
+
+function createEmptySinAffixStats(): SinAffixStats {
+  return {
+    specterDamage: 0,
+    bloodLeech: 0,
+    plagueSpread: 0,
+    martyrPain: 0,
+    executionThreshold: 0,
+    despairBurst: 0,
+  };
 }

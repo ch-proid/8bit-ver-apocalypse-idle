@@ -34,6 +34,15 @@ export type SinAffixKey =
   | "executionThreshold"
   | "despairBurst";
 export type ItemAffixKey = GeneralAffixKey | SinAffixKey;
+export type SinId = "pride" | "gluttony" | "grief" | "fanaticism" | "abyss" | "despair";
+export type RelicId =
+  | "specterLord"
+  | "bloodBerserker"
+  | "plagueDoctor"
+  | "martyr"
+  | "executioner"
+  | "kingsShadow";
+export type KillType = "normal" | "elite" | "boss";
 
 export interface StatAllocation {
   atk: number;
@@ -120,6 +129,64 @@ export interface RngState {
   seed: number;
 }
 
+export interface CombatAffixStats {
+  critChance: number;
+  critDamage: number;
+  attackSpeed: number;
+  damageIncrease: number;
+  finalDamage: number;
+  defPenetration: number;
+  lifeSteal: number;
+  goldGain: number;
+  damageReduction: number;
+}
+
+export interface SinAffixStats {
+  specterDamage: number;
+  bloodLeech: number;
+  plagueSpread: number;
+  martyrPain: number;
+  executionThreshold: number;
+  despairBurst: number;
+}
+
+export interface RelicInstance {
+  id: RelicId;
+  stars: number;
+}
+
+export type OwnedRelics = Partial<Record<RelicId, RelicInstance>>;
+export type BossDefeatedFlags = Record<SinId, boolean>;
+
+export interface AltarState {
+  blood: number;
+  summonCount: number;
+  pityProgress: number;
+  targetedSummons: number;
+  owned: OwnedRelics;
+  equippedRelicId: RelicId | null;
+  bossDefeated: BossDefeatedFlags;
+}
+
+export interface SpecterEntity {
+  id: string;
+  ttl: number;
+  damageMultiplier: number;
+}
+
+export interface RelicCombatState {
+  specters: SpecterEntity[];
+  plagueStacks: Record<string, number>;
+  plagueClouds: number;
+  executionMarks: Record<string, number>;
+  overdriveGauge: number;
+  overdriveTimer: number;
+  exhaustionTimer: number;
+  isOverdrive: boolean;
+  bloodLeakPauseTimer: number;
+  lastTriggered: string | null;
+}
+
 export interface Player {
   position: Vec2;
   velocity: Vec2;
@@ -185,6 +252,7 @@ export interface ProgressState {
   inventory: InventoryState;
   reroll: RerollState;
   shop: ShopState;
+  altar: AltarState;
   rebirth: RebirthState;
   rebirthRecords: RebirthRecord[];
   records: ProgressRecords;
@@ -193,6 +261,7 @@ export interface ProgressState {
 export interface WorldState {
   elapsed: number;
   rng: RngState;
+  relicCombat: RelicCombatState;
   platforms: Platform[];
   player: Player;
   monsters: Monster[];

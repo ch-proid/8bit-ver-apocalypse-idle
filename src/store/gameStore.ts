@@ -1,14 +1,17 @@
 import { create } from "zustand";
-import { EXPERIENCE_CURVE, FIXED_DELTA, nextExperienceForLevel, PHASE_3B_DEBUG, PROGRESSION, TICK_RATE } from "../data/balance";
+import { RELIC_IDS } from "../data/relics";
+import { EXPERIENCE_CURVE, FIXED_DELTA, nextExperienceForLevel, PHASE_3B_DEBUG, PHASE_3C_DEBUG, PROGRESSION, TICK_RATE } from "../data/balance";
+import { equipRelic, grantRelic, summonRelic, summonRequirement } from "../core/altar";
 import { calculateItemValue } from "../core/equipment";
 import { bestInventoryItemForSlot, equipItem } from "../core/inventory";
 import { cloneProgress, gainExperience } from "../core/progression";
+import { cloneRelicCombatState, relicDebugSnapshot } from "../core/relics";
 import { calculateRebirthExperienceMultiplier, rebirthSimulation, unlockRebirth } from "../core/rebirth";
 import { cloneRngState } from "../core/rng";
 import { createInitialSimulation } from "../core/stage";
 import { stepSimulation } from "../core/simulation";
 import { applyPlayerStats, combatPowerEstimate, setStatPreset as setStatDistributionPreset, spendStatPoint } from "../core/stats";
-import type { ItemSlot, SimulationState, StatKey, StatPreset } from "../core/types";
+import type { ItemSlot, RelicId, SimulationState, StatKey, StatPreset } from "../core/types";
 import { calculateOfflineReward, loadGame, saveGame } from "../save/saveGame";
 
 interface GameStore {
@@ -25,6 +28,9 @@ interface GameStore {
   logPhase3ADemo: () => void;
   equipBestItems: () => void;
   logPhase3BDemo: () => void;
+  summonRelicForDebug: () => void;
+  equipRelicForDebug: (relicId: RelicId) => void;
+  logPhase3CDemo: () => void;
   hydrate: () => Promise<void>;
   saveNow: () => Promise<void>;
 }
@@ -166,6 +172,53 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({ simulation: demo });
   },
 
+  summonRelicForDebug: () => {
+    set((state) => {
+      const simulation = cloneSimulation(state.simulation);
+      const required = summonRequirement(simulation.progress.altar.summonCount);
+      if (simulation.progress.altar.blood < required) {
+        simulation.progress.altar.blood = required;
+      }
+      summonRelic(simulation.progress.altar, simulation.world.rng);
+      return { simulation };
+    });
+  },
+
+  equipRelicForDebug: (relicId: RelicId) => {
+    set((state) => {
+      const simulation = cloneSimulation(state.simulation);
+      if (!simulation.progress.altar.owned[relicId]) {
+        grantRelic(simulation.progress.altar, relicId);
+      }
+      equipRelic(simulation.progress.altar, relicId);
+      return { simulation };
+    });
+  },
+
+  logPhase3CDemo: () => {
+    const rows = RELIC_IDS.map((relicId) => {
+      let demo = createInitialSimulation(
+        get().simulation.progress.currentStage,
+        cloneProgress(get().simulation.progress),
+        PHASE_3C_DEBUG.demoSeed,
+      );
+      grantRelic(demo.progress.altar, relicId);
+      equipRelic(demo.progress.altar, relicId);
+
+      for (let i = 0; i < PHASE_3C_DEBUG.demoSeconds * TICK_RATE; i += 1) {
+        demo = stepSimulation(demo, FIXED_DELTA);
+      }
+
+      return {
+        build: relicId,
+        gold: demo.progress.gold,
+        blood: Math.floor(demo.progress.altar.blood),
+        ...relicDebugSnapshot(demo.progress, demo.world),
+      };
+    });
+    console.table(rows);
+  },
+
   hydrate: async () => {
     const save = await loadGame();
     if (!save) {
@@ -199,6 +252,7 @@ function cloneSimulation(simulation: SimulationState): SimulationState {
     world: {
       ...simulation.world,
       rng: cloneRngState(simulation.world.rng),
+      relicCombat: cloneRelicCombatState(simulation.world.relicCombat),
       platforms: simulation.world.platforms.map((platform) => ({ ...platform })),
       player: {
         ...simulation.world.player,

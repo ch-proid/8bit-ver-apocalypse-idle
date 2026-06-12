@@ -1,11 +1,21 @@
 import { FLOATING_TEXT, MONSTER_BALANCE } from "../data/balance";
 import { STAGES } from "../data/stages";
-import { dealPlayerDamage, distanceBetween } from "./combat";
+import { clampCombatAffixes, dealPlayerDamage, distanceBetween, effectiveAttackCooldown } from "./combat";
 import { rollMonsterDrop } from "./drop";
+import { calculateCombatAffixStats } from "./equipment";
 import { addItemToInventory } from "./inventory";
 import { applyGravity, jump, moveAndCollide } from "./physics";
 import { addFloatingText, cloneProgress, grantRewards } from "./progression";
+import {
+  applyRelicAfterHit,
+  applyRelicBeforeAttack,
+  applyRelicOnKill,
+  cloneRelicCombatState,
+  relicDamageHooks,
+  updateRelicCombat,
+} from "./relics";
 import { cloneRngState } from "./rng";
+import { addBlood } from "./altar";
 import { getPlatformById, platformCenterX } from "./stage";
 import type { Monster, SimulationState } from "./types";
 
@@ -15,6 +25,7 @@ export function stepSimulation(input: SimulationState, dt: number): SimulationSt
   world.player.attackTimer = Math.max(0, world.player.attackTimer - dt);
   world.player.jumpLock = Math.max(0, world.player.jumpLock - dt);
   world.player.hp = Math.min(world.player.maxHp, world.player.hp + world.player.hpRegen * dt);
+  updateRelicCombat(progress, world, dt);
 
   updateMonsters(world.monsters, world.platforms, dt);
   updatePlayerAi(input, dt);
@@ -25,6 +36,7 @@ export function stepSimulation(input: SimulationState, dt: number): SimulationSt
     world: {
       ...world,
       rng: cloneRngState(world.rng),
+      relicCombat: cloneRelicCombatState(world.relicCombat),
       player: {
         ...world.player,
         position: { ...world.player.position },
@@ -67,13 +79,28 @@ function updatePlayerAi(state: SimulationState, dt: number): void {
     player.velocity.x = 0;
 
     if (player.attackTimer <= 0) {
-      const damage = dealPlayerDamage(player, target);
-      addFloatingText(world, `${damage}`, target.position.x + target.width / 2, target.position.y - 2, "#d8e3c8");
-      player.attackTimer = player.attackCooldown;
+      applyRelicBeforeAttack(progress, world);
+      const damageResult = dealPlayerDamage(player, target, progress, world);
+      const relicResult = applyRelicAfterHit(progress, world, target, damageResult.finalDamage);
+      const totalDamage = damageResult.finalDamage + relicResult.extraDamage;
+      const combatAffixes = calculateCombatAffixStats(progress.inventory.equipped);
+      const lifeSteal = clampCombatAffixes(combatAffixes).lifeSteal;
+      if (lifeSteal > 0 && totalDamage > 0) {
+        player.hp = Math.min(player.maxHp, player.hp + totalDamage * lifeSteal / 100);
+      }
+      addFloatingText(world, `${totalDamage}`, target.position.x + target.width / 2, target.position.y - 2, "#d8e3c8");
+      const hooks = relicDamageHooks(progress, world, player);
+      player.attackTimer = effectiveAttackCooldown(
+        player.attackCooldown,
+        combatAffixes,
+        hooks.cooldownMultiplier,
+      );
 
       if (target.hp <= 0) {
         killMonster(state, target);
         grantRewards(progress, world, target.experience, target.gold);
+        addBlood(progress.altar, "normal", progress.currentStage);
+        applyRelicOnKill(progress, world, target);
         grantDrop(state);
       }
     }

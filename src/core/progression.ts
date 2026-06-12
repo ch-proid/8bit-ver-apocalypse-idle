@@ -1,4 +1,6 @@
 import { FLOATING_TEXT, nextExperienceForLevel, PROGRESSION, REBIRTH_BALANCE, STAT_GROWTH } from "../data/balance";
+import { cloneAltarState, createDefaultAltarState, normalizeAltarState } from "./altar";
+import { calculateCombatAffixStats } from "./equipment";
 import { createDefaultRerollState, createDefaultShopState, normalizeRerollState, normalizeShopState } from "./gold";
 import { cloneInventory, createDefaultInventory, normalizeInventory } from "./inventory";
 import { applyLevelStatPoints, applyPlayerStats, createDefaultStatDistribution, emptyAllocation } from "./stats";
@@ -15,6 +17,7 @@ export function createDefaultProgress(stageId: number = PROGRESSION.initialStage
     inventory: createDefaultInventory(),
     reroll: createDefaultRerollState(),
     shop: createDefaultShopState(),
+    altar: createDefaultAltarState(),
     rebirth: createDefaultRebirthState(),
     rebirthRecords: [],
     records: createDefaultRecords(),
@@ -39,6 +42,7 @@ export function normalizeProgress(input?: Partial<ProgressState>): ProgressState
     inventory: normalizeInventory(input?.inventory),
     reroll: normalizeRerollState(input?.reroll),
     shop: normalizeShopState(input?.shop),
+    altar: normalizeAltarState(input?.altar),
     rebirth,
     rebirthRecords: input?.rebirthRecords?.map((record) => ({ ...record })) ?? defaults.rebirthRecords,
     records: normalizeRecords(input?.records),
@@ -71,6 +75,7 @@ export function cloneProgress(progress: ProgressState): ProgressState {
         },
       })),
     },
+    altar: cloneAltarState(progress.altar),
     rebirth: {
       ...progress.rebirth,
       permanentStats: { ...progress.rebirth.permanentStats },
@@ -90,9 +95,11 @@ export function grantRewards(
   experience: number,
   gold: number,
 ): void {
-  progress.gold += gold;
-  if (gold > 0) {
-    addFloatingText(world, `+${gold}G`, world.player.position.x, world.player.position.y - 10, "#e0c04a");
+  const affixes = calculateCombatAffixStats(progress.inventory.equipped);
+  const actualGold = Math.max(0, Math.floor(gold * (1 + affixes.goldGain / 100)));
+  progress.gold += actualGold;
+  if (actualGold > 0) {
+    addFloatingText(world, `+${actualGold}G`, world.player.position.x, world.player.position.y - 10, "#e0c04a");
   }
 
   gainExperience(progress, world, experience);

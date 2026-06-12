@@ -1,0 +1,287 @@
+import { describe, expect, it } from "vitest";
+import { RELIC_IDS } from "../data/relics";
+import { DAMAGE_FORMULA, FIXED_DELTA, RELIC_BALANCE, TICK_RATE } from "../data/balance";
+import {
+  addBlood,
+  createDefaultAltarState,
+  equipRelic,
+  grantRelic,
+  relicStars,
+  summonRelic,
+  summonRequirement,
+} from "./altar";
+import {
+  calculateDamage,
+  clampCombatAffixes,
+  dealPlayerDamage,
+  effectiveAttackCooldown,
+} from "./combat";
+import {
+  applyRelicAfterHit,
+  applyRelicBeforeAttack,
+  applyRelicOnKill,
+  relicDebugSnapshot,
+  relicDamageHooks,
+} from "./relics";
+import { createRngState } from "./rng";
+import { createInitialSimulation } from "./stage";
+import { stepSimulation } from "./simulation";
+import type { CombatAffixStats, Monster, RelicId, SimulationState } from "./types";
+
+interface RelicDuelSignature {
+  relic: RelicId;
+  totalDamage: number;
+  style: number;
+  playerHp: number;
+  executionTriggered: boolean;
+  specters: number;
+  plagueStacks: number;
+  executionMarks: number;
+  overdriveGauge: number;
+  isOverdrive: boolean;
+}
+
+describe("phase 3C damage formula, altar, and relic builds", () => {
+  it("locks the Bible damage formula order with step-by-step expected values", () => {
+    const rng = createRngState(1);
+    const result = calculateDamage({
+      attack: 100,
+      styleMultiplier: 1.2,
+      defenderDefense: 40,
+      defenderDamageReduction: 25,
+      affixes: {
+        ...emptyCombatAffixes(),
+        critChance: 100,
+        critDamage: 50,
+        damageIncrease: 20,
+        finalDamage: 10,
+        defPenetration: 10,
+      },
+      rng,
+      forceCritical: true,
+      forceVarianceRoll: 0.5,
+    });
+
+    expect(result.raw).toBeCloseTo(120);
+    expect(result.afterDamageIncrease).toBeCloseTo(144);
+    expect(result.effectiveDefense).toBeCloseTo(30);
+    expect(result.afterDefense).toBeCloseTo(110.769, 3);
+    expect(result.critical).toBe(true);
+    expect(result.afterCritical).toBeCloseTo(221.538, 3);
+    expect(result.afterFinalDamage).toBeCloseTo(243.692, 3);
+    expect(result.afterDamageReduction).toBeCloseTo(182.769, 3);
+    expect(result.varianceMultiplier).toBeCloseTo(1);
+    expect(result.finalDamage).toBe(182);
+  });
+
+  it("supports critical off, penetration, final damage, damage reduction, and variance bounds", () => {
+    const base = {
+      attack: 80,
+      styleMultiplier: 1,
+      defenderDefense: 30,
+      defenderDamageReduction: 10,
+      affixes: {
+        ...emptyCombatAffixes(),
+        damageIncrease: 25,
+        finalDamage: 20,
+        defPenetration: 15,
+      },
+      rng: createRngState(2),
+      forceCritical: false,
+    };
+    const low = calculateDamage({ ...base, forceVarianceRoll: 0 });
+    const high = calculateDamage({ ...base, forceVarianceRoll: 1 });
+
+    expect(low.critical).toBe(false);
+    expect(low.effectiveDefense).toBe(15);
+    expect(low.varianceMultiplier).toBeCloseTo(1 - DAMAGE_FORMULA.variance);
+    expect(high.varianceMultiplier).toBeCloseTo(1 + DAMAGE_FORMULA.variance);
+    expect(high.finalDamage).toBeGreaterThan(low.finalDamage);
+  });
+
+  it("clamps combat affix caps and attack-speed cooldown", () => {
+    const clamped = clampCombatAffixes({
+      critChance: 400,
+      critDamage: 10,
+      attackSpeed: 300,
+      damageIncrease: 1,
+      finalDamage: 1,
+      defPenetration: 1,
+      lifeSteal: 99,
+      goldGain: 5,
+      damageReduction: 99,
+    });
+
+    expect(clamped.critChance).toBe(DAMAGE_FORMULA.critChanceCap);
+    expect(clamped.attackSpeed).toBe(DAMAGE_FORMULA.attackSpeedCap);
+    expect(clamped.lifeSteal).toBe(DAMAGE_FORMULA.lifeStealCap);
+    expect(clamped.damageReduction).toBe(DAMAGE_FORMULA.damageReductionCap);
+    expect(effectiveAttackCooldown(1, clamped, 1)).toBeCloseTo(0.5);
+  });
+
+  it("accumulates blood, summons relics, grants pity targeting, and gates 3-star upgrades", () => {
+    const altar = createDefaultAltarState();
+    const rng = createRngState(7);
+
+    addBlood(altar, "normal", 1);
+    addBlood(altar, "elite", 1);
+    addBlood(altar, "boss", 1);
+    expect(altar.blood).toBe(106);
+
+    for (let i = 0; i < 5; i += 1) {
+      altar.blood = summonRequirement(altar.summonCount);
+      expect(summonRelic(altar, rng)).not.toBeNull();
+    }
+    expect(altar.targetedSummons).toBe(1);
+
+    altar.blood = summonRequirement(altar.summonCount);
+    const targeted = summonRelic(altar, rng, "kingsShadow");
+    expect(targeted).toBe("kingsShadow");
+    expect(altar.targetedSummons).toBe(0);
+
+    const gated = createDefaultAltarState();
+    grantRelic(gated, "specterLord");
+    grantRelic(gated, "specterLord");
+    grantRelic(gated, "specterLord");
+    expect(relicStars(gated, "specterLord")).toBe(2);
+    gated.bossDefeated.pride = true;
+    grantRelic(gated, "specterLord");
+    expect(relicStars(gated, "specterLord")).toBe(3);
+  });
+
+  it("weights unowned relics higher during random summons", () => {
+    const rng = createRngState(99);
+    let ownedHits = 0;
+    let unownedHits = 0;
+
+    for (let i = 0; i < 500; i += 1) {
+      const altar = createDefaultAltarState();
+      grantRelic(altar, "specterLord");
+      altar.blood = summonRequirement(0);
+      const result = summonRelic(altar, rng);
+      if (result === "specterLord") {
+        ownedHits += 1;
+      } else if (result) {
+        unownedHits += 1;
+      }
+    }
+
+    expect(unownedHits).toBeGreaterThan(ownedHits * 5);
+  });
+
+  it("applies each of the six relic build rules through deterministic combat state", () => {
+    const signatures = RELIC_IDS.map((relicId) => runRelicDuel(relicId));
+    const unique = new Set(signatures.map((entry) => JSON.stringify(entry)));
+
+    expect(unique.size).toBe(RELIC_IDS.length);
+    expect(signatures.find((entry) => entry.relic === "specterLord")?.specters).toBe(1);
+    expect(signatures.find((entry) => entry.relic === "bloodBerserker")?.playerHp).toBeGreaterThan(60);
+    expect(signatures.find((entry) => entry.relic === "plagueDoctor")?.plagueStacks).toBeGreaterThan(0);
+    expect(signatures.find((entry) => entry.relic === "martyr")?.playerHp).toBeLessThan(60);
+    expect(signatures.find((entry) => entry.relic === "executioner")?.executionTriggered).toBe(true);
+    expect(signatures.find((entry) => entry.relic === "kingsShadow")?.isOverdrive).toBe(true);
+  });
+
+  it("declares execution percentage damage as a separate channel that bypasses the normal formula", () => {
+    const state = createRelicState("executioner");
+    const monster = prepareTarget(state, 1000);
+    let normalDamage = 0;
+    let executeDamage = 0;
+
+    for (let i = 0; i < RELIC_BALANCE.executioner.markThreshold; i += 1) {
+      const result = dealPlayerDamage(state.world.player, monster, state.progress, state.world);
+      normalDamage += result.finalDamage;
+      const relicResult = applyRelicAfterHit(state.progress, state.world, monster, result.finalDamage);
+      executeDamage += relicResult.extraDamage;
+      if (i < RELIC_BALANCE.executioner.markThreshold - 1) {
+        expect(relicResult.channel).not.toBe("execute");
+      } else {
+        expect(relicResult.channel).toBe("execute");
+      }
+    }
+
+    expect(executeDamage).toBe(Math.floor(monster.maxHp * RELIC_BALANCE.executioner.executeHpPercent / 100));
+    expect(executeDamage).toBeGreaterThan(normalDamage);
+  });
+
+  it("keeps relic-equipped simulations deterministic for identical seeds", () => {
+    let runA = createRelicState("plagueDoctor", 20260613);
+    let runB = createRelicState("plagueDoctor", 20260613);
+
+    for (let i = 0; i < TICK_RATE * 30; i += 1) {
+      runA = stepSimulation(runA, FIXED_DELTA);
+      runB = stepSimulation(runB, FIXED_DELTA);
+    }
+
+    expect(runA.world).toEqual(runB.world);
+    expect(runA.progress).toEqual(runB.progress);
+  });
+});
+
+function runRelicDuel(relicId: RelicId): RelicDuelSignature {
+  const state = createRelicState(relicId);
+  const monster = prepareTarget(state, 500);
+  let totalDamage = 0;
+  let executionTriggered = false;
+
+  for (let i = 0; i < 5; i += 1) {
+    applyRelicBeforeAttack(state.progress, state.world);
+    const damage = dealPlayerDamage(state.world.player, monster, state.progress, state.world);
+    const relic = applyRelicAfterHit(state.progress, state.world, monster, damage.finalDamage);
+    totalDamage += damage.finalDamage + relic.extraDamage;
+    executionTriggered = executionTriggered || relic.channel === "execute";
+  }
+
+  if (relicId === "specterLord") {
+    monster.hp = 0;
+    applyRelicOnKill(state.progress, state.world, monster);
+  }
+
+  const hooks = relicDamageHooks(state.progress, state.world, state.world.player);
+  const snapshot = relicDebugSnapshot(state.progress, state.world);
+  return {
+    relic: relicId,
+    totalDamage,
+    style: hooks.styleMultiplier,
+    playerHp: Math.round(state.world.player.hp * 100) / 100,
+    executionTriggered,
+    specters: Number(snapshot.specters),
+    plagueStacks: Number(snapshot.plagueStacks),
+    executionMarks: Number(snapshot.executionMarks),
+    overdriveGauge: Number(snapshot.overdriveGauge),
+    isOverdrive: Boolean(snapshot.isOverdrive),
+  };
+}
+
+function createRelicState(relicId: RelicId, seed = 1234): SimulationState {
+  const state = createInitialSimulation(1, undefined, seed);
+  grantRelic(state.progress.altar, relicId);
+  equipRelic(state.progress.altar, relicId);
+  state.world.player.hp = 60;
+  return state;
+}
+
+function prepareTarget(state: SimulationState, hp: number): Monster {
+  const monster = state.world.monsters[0];
+  monster.hp = hp;
+  monster.maxHp = hp;
+  monster.alive = true;
+  monster.platformId = state.world.player.platformId;
+  monster.position.x = state.world.player.position.x + state.world.player.attackRange - monster.width;
+  monster.position.y = state.world.player.position.y;
+  return monster;
+}
+
+function emptyCombatAffixes(): CombatAffixStats {
+  return {
+    critChance: 0,
+    critDamage: 0,
+    attackSpeed: 0,
+    damageIncrease: 0,
+    finalDamage: 0,
+    defPenetration: 0,
+    lifeSteal: 0,
+    goldGain: 0,
+    damageReduction: 0,
+  };
+}
