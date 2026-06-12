@@ -1,9 +1,11 @@
-node_modules/
-dist/
-*.tsbuildinfo
-.DS_Store
+node_modules
+dist
+coverage
+.git
+.vercel
+.vscode
+docs
 IMPLEMENTATION_PLAN_v1.md
 pixel-style-analysis.html
 pixel-style-analysis-preview.png
-
-.vercel
+tsconfig.tsbuildinfo

@@ -7,8 +7,8 @@ export const CHAPTER_PALETTES = {
 export const PLACEHOLDER_COLORS = {
   player: "#d8e3c8",
   playerAccent: "#7da963",
-  platform: "#56141d",
-  platformTop: "#93303a",
+  platform: "#2b0a10",
+  platformTop: "#56141d",
   monster: "#e0707a",
   monsterAlt: "#a89274",
   hp: "#c0303a",

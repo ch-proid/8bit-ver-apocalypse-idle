@@ -10,12 +10,37 @@ import {
   type Texture,
 } from "pixi.js";
 import { MONSTER_ASSETS, PLAYER_CHARACTER, type PixelSpriteAsset } from "../data/assets";
-import { WORLD } from "../data/balance";
+import { MONSTER_BALANCE, WORLD } from "../data/balance";
 import { CHAPTER_PALETTES, PLACEHOLDER_COLORS } from "../data/palettes";
 import type { FloatingText, Monster, SimulationState } from "../core/types";
+import {
+  BACKGROUND_RENDER,
+  FLOATING_TEXT_RENDER,
+  GAMEBOY_SCREEN_HEIGHT,
+  GAMEBOY_SCREEN_WIDTH,
+  HP_BAR_RENDER,
+  MONSTER_FALLBACK_RENDER,
+  PIXI_RENDER_OPTIONS,
+  PLAYER_FALLBACK_RENDER,
+  PLATFORM_RENDER,
+  RENDER_CLOCK,
+  STEPPED_MOTION,
+} from "./config";
 
-const VIEW_WIDTH = 160;
-const VIEW_HEIGHT = 144;
+const ENTITY_DISPLAY_INTERVAL = 1 / STEPPED_MOTION.updateRateHz;
+const FLOATING_TEXT_DISPLAY_INTERVAL = 1 / STEPPED_MOTION.floatingTextUpdateRateHz;
+
+interface EntityDisplay {
+  x: number;
+  y: number;
+  direction: -1 | 1;
+  walkFrame: 0 | 1;
+}
+
+interface FloatingDisplay {
+  x: number;
+  y: number;
+}
 
 export class PixiWorld {
   private app: Application | null = null;
@@ -29,17 +54,24 @@ export class PixiWorld {
   private monsterTextures = new Map<string, Texture>();
   private loadingMonsterAssets = new Set<string>();
   private hpBars = new Map<string, Graphics>();
-  private labels = new Map<string, Text>();
   private floating = new Map<string, Text>();
+  private monsterDisplays = new Map<string, EntityDisplay>();
+  private floatingDisplays = new Map<string, FloatingDisplay>();
+  private playerDisplay: EntityDisplay | null = null;
+  private cameraDisplayX = 0;
+  private nextEntityDisplayAt = 0;
+  private nextFloatingDisplayAt = 0;
+  private lastSimulationElapsed = 0;
+  private walkFrame: 0 | 1 = 0;
 
   async mount(host: HTMLElement): Promise<void> {
     const app = new Application();
     await app.init({
-      width: VIEW_WIDTH,
-      height: VIEW_HEIGHT,
+      width: GAMEBOY_SCREEN_WIDTH,
+      height: GAMEBOY_SCREEN_HEIGHT,
       background: CHAPTER_PALETTES.bloodBanquet[0],
       antialias: false,
-      resolution: 1,
+      resolution: PIXI_RENDER_OPTIONS.resolution,
       autoDensity: false,
       roundPixels: true,
     });
@@ -68,11 +100,13 @@ export class PixiWorld {
     this.playerSprite = null;
     this.monsters.clear();
     this.monsterSprites.clear();
+    this.monsterDisplays.clear();
     this.monsterTextures.clear();
     this.loadingMonsterAssets.clear();
     this.hpBars.clear();
-    this.labels.clear();
     this.floating.clear();
+    this.floatingDisplays.clear();
+    this.playerDisplay = null;
   }
 
   render(simulation: SimulationState): void {
@@ -80,7 +114,9 @@ export class PixiWorld {
       return;
     }
 
-    const cameraX = clamp(Math.round(simulation.world.player.position.x - VIEW_WIDTH / 2), 0, WORLD.width - VIEW_WIDTH);
+    this.updateDisplayState(simulation);
+
+    const cameraX = this.cameraDisplayX;
     this.world.x = -cameraX;
     this.drawBackground(cameraX);
     this.drawPlatforms(simulation);
@@ -106,18 +142,39 @@ export class PixiWorld {
 
   private drawBackground(cameraX: number): void {
     this.bg.clear();
-    this.bg.rect(0, 0, VIEW_WIDTH, VIEW_HEIGHT).fill(CHAPTER_PALETTES.bloodBanquet[0]);
-    this.bg.rect(0, 0, VIEW_WIDTH, 44).fill(CHAPTER_PALETTES.bloodBanquet[1]);
+    this.bg.rect(0, 0, GAMEBOY_SCREEN_WIDTH, GAMEBOY_SCREEN_HEIGHT).fill(CHAPTER_PALETTES.bloodBanquet[0]);
+    this.bg.rect(0, 0, GAMEBOY_SCREEN_WIDTH, BACKGROUND_RENDER.skyBandHeight).fill(CHAPTER_PALETTES.bloodBanquet[1]);
 
-    for (let x = -((cameraX / 3) % 36); x < VIEW_WIDTH + 36; x += 36) {
-      this.bg.rect(x, 38, 14, 54).fill(CHAPTER_PALETTES.bloodBanquet[1]);
-      this.bg.rect(x + 5, 28, 4, 10).fill(CHAPTER_PALETTES.bloodBanquet[2]);
+    const parallaxCameraX = quantize(cameraX / BACKGROUND_RENDER.columnParallaxDivisor, BACKGROUND_RENDER.pixelStep);
+    const starCameraX = quantize(cameraX * BACKGROUND_RENDER.starParallax, BACKGROUND_RENDER.pixelStep);
+
+    for (
+      let x = -(parallaxCameraX % BACKGROUND_RENDER.columnSpacing);
+      x < GAMEBOY_SCREEN_WIDTH + BACKGROUND_RENDER.columnSpacing;
+      x += BACKGROUND_RENDER.columnSpacing
+    ) {
+      this.bg.rect(
+        x,
+        BACKGROUND_RENDER.columnY,
+        BACKGROUND_RENDER.columnWidth,
+        BACKGROUND_RENDER.columnHeight,
+      ).fill(CHAPTER_PALETTES.bloodBanquet[1]);
+      this.bg.rect(
+        x + BACKGROUND_RENDER.columnCapX,
+        BACKGROUND_RENDER.columnCapY,
+        BACKGROUND_RENDER.columnCapWidth,
+        BACKGROUND_RENDER.columnCapHeight,
+      ).fill(CHAPTER_PALETTES.bloodBanquet[2]);
     }
 
-    for (let i = 0; i < 32; i += 1) {
-      const px = (i * 37 - cameraX * 0.4) % VIEW_WIDTH;
-      const py = 22 + ((i * 19) % 118);
-      this.bg.rect(px, py, 1, 1).fill(i % 5 === 0 ? CHAPTER_PALETTES.bloodBanquet[4] : CHAPTER_PALETTES.bloodBanquet[2]);
+    for (let i = 0; i < BACKGROUND_RENDER.speckCount; i += 1) {
+      const px = (i * BACKGROUND_RENDER.speckSpacingX - starCameraX) % GAMEBOY_SCREEN_WIDTH;
+      const py = BACKGROUND_RENDER.speckY + ((i * BACKGROUND_RENDER.speckSpacingY) % BACKGROUND_RENDER.speckRangeY);
+      this.bg.rect(px, py, BACKGROUND_RENDER.speckSize, BACKGROUND_RENDER.speckSize).fill(
+        i % BACKGROUND_RENDER.brightSpeckEvery === 0
+          ? CHAPTER_PALETTES.bloodBanquet[4]
+          : CHAPTER_PALETTES.bloodBanquet[2],
+      );
     }
   }
 
@@ -125,31 +182,37 @@ export class PixiWorld {
     this.platforms.clear();
     for (const platform of simulation.world.platforms) {
       this.platforms.rect(platform.x, platform.y, platform.width, platform.height).fill(PLACEHOLDER_COLORS.platform);
-      this.platforms.rect(platform.x, platform.y, platform.width, 2).fill(PLACEHOLDER_COLORS.platformTop);
+      this.platforms.rect(platform.x, platform.y, platform.width, PLATFORM_RENDER.topLineHeight).fill(PLACEHOLDER_COLORS.platformTop);
     }
   }
 
   private drawPlayer(simulation: SimulationState): void {
     const { player } = simulation.world;
+    const display = this.playerDisplay ?? toEntityDisplay(player.position.x, player.position.y, player.direction, this.walkFrame);
     this.playerFallback.clear();
 
     if (this.playerSprite) {
       this.playerFallback.visible = false;
       this.playerSprite.visible = true;
-      this.playerSprite.scale.x = player.direction > 0 ? 1 : -1;
+      this.playerSprite.scale.x = display.direction > 0 ? 1 : -1;
       this.playerSprite.scale.y = 1;
       this.playerSprite.x = Math.round(
-        player.direction > 0
-          ? player.position.x - PLAYER_CHARACTER.padding.left
-          : player.position.x + player.width + PLAYER_CHARACTER.padding.right,
+        display.direction > 0
+          ? display.x - PLAYER_CHARACTER.padding.left
+          : display.x + player.width + PLAYER_CHARACTER.padding.right,
       );
-      this.playerSprite.y = Math.round(player.position.y - PLAYER_CHARACTER.padding.top);
+      this.playerSprite.y = Math.round(display.y - PLAYER_CHARACTER.padding.top);
       return;
     }
 
     this.playerFallback.visible = true;
-    this.playerFallback.rect(player.position.x, player.position.y, player.width, player.height).fill(PLACEHOLDER_COLORS.player);
-    this.playerFallback.rect(player.position.x + 2, player.position.y, player.width - 3, 4).fill(PLACEHOLDER_COLORS.playerAccent);
+    this.playerFallback.rect(display.x, display.y, player.width, player.height).fill(PLACEHOLDER_COLORS.player);
+    this.playerFallback.rect(
+      display.x + PLAYER_FALLBACK_RENDER.accentOffsetX,
+      display.y,
+      player.width - PLAYER_FALLBACK_RENDER.accentWidthInset,
+      PLAYER_FALLBACK_RENDER.accentHeight,
+    ).fill(PLACEHOLDER_COLORS.playerAccent);
   }
 
   private drawMonsters(simulation: SimulationState): void {
@@ -191,54 +254,65 @@ export class PixiWorld {
       this.world.addChild(item);
       return item;
     });
-    const label = getOrCreate(this.labels, monster.instanceId, () => {
-      const item = new Text({
-        text: monster.name,
-        style: new TextStyle({
-          fontFamily: "monospace",
-          fontSize: 5,
-          fill: "#d8e3c8",
-          align: "center",
-        }),
-      });
-      item.anchor.set(0.5, 0);
-      this.world.addChild(item);
-      return item;
-    });
 
-    const alpha = monster.alive ? 1 : Math.max(0.2, monster.fadeTimer / 0.22);
+    const alpha = monster.alive
+      ? 1
+      : Math.max(MONSTER_FALLBACK_RENDER.deathMinAlpha, monster.fadeTimer / MONSTER_BALANCE.respawnFadeSeconds);
+    const display = this.monsterDisplays.get(monster.instanceId)
+      ?? toEntityDisplay(monster.position.x, monster.position.y, monster.direction, this.walkFrame);
     graphic.clear();
     graphic.alpha = alpha;
     if (sprite && asset) {
       graphic.visible = false;
       sprite.visible = true;
       sprite.alpha = alpha;
-      sprite.scale.x = monster.direction > 0 ? 1 : -1;
+      sprite.scale.x = display.direction > 0 ? 1 : -1;
       sprite.scale.y = 1;
       sprite.x = Math.round(
-        monster.direction > 0
-          ? monster.position.x - asset.padding.left
-          : monster.position.x + monster.width + asset.padding.right,
+        display.direction > 0
+          ? display.x - asset.padding.left
+          : display.x + monster.width + asset.padding.right,
       );
-      sprite.y = Math.round(monster.position.y - asset.padding.top);
+      sprite.y = Math.round(display.y - asset.padding.top);
     } else {
       this.monsterSprites.get(monster.instanceId)?.destroy();
       this.monsterSprites.delete(monster.instanceId);
       graphic.visible = true;
-      graphic.rect(monster.position.x, monster.position.y + 2, monster.width, monster.height - 2).fill(monster.color as ColorSource);
-      graphic.circle(monster.position.x + monster.width / 2, monster.position.y + 3, monster.width / 2).fill(monster.color as ColorSource);
-      graphic.rect(monster.position.x + monster.width * 0.65, monster.position.y + 3, 1, 1).fill("#0a0e13");
+      graphic.rect(
+        display.x,
+        display.y + MONSTER_FALLBACK_RENDER.bodyOffsetY,
+        monster.width,
+        monster.height - MONSTER_FALLBACK_RENDER.bodyOffsetY,
+      ).fill(monster.color as ColorSource);
+      graphic.circle(
+        display.x + monster.width / 2,
+        display.y + MONSTER_FALLBACK_RENDER.eyeOffsetY,
+        monster.width / 2,
+      ).fill(monster.color as ColorSource);
+      graphic.rect(
+        display.x + monster.width * MONSTER_FALLBACK_RENDER.eyeOffsetXRatio,
+        display.y + MONSTER_FALLBACK_RENDER.eyeOffsetY,
+        MONSTER_FALLBACK_RENDER.eyeSize,
+        MONSTER_FALLBACK_RENDER.eyeSize,
+      ).fill(PLACEHOLDER_COLORS.hpBack);
     }
 
     hpBar.clear();
     hpBar.alpha = monster.alive ? 1 : 0;
-    hpBar.rect(monster.position.x - 2, monster.position.y - 5, 18, 3).fill(PLACEHOLDER_COLORS.hpBack);
-    hpBar.rect(monster.position.x - 2, monster.position.y - 5, 18 * (monster.hp / monster.maxHp), 3).fill(PLACEHOLDER_COLORS.hp);
+    hpBar.rect(
+      display.x + HP_BAR_RENDER.offsetX,
+      display.y + HP_BAR_RENDER.offsetY,
+      MONSTER_BALANCE.hpBarWidth,
+      MONSTER_BALANCE.hpBarHeight,
+    ).fill(PLACEHOLDER_COLORS.hpBack);
+    hpBar.rect(
+      display.x + HP_BAR_RENDER.offsetX,
+      display.y + HP_BAR_RENDER.offsetY,
+      MONSTER_BALANCE.hpBarWidth * (monster.hp / monster.maxHp),
+      MONSTER_BALANCE.hpBarHeight,
+    ).fill(PLACEHOLDER_COLORS.hp);
 
-    label.text = monster.alive ? monster.name : "";
-    label.position.set(monster.position.x + monster.width / 2, monster.position.y + monster.height + 2);
     this.world.addChild(hpBar);
-    this.world.addChild(label);
   }
 
   private drawFloatingTexts(texts: FloatingText[]): void {
@@ -256,13 +330,13 @@ export class PixiWorld {
         const created = new Text({
           text: text.value,
           style: new TextStyle({
-            fontFamily: "monospace",
-            fontSize: 7,
+            fontFamily: FLOATING_TEXT_RENDER.fontFamily,
+            fontSize: FLOATING_TEXT_RENDER.fontSize,
             fill: text.color,
-            fontWeight: "700",
+            fontWeight: FLOATING_TEXT_RENDER.fontWeight,
           }),
         });
-        created.anchor.set(0.5, 0.5);
+        created.anchor.set(FLOATING_TEXT_RENDER.anchor, FLOATING_TEXT_RENDER.anchor);
         this.world.addChild(created);
         return created;
       });
@@ -270,7 +344,89 @@ export class PixiWorld {
       item.text = text.value;
       item.style.fill = text.color;
       item.alpha = Math.max(0, 1 - text.age / text.ttl);
-      item.position.set(text.position.x, text.position.y);
+      const display = this.floatingDisplays.get(text.id)
+        ?? { x: quantize(text.position.x, STEPPED_MOTION.floatingTextStepPx), y: quantize(text.position.y, STEPPED_MOTION.floatingTextStepPx) };
+      item.position.set(display.x, display.y);
+    }
+  }
+
+  private updateDisplayState(simulation: SimulationState): void {
+    const elapsed = simulation.world.elapsed;
+    const resetClock = elapsed < this.lastSimulationElapsed;
+
+    if (resetClock) {
+      this.nextEntityDisplayAt = 0;
+      this.nextFloatingDisplayAt = 0;
+      this.monsterDisplays.clear();
+      this.floatingDisplays.clear();
+      this.playerDisplay = null;
+    }
+
+    if (!this.playerDisplay || elapsed + RENDER_CLOCK.displayEpsilon >= this.nextEntityDisplayAt) {
+      this.walkFrame = this.walkFrame === 0 ? 1 : 0;
+      this.updateEntityDisplays(simulation);
+      this.nextEntityDisplayAt = elapsed + ENTITY_DISPLAY_INTERVAL;
+    }
+
+    if (elapsed + RENDER_CLOCK.displayEpsilon >= this.nextFloatingDisplayAt) {
+      this.updateFloatingDisplays(simulation.world.floatingTexts);
+      this.nextFloatingDisplayAt = elapsed + FLOATING_TEXT_DISPLAY_INTERVAL;
+    } else {
+      this.ensureNewFloatingDisplays(simulation.world.floatingTexts);
+    }
+
+    this.lastSimulationElapsed = elapsed;
+  }
+
+  private updateEntityDisplays(simulation: SimulationState): void {
+    const player = simulation.world.player;
+    const cameraX = clamp(
+      player.position.x - GAMEBOY_SCREEN_WIDTH / 2,
+      0,
+      WORLD.width - GAMEBOY_SCREEN_WIDTH,
+    );
+    this.cameraDisplayX = quantize(cameraX, STEPPED_MOTION.stepPx);
+    this.playerDisplay = toEntityDisplay(player.position.x, player.position.y, player.direction, this.walkFrame);
+
+    const liveIds = new Set(simulation.world.monsters.map((monster) => monster.instanceId));
+    for (const id of this.monsterDisplays.keys()) {
+      if (!liveIds.has(id)) {
+        this.monsterDisplays.delete(id);
+      }
+    }
+
+    for (const monster of simulation.world.monsters) {
+      this.monsterDisplays.set(
+        monster.instanceId,
+        toEntityDisplay(monster.position.x, monster.position.y, monster.direction, this.walkFrame),
+      );
+    }
+  }
+
+  private updateFloatingDisplays(texts: FloatingText[]): void {
+    const liveIds = new Set(texts.map((text) => text.id));
+    for (const id of this.floatingDisplays.keys()) {
+      if (!liveIds.has(id)) {
+        this.floatingDisplays.delete(id);
+      }
+    }
+
+    for (const text of texts) {
+      this.floatingDisplays.set(text.id, {
+        x: quantize(text.position.x, STEPPED_MOTION.floatingTextStepPx),
+        y: quantize(text.position.y, STEPPED_MOTION.floatingTextStepPx),
+      });
+    }
+  }
+
+  private ensureNewFloatingDisplays(texts: FloatingText[]): void {
+    for (const text of texts) {
+      if (!this.floatingDisplays.has(text.id)) {
+        this.floatingDisplays.set(text.id, {
+          x: quantize(text.position.x, STEPPED_MOTION.floatingTextStepPx),
+          y: quantize(text.position.y, STEPPED_MOTION.floatingTextStepPx),
+        });
+      }
     }
   }
 
@@ -296,11 +452,10 @@ export class PixiWorld {
     this.monsters.get(id)?.destroy();
     this.monsterSprites.get(id)?.destroy();
     this.hpBars.get(id)?.destroy();
-    this.labels.get(id)?.destroy();
     this.monsters.delete(id);
     this.monsterSprites.delete(id);
+    this.monsterDisplays.delete(id);
     this.hpBars.delete(id);
-    this.labels.delete(id);
   }
 }
 
@@ -316,4 +471,17 @@ function getOrCreate<T>(map: Map<string, T>, key: string, create: () => T): T {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
+}
+
+function quantize(value: number, step: number): number {
+  return Math.round(value / step) * step;
+}
+
+function toEntityDisplay(x: number, y: number, direction: -1 | 1, walkFrame: 0 | 1): EntityDisplay {
+  return {
+    x: quantize(x, STEPPED_MOTION.stepPx),
+    y: quantize(y, STEPPED_MOTION.stepPx),
+    direction,
+    walkFrame,
+  };
 }

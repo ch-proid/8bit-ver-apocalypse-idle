@@ -10,6 +10,28 @@ npm install
 npm run dev
 ```
 
+## Vercel 배포
+
+이 프로젝트는 Vite 정적 앱으로 배포합니다. `vercel.json`에 빌드 설정이 들어가 있으므로 Vercel에서 GitHub 저장소를 Import하면 아래 값이 자동 적용됩니다.
+
+- Install Command: `npm ci`
+- Build Command: `npm run build`
+- Output Directory: `dist`
+
+CLI로 배포할 때는 Vercel 계정 인증 후 아래 순서로 진행합니다.
+
+```bash
+npx vercel
+npx vercel --prod
+```
+
+배포 전 로컬 검증:
+
+```bash
+npm run build
+npm run preview
+```
+
 ## 폴더 책임
 
 - `src/core/` — 순수 TypeScript 게임 로직. 전투, 물리, AI, 진행, 보상 계산을 담당합니다. Pixi/React/DOM import 금지.

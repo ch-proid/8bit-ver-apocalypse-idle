@@ -12,6 +12,46 @@ export interface Platform {
 }
 
 export type PlayerAiState = "IDLE" | "MOVE" | "ATTACK";
+export type StatKey = "atk" | "def" | "hp" | "reg";
+export type StatPreset = "ATK" | "BAL" | "VIT" | "MANUAL";
+
+export interface StatAllocation {
+  atk: number;
+  def: number;
+  hp: number;
+  reg: number;
+}
+
+export interface StatDistributionState {
+  assigned: StatAllocation;
+  unspentPoints: number;
+  preset: StatPreset;
+}
+
+export interface RecordEntry {
+  value: number;
+  updatedAt: number | null;
+}
+
+export interface ProgressRecords {
+  highestLevel: RecordEntry;
+  dummyScore: RecordEntry;
+  highestRebirthStage: RecordEntry;
+}
+
+export interface RebirthRecord {
+  run: number;
+  reachedStage: number;
+  reachedLevel: number;
+  at: number;
+}
+
+export interface RebirthState {
+  canRebirth: boolean;
+  count: number;
+  experienceMultiplier: number;
+  permanentStats: StatAllocation;
+}
 
 export interface Player {
   position: Vec2;
@@ -24,6 +64,8 @@ export interface Player {
   hp: number;
   maxHp: number;
   attack: number;
+  defense: number;
+  hpRegen: number;
   attackRange: number;
   attackCooldown: number;
   attackTimer: number;
@@ -72,6 +114,10 @@ export interface ProgressState {
   level: number;
   currentStage: number;
   nextExperience: number;
+  statDistribution: StatDistributionState;
+  rebirth: RebirthState;
+  rebirthRecords: RebirthRecord[];
+  records: ProgressRecords;
 }
 
 export interface WorldState {

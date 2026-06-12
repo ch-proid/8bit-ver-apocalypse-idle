@@ -27,6 +27,18 @@ describe("phase 2 simulation", () => {
     expect(state.world.player.attack).toBeGreaterThan(16);
   });
 
+  it("keeps the entire simulation deterministic for identical initial state", () => {
+    let runA = createInitialSimulation(1);
+    let runB = createInitialSimulation(1);
+
+    for (let i = 0; i < 60 * 30; i += 1) {
+      runA = stepSimulation(runA, FIXED_DELTA);
+      runB = stepSimulation(runB, FIXED_DELTA);
+    }
+
+    expect(runA).toEqual(runB);
+  });
+
   it("walks completely off an elevated platform instead of stopping on the edge", () => {
     let state = createInitialSimulation(1);
     const platform = state.world.platforms.find((item) => item.id === "low-left");

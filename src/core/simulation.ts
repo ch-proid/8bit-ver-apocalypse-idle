@@ -2,7 +2,7 @@ import { FLOATING_TEXT, MONSTER_BALANCE } from "../data/balance";
 import { STAGES } from "../data/stages";
 import { dealPlayerDamage, distanceBetween } from "./combat";
 import { applyGravity, jump, moveAndCollide } from "./physics";
-import { addFloatingText, grantRewards } from "./progression";
+import { addFloatingText, cloneProgress, grantRewards } from "./progression";
 import { getPlatformById, platformCenterX } from "./stage";
 import type { Monster, SimulationState } from "./types";
 
@@ -11,13 +11,14 @@ export function stepSimulation(input: SimulationState, dt: number): SimulationSt
   world.elapsed += dt;
   world.player.attackTimer = Math.max(0, world.player.attackTimer - dt);
   world.player.jumpLock = Math.max(0, world.player.jumpLock - dt);
+  world.player.hp = Math.min(world.player.maxHp, world.player.hp + world.player.hpRegen * dt);
 
   updateMonsters(world.monsters, world.platforms, dt);
   updatePlayerAi(input, dt);
   updateFloatingTexts(input, dt);
 
   return {
-    progress: { ...progress },
+    progress: cloneProgress(progress),
     world: {
       ...world,
       player: {

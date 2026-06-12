@@ -13,22 +13,28 @@ export function GameCanvas() {
 
     const pixi = new PixiWorld();
     let disposed = false;
+    let frameId = 0;
+
+    const renderFrame = () => {
+      if (disposed) {
+        return;
+      }
+
+      pixi.render(useGameStore.getState().simulation);
+      frameId = window.requestAnimationFrame(renderFrame);
+    };
 
     pixi.mount(host).then(() => {
       if (disposed) {
         pixi.destroy();
         return;
       }
-      pixi.render(useGameStore.getState().simulation);
-    });
-
-    const unsubscribe = useGameStore.subscribe((state) => {
-      pixi.render(state.simulation);
+      renderFrame();
     });
 
     return () => {
       disposed = true;
-      unsubscribe();
+      window.cancelAnimationFrame(frameId);
       pixi.destroy();
     };
   }, []);
