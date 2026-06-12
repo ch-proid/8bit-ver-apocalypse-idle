@@ -84,6 +84,8 @@ function createStageMonsters(stage: StageDefinition, platforms: Platform[]): Mon
         height: definition.height,
         hp: definition.maxHp,
         maxHp: definition.maxHp,
+        defense: 0,
+        damageReduction: 0,
         attack: definition.attack,
         experience: definition.experience,
         gold: definition.gold,

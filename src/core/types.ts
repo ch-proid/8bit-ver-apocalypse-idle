@@ -221,6 +221,8 @@ export interface Monster {
   height: number;
   hp: number;
   maxHp: number;
+  defense: number;
+  damageReduction: number;
   attack: number;
   experience: number;
   gold: number;

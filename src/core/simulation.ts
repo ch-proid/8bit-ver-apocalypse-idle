@@ -10,6 +10,7 @@ import {
   applyRelicAfterHit,
   applyRelicBeforeAttack,
   applyRelicOnKill,
+  applyRelicPassiveDamage,
   cloneRelicCombatState,
   relicDamageHooks,
   updateRelicCombat,
@@ -70,6 +71,15 @@ function updatePlayerAi(state: SimulationState, dt: number): void {
   }
 
   player.targetId = target.instanceId;
+  const passiveResult = applyRelicPassiveDamage(progress, world, target, dt);
+  if (target.hp <= 0) {
+    if (passiveResult.extraDamage > 0) {
+      addFloatingText(world, `${Math.floor(passiveResult.extraDamage)}`, target.position.x + target.width / 2, target.position.y - 2, "#d8e3c8");
+    }
+    resolveMonsterDeath(state, target);
+    return;
+  }
+
   const targetPlatform = getPlatformById(world.platforms, target.platformId);
   const playerPlatform = getPlatformById(world.platforms, player.platformId);
   const distance = distanceBetween(player, target);
@@ -97,11 +107,7 @@ function updatePlayerAi(state: SimulationState, dt: number): void {
       );
 
       if (target.hp <= 0) {
-        killMonster(state, target);
-        grantRewards(progress, world, target.experience, target.gold);
-        addBlood(progress.altar, "normal", progress.currentStage);
-        applyRelicOnKill(progress, world, target);
-        grantDrop(state);
+        resolveMonsterDeath(state, target);
       }
     }
 
@@ -229,6 +235,14 @@ function killMonster(state: SimulationState, monster: Monster): void {
   if (stage) {
     addFloatingText(state.world, "+BLOOD", monster.position.x, monster.position.y - 12, "#c0303a");
   }
+}
+
+function resolveMonsterDeath(state: SimulationState, monster: Monster): void {
+  killMonster(state, monster);
+  grantRewards(state.progress, state.world, monster.experience, monster.gold);
+  addBlood(state.progress.altar, "normal", state.progress.currentStage);
+  applyRelicOnKill(state.progress, state.world, monster);
+  grantDrop(state);
 }
 
 function grantDrop(state: SimulationState): void {

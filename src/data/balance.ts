@@ -277,6 +277,16 @@ export const PHASE_3C_DEBUG = {
   demoSeed: 3237998081,
 } as const;
 
+export const STANDARD_DUMMY = {
+  // TODO(Phase 7): Tune dummy defense and duration after the first combat-score distribution pass.
+  durationSeconds: 60,
+  seed: 2882400001,
+  hp: 1_000_000_000,
+  defense: 20,
+  damageReduction: 0,
+  warmupKillTriggers: 1,
+} as const;
+
 export function nextExperienceForLevel(level: number): number {
   const normalizedLevel = Math.max(1, Math.floor(level));
   const firstKneeCost = EXPERIENCE_CURVE.baseNextExperience

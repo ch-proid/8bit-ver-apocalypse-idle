@@ -1,13 +1,14 @@
 import { create } from "zustand";
 import { RELIC_IDS } from "../data/relics";
-import { EXPERIENCE_CURVE, FIXED_DELTA, nextExperienceForLevel, PHASE_3B_DEBUG, PHASE_3C_DEBUG, PROGRESSION, TICK_RATE } from "../data/balance";
+import { EXPERIENCE_CURVE, FIXED_DELTA, nextExperienceForLevel, PHASE_3B_DEBUG, PHASE_3C_DEBUG, PROGRESSION, STANDARD_DUMMY, TICK_RATE } from "../data/balance";
 import { equipRelic, grantRelic, summonRelic, summonRequirement } from "../core/altar";
-import { calculateItemValue } from "../core/equipment";
+import { calculateItemValue, generateEquipmentItem } from "../core/equipment";
 import { bestInventoryItemForSlot, equipItem } from "../core/inventory";
 import { cloneProgress, gainExperience } from "../core/progression";
 import { cloneRelicCombatState, relicDebugSnapshot } from "../core/relics";
 import { calculateRebirthExperienceMultiplier, rebirthSimulation, unlockRebirth } from "../core/rebirth";
-import { cloneRngState } from "../core/rng";
+import { cloneRngState, createRngState } from "../core/rng";
+import { compareEquipmentCombatScore, createBuildSnapshot, simulateStandardDummy, updateDummyScoreRecord } from "../core/sim";
 import { createInitialSimulation } from "../core/stage";
 import { stepSimulation } from "../core/simulation";
 import { applyPlayerStats, combatPowerEstimate, setStatPreset as setStatDistributionPreset, spendStatPoint } from "../core/stats";
@@ -31,6 +32,7 @@ interface GameStore {
   summonRelicForDebug: () => void;
   equipRelicForDebug: (relicId: RelicId) => void;
   logPhase3CDemo: () => void;
+  logPhase3DDemo: () => void;
   hydrate: () => Promise<void>;
   saveNow: () => Promise<void>;
 }
@@ -217,6 +219,41 @@ export const useGameStore = create<GameStore>((set, get) => ({
       };
     });
     console.table(rows);
+  },
+
+  logPhase3DDemo: () => {
+    set((state) => {
+      const simulation = cloneSimulation(state.simulation);
+      const snapshot = createBuildSnapshot(simulation.progress);
+      const result = simulateStandardDummy(snapshot);
+      const candidate = simulation.progress.inventory.items[0] ?? generateEquipmentItem({
+        id: "phase3d-demo-weapon",
+        rng: createRngState(STANDARD_DUMMY.seed),
+        stageId: simulation.progress.currentStage,
+        rarity: "rare",
+        slot: "weapon",
+        itemLevel: simulation.progress.currentStage + 4,
+      });
+      const comparison = compareEquipmentCombatScore(snapshot, candidate);
+      updateDummyScoreRecord(simulation.progress, simulation.world, result.combatScore);
+
+      console.table([
+        {
+          checkpoint: "CURRENT BUILD",
+          combatScore: result.combatScore,
+          record: simulation.progress.records.dummyScore.value,
+          ticks: result.ticks,
+        },
+        {
+          checkpoint: "CANDIDATE EQUIP",
+          item: `${candidate.rarity} ${candidate.slot}`,
+          combatScore: comparison.candidateScore,
+          delta: comparison.delta,
+          deltaPercent: `${comparison.deltaPercent.toFixed(2)}%`,
+        },
+      ]);
+      return { simulation };
+    });
   },
 
   hydrate: async () => {

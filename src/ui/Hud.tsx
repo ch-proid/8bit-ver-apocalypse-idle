@@ -17,6 +17,7 @@ export function Hud() {
   const summonRelicForDebug = useGameStore((state) => state.summonRelicForDebug);
   const equipRelicForDebug = useGameStore((state) => state.equipRelicForDebug);
   const logPhase3CDemo = useGameStore((state) => state.logPhase3CDemo);
+  const logPhase3DDemo = useGameStore((state) => state.logPhase3DDemo);
   const offlineReward = useGameStore((state) => state.lastOfflineReward);
   const expPercent = Math.min(100, Math.floor((progress.experience / progress.nextExperience) * 100));
   const distribution = progress.statDistribution;
@@ -34,6 +35,7 @@ export function Hud() {
         <span>EXP x{progress.rebirth.experienceMultiplier.toFixed(2)}</span>
         <span>PT {distribution.unspentPoints}</span>
         <span>BLD {Math.floor(progress.altar.blood)}</span>
+        <span>CP {progress.records.dummyScore.value}</span>
       </div>
 
       <div className="bar-row">
@@ -76,6 +78,9 @@ export function Hud() {
         </button>
         <button type="button" onClick={logPhase3CDemo}>
           LOG3C
+        </button>
+        <button type="button" onClick={logPhase3DDemo}>
+          CP
         </button>
       </div>
 

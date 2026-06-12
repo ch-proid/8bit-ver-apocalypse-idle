@@ -50,7 +50,7 @@ export function dealPlayerDamage(
   const result = calculateDamage({
     attack: player.attack,
     defenderDefense: monsterDefense(monster),
-    defenderDamageReduction: 0,
+    defenderDamageReduction: monster.damageReduction,
     styleMultiplier: hooks.styleMultiplier,
     affixes,
     rng: world.rng,
@@ -129,8 +129,8 @@ function rollCritical(rng: RngState, chancePercent: number): boolean {
 }
 
 function monsterDefense(_monster: Monster): number {
-  // TODO(Phase 3E): Boss and elite monsters will expose defense/damageReduction data.
-  return 0;
+  // TODO(Phase 3E): Boss and elite monsters will expose tuned defense data.
+  return _monster.defense;
 }
 
 function clamp(value: number, min: number, max: number): number {

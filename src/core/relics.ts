@@ -13,7 +13,7 @@ export interface RelicDamageHooks {
 
 export interface RelicHitResult {
   extraDamage: number;
-  channel: "none" | "plague" | "execute";
+  channel: "none" | "plague" | "execute" | "specter";
 }
 
 export function createDefaultRelicCombatState(): RelicCombatState {
@@ -208,6 +208,25 @@ export function applyRelicAfterHit(
   }
 
   return { extraDamage: 0, channel: "none" };
+}
+
+export function applyRelicPassiveDamage(
+  progress: ProgressState,
+  world: WorldState,
+  monster: Monster,
+  dt: number,
+): RelicHitResult {
+  const relicId = progress.altar.equippedRelicId;
+  const stars = relicStars(progress.altar, relicId);
+  if (relicId !== "specterLord" || stars <= 0 || world.relicCombat.specters.length <= 0 || !monster.alive) {
+    return { extraDamage: 0, channel: "none" };
+  }
+
+  const totalMultiplier = world.relicCombat.specters.reduce((sum, specter) => sum + specter.damageMultiplier, 0);
+  const extraDamage = world.player.attack * totalMultiplier * dt;
+  monster.hp = Math.max(0, monster.hp - extraDamage);
+  world.relicCombat.lastTriggered = "SPECTER_HIT";
+  return { extraDamage, channel: "specter" };
 }
 
 export function applyRelicOnKill(progress: ProgressState, world: WorldState, monster: Monster): void {
