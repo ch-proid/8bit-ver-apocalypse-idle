@@ -240,7 +240,7 @@ describe("phase 2 simulation", () => {
     expect(mage.world.monsters.find((monster) => monster.instanceId === mageTarget.instanceId)?.hp).toBeLessThan(mageTarget.hp);
   });
 
-  it("keeps mage at range while melee still approaches", () => {
+  it("makes mage fire in range and retreat only while searching", () => {
     let mage = createInitialSimulation(1);
     mage.progress.classId = "mage";
     const mageTarget = isolateSamePlatformTarget(mage, mage.world.player.position.x + 42);
@@ -255,11 +255,25 @@ describe("phase 2 simulation", () => {
     expect(mage.world.player.position.x).toBe(mageStartX);
     expect(mage.world.monsters[0].hp).toBeLessThan(mageStartHp);
 
+    let closeFight = createInitialSimulation(1);
+    closeFight.progress.classId = "mage";
+    const closeTarget = isolateSamePlatformTarget(closeFight, closeFight.world.player.position.x + MAGE_AI_BALANCE.tooCloseDistance / 2);
+    closeTarget.evasion = 0;
+    closeTarget.maxHp = 9999;
+    closeTarget.hp = closeTarget.maxHp;
+    closeFight.world.player.attackRange = 60;
+    closeFight.world.player.attackTimer = 0;
+    const closeStartX = closeFight.world.player.position.x;
+    const closeStartHp = closeTarget.hp;
+    closeFight = stepSimulation(closeFight, FIXED_DELTA);
+    expect(closeFight.world.player.position.x).toBe(closeStartX);
+    expect(closeFight.world.monsters[0].hp).toBeLessThan(closeStartHp);
+
     let retreat = createInitialSimulation(1);
     retreat.progress.classId = "mage";
     const retreatTarget = isolateSamePlatformTarget(retreat, retreat.world.player.position.x + MAGE_AI_BALANCE.tooCloseDistance / 2);
     retreatTarget.evasion = 0;
-    retreat.world.player.attackRange = 60;
+    retreat.world.player.attackRange = 1;
     retreat.world.player.attackTimer = 0;
     const retreatStartX = retreat.world.player.position.x;
     retreat = stepSimulation(retreat, FIXED_DELTA);
@@ -272,6 +286,41 @@ describe("phase 2 simulation", () => {
     const knightStartX = knight.world.player.position.x;
     knight = stepSimulation(knight, FIXED_DELTA);
     expect(knight.world.player.position.x).toBeGreaterThan(knightStartX);
+  });
+
+  it("limits aggro platform transfers onto the player floor", () => {
+    let state = createInitialSimulation(1);
+    const playerPlatformId = state.world.player.platformId;
+    const offPlatformIds = state.world.monsters
+      .filter((monster) => monster.platformId !== playerPlatformId)
+      .map((monster) => monster.instanceId);
+
+    expect(offPlatformIds.length).toBeGreaterThanOrEqual(2);
+
+    state.world.player.attackRange = 0;
+    state.world.player.moveSpeed = 0;
+    state.world.monsters.forEach((monster) => {
+      const platform = state.world.platforms.find((item) => item.id === monster.platformId);
+      monster.spawnInvulnTimer = 0;
+      monster.aggro = true;
+      monster.aggroDelayTimer = 0;
+      monster.moveSpeed = 0;
+      if (platform && monster.platformId !== playerPlatformId) {
+        monster.position.x = platform.x + 3;
+      }
+    });
+
+    state = stepSimulation(state, FIXED_DELTA);
+
+    const transferred = offPlatformIds.filter((id) => (
+      state.world.monsters.find((monster) => monster.instanceId === id)?.platformId === playerPlatformId
+    ));
+    const aggroOnPlayerPlatform = state.world.monsters.filter(
+      (monster) => monster.alive && monster.aggro && monster.platformId === playerPlatformId,
+    );
+
+    expect(transferred).toHaveLength(MONSTER_BALANCE.maxPlatformTransfersPerTick);
+    expect(aggroOnPlayerPlatform).toHaveLength(MONSTER_BALANCE.maxAggroOnPlayerPlatform);
   });
 
   it("restarts the wave cycle after all hunt waves are cleared", () => {

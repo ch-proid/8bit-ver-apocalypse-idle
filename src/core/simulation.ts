@@ -114,19 +114,6 @@ function updatePlayerAi(state: SimulationState, dt: number): void {
   const playerPlatform = getPlatformById(world.platforms, player.platformId);
   const distance = distanceBetween(player, target);
 
-  if (
-    progress.classId === "mage"
-    && target.platformId === player.platformId
-    && distance <= player.attackRange
-    && Math.abs((target.position.x + target.width / 2) - (player.position.x + player.width / 2)) < MAGE_AI_BALANCE.tooCloseDistance
-    && retreatMage(player, target, world.platforms, dt)
-  ) {
-    player.state = "MOVE";
-    applyGravity(player, dt);
-    moveAndCollide(player, world.platforms, dt);
-    return;
-  }
-
   if (distance <= player.attackRange && (player.platformId === target.platformId || progress.classId === "mage")) {
     player.state = "ATTACK";
     player.velocity.x = 0;
@@ -240,14 +227,14 @@ function moveMageTowardRange(
   player.state = "MOVE";
   const horizontalDistance = Math.abs((target.position.x + target.width / 2) - (player.position.x + player.width / 2));
 
-  if (target.platformId === player.platformId && horizontalDistance < MAGE_AI_BALANCE.tooCloseDistance) {
-    return retreatMage(player, target, platforms, dt);
-  }
-
   if (distanceBetween(player, target) <= player.attackRange) {
     player.state = "ATTACK";
     player.velocity.x = 0;
     return true;
+  }
+
+  if (target.platformId === player.platformId && horizontalDistance < MAGE_AI_BALANCE.tooCloseDistance) {
+    return retreatMage(player, target, platforms, dt);
   }
 
   if (target.platformId !== player.platformId) {
@@ -347,6 +334,27 @@ function updateMonsters(
   dt: number,
   waveCycleEnabled: boolean,
 ): void {
+  const playerPlatform = getPlatformById(platforms, player.platformId);
+  let playerPlatformAggroCount = monsters.filter(
+    (monster) => monster.alive && monster.aggro && monster.platformId === player.platformId,
+  ).length;
+  let transfersToPlayerPlatform = 0;
+
+  const transferToPlayerPlatform = (monster: Monster): boolean => {
+    if (
+      !playerPlatform
+      || playerPlatformAggroCount >= MONSTER_BALANCE.maxAggroOnPlayerPlatform
+      || transfersToPlayerPlatform >= MONSTER_BALANCE.maxPlatformTransfersPerTick
+    ) {
+      return false;
+    }
+
+    transferMonsterToPlatform(monster, playerPlatform, player);
+    playerPlatformAggroCount += 1;
+    transfersToPlayerPlatform += 1;
+    return true;
+  };
+
   for (const monster of monsters) {
     if (!monster.alive) {
       monster.respawnTimer -= dt;
@@ -374,13 +382,11 @@ function updateMonsters(
     }
 
     if (monster.aggro) {
-      const playerPlatform = getPlatformById(platforms, player.platformId);
       if (playerPlatform && monster.platformId !== player.platformId) {
         const exitX = platformExitX(platform, player);
         const monsterCenter = monster.position.x + monster.width / 2;
         const delta = exitX - monsterCenter;
-        if (Math.abs(delta) <= MONSTER_BALANCE.platformTransferEdgeThreshold) {
-          transferMonsterToPlatform(monster, playerPlatform, player);
+        if (Math.abs(delta) <= MONSTER_BALANCE.platformTransferEdgeThreshold && transferToPlayerPlatform(monster)) {
           continue;
         }
         monster.direction = delta > 0 ? 1 : -1;
@@ -401,23 +407,19 @@ function updateMonsters(
     if (monster.position.x <= minX) {
       monster.position.x = minX;
       if (monster.aggro && monster.platformId !== player.platformId) {
-        const playerPlatform = getPlatformById(platforms, player.platformId);
-        if (playerPlatform) {
-          transferMonsterToPlatform(monster, playerPlatform, player);
+        if (transferToPlayerPlatform(monster)) {
+          continue;
         }
-      } else {
-        monster.direction = 1;
       }
+      monster.direction = 1;
     } else if (monster.position.x >= maxX) {
       monster.position.x = maxX;
       if (monster.aggro && monster.platformId !== player.platformId) {
-        const playerPlatform = getPlatformById(platforms, player.platformId);
-        if (playerPlatform) {
-          transferMonsterToPlatform(monster, playerPlatform, player);
+        if (transferToPlayerPlatform(monster)) {
+          continue;
         }
-      } else {
-        monster.direction = -1;
       }
+      monster.direction = -1;
     }
   }
 }
