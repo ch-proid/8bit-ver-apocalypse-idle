@@ -1,15 +1,19 @@
 import type { ReactNode } from "react";
 import {
   altarExperienceForLevel,
+  bestRelicInstance,
+  calculateRelicOwnedStats,
   eliteSummonCost,
   highestRelicGrade,
   ownedRelicStyleCount,
   relicStars,
 } from "../core/altar";
-import type { ClassId, EquipmentItem, EquipmentStatKey, ItemRarity, ItemSlot, RelicId, StatKey } from "../core/types";
+import { altarElitePreview } from "../core/elites";
+import type { ClassId, EquipmentItem, EquipmentStatKey, ItemRarity, ItemSlot, RelicGrade, RelicId, StatKey } from "../core/types";
 import { ALTAR_BALANCE } from "../data/balance";
 import { ITEM_SLOTS } from "../data/items";
-import { RELIC_IDS, RELICS } from "../data/relics";
+import { PLAYER_CLASSES } from "../data/classes";
+import { RELIC_GRADES, RELIC_IDS, RELICS } from "../data/relics";
 import { SURVIVOR_SKINS } from "../data/sprites/survivors";
 import { useGameStore } from "../store/gameStore";
 import { DebugPanel } from "./DebugPanel";
@@ -32,6 +36,27 @@ const STAT_LABELS: Record<StatKey, string> = {
   agi: "AGI",
 };
 const DEFAULT_NICKNAME = "SURVIVOR"; // TODO(Profile): replace when nickname storage exists.
+const CLASS_KR_LABELS: Record<ClassId, string> = {
+  assassin: "암살자",
+  knight: "기사",
+  mage: "마법사",
+};
+const RELIC_KR_LABELS: Record<RelicId, string> = {
+  specterLord: "망령 군주",
+  bloodBerserker: "피의 광전사",
+  plagueDoctor: "역병 의사",
+  martyr: "순교자",
+  executioner: "처형자",
+  kingsShadow: "왕의 그림자",
+};
+const SIN_KR_LABELS: Record<string, string> = {
+  pride: "오만",
+  gluttony: "탐식",
+  grief: "비탄",
+  fanaticism: "광신",
+  abyss: "심연",
+  despair: "절망",
+};
 
 export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect }: HudProps) {
   const progress = useGameStore((state) => state.simulation.progress);
@@ -50,6 +75,17 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
   const chapter = Math.ceil(progress.currentStage / 10);
   const stageInChapter = ((progress.currentStage - 1) % 10) + 1;
   const skin = SURVIVOR_SKINS.find((entry) => entry.id === currentClassId) ?? SURVIVOR_SKINS[0];
+  const classDef = PLAYER_CLASSES[currentClassId];
+  const highlightedItem = progress.inventory.equipped.weapon
+    ?? progress.inventory.equipped.armor
+    ?? progress.inventory.equipped.helmet
+    ?? progress.inventory.equipped.accessory
+    ?? progress.inventory.items[0]
+    ?? null;
+  const elitePreview = altarElitePreview(progress.altar.level);
+  const nextElitePreview = altarElitePreview(progress.altar.level + 1);
+  const relicOwnedStats = calculateRelicOwnedStats(progress.altar);
+  const equippedRelic = bestRelicInstance(progress.altar, progress.altar.equippedRelicId);
 
   return (
     <>
@@ -68,46 +104,67 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
       </div>
 
       <Panel open={activePanel === "stat"} label="STAT">
-        <div className="statbar">
+        <div className="statbar rich">
+          <span className="mini-class">
+            <SurvivorSprite skin={skin} scale={0.45} />
+            <b>{classDef.label}</b>
+          </span>
           <span>LV {progress.level}</span>
           <span>CP {formatNumber(progress.records.dummyScore.value)}</span>
           <IconValue type="gold" value={formatNumber(progress.gold)} />
         </div>
 
         <Win title="STATUS">
-          <div className="status-grid">
+          <div className="status-head">
             <button type="button" className="skin-mini" onClick={onOpenClassSelect} aria-label="CLASS">
               <SurvivorSprite skin={skin} scale={1} />
             </button>
             <div className="status-lines">
-              <MenuItem label="EXP" value={`${formatNumber(progress.experience)}/${formatNumber(progress.nextExperience)}`}>
+              <MenuItem label="CLASS" value={<span className="kr">{CLASS_KR_LABELS[currentClassId]}</span>} />
+              <MenuItem label="PASS" value={classDef.passive.description} valueClassName="thin" />
+              <MenuItem label="EXP" value={`${expPercent}%`}>
                 <GbBar value={expPercent} tone="xp" />
               </MenuItem>
-              {STAT_KEYS.map((key) => (
-                <MenuItem
-                  key={key}
-                  label={STAT_LABELS[key]}
-                  value={formatNumber(progress.statDistribution.assigned[key])}
-                  action={(
-                    <button
-                      type="button"
-                      className="pbox"
-                      disabled={progress.statDistribution.unspentPoints <= 0}
-                      onClick={() => spendPoint(key)}
-                    >
-                      +
-                    </button>
-                  )}
-                />
-              ))}
-              <MenuItem label="ATK" value={formatNumber(player.attack)} />
-              <MenuItem label="DEF" value={formatNumber(player.defense)} />
-              <MenuItem label="HP" value={formatNumber(player.maxHp)} />
-              <MenuItem label="EVA" value={formatNumber(player.evasion)} />
             </div>
           </div>
+
+          <div className="stat-rows">
+            {STAT_KEYS.map((key) => (
+              <MenuItem
+                key={key}
+                label={STAT_LABELS[key]}
+                value={formatNumber(progress.statDistribution.assigned[key])}
+                action={(
+                  <button
+                    type="button"
+                    className="pbox add"
+                    disabled={progress.statDistribution.unspentPoints <= 0}
+                    onClick={() => spendPoint(key)}
+                    aria-label={`ADD ${STAT_LABELS[key]}`}
+                  >
+                    +
+                  </button>
+                )}
+              />
+            ))}
+          </div>
+
+          <div className="derived-grid">
+            <MenuItem label="ATK" value={formatNumber(player.attack)} />
+            <MenuItem label="DEF" value={formatNumber(player.defense)} />
+            <MenuItem label="EVA" value={formatNumber(player.evasion)} />
+            <MenuItem label="HP" value={formatNumber(player.maxHp)} />
+          </div>
+
           <div className="preset-row">
             <span className="cur">&#9654;</span>
+            <button
+              type="button"
+              className="pbox rec"
+              onClick={() => setPreset(classDef.recommendedPreset)}
+            >
+              REC
+            </button>
             {(["STR", "BAL", "GRIT", "AGI", "MANUAL"] as const).map((preset) => (
               <button
                 key={preset}
@@ -144,9 +201,10 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
       </Panel>
 
       <Panel open={activePanel === "gear"} label="GEAR">
-        <div className="statbar">
+        <div className="statbar rich">
           <span>BAG {progress.inventory.items.length}/{progress.inventory.capacity}</span>
           <IconValue type="gold" value={formatNumber(progress.gold)} />
+          <span>CP {formatNumber(progress.records.dummyScore.value)}</span>
         </div>
 
         <Win title="EQUIP">
@@ -157,12 +215,20 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
           </div>
         </Win>
 
+        <Win title="ITEM">
+          <ItemDetail item={highlightedItem} />
+          <div className="gear-actions wide">
+            <button type="button" className="inv-vid off">REROLL</button>
+            <button type="button" className="inv-vid off">UPG</button>
+          </div>
+        </Win>
+
         <Win title="BAG">
           <div className="grid6">
-            {progress.inventory.items.slice(0, 18).map((item) => (
+            {progress.inventory.items.slice(0, 24).map((item) => (
               <ItemCell key={item.id} item={item} />
             ))}
-            {Array.from({ length: Math.max(0, 18 - Math.min(18, progress.inventory.items.length)) }).map((_, index) => (
+            {Array.from({ length: Math.max(0, 24 - Math.min(24, progress.inventory.items.length)) }).map((_, index) => (
               <span key={`empty-${index}`} className="cell off" />
             ))}
           </div>
@@ -183,9 +249,11 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
       </Panel>
 
       <Panel open={activePanel === "altar"} label="ALTAR">
-        <div className="statbar">
+        <div className="statbar altar-status">
           <IconValue type="blood" value={`${formatNumber(Math.floor(progress.altar.blood))}/${formatNumber(bloodRequired)}`} />
+          <GbBar value={bloodPercent} tone="blood" />
           <span>ALV {progress.altar.level}</span>
+          <span>AXP {altarExperiencePercent}%</span>
         </div>
 
         <Win title="ALTAR">
@@ -195,8 +263,13 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
           </MenuItem>
           <GbBar value={bloodPercent} tone="blood" tall />
           <div className="altar-actions">
-            <button type="button" className="inv-vid" onClick={summonEliteNow}>
-              <span className="cur">&#9654;</span>ELITE
+            <button
+              type="button"
+              className={progress.altar.blood >= bloodRequired ? "inv-vid" : "inv-vid off"}
+              disabled={progress.altar.blood < bloodRequired}
+              onClick={summonEliteNow}
+            >
+              <span className="cur">&#9654;</span>SUMMON
             </button>
             <button
               type="button"
@@ -207,10 +280,19 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
               LV UP
             </button>
           </div>
+          <div className="elite-hint">
+            <MenuItem label="ELITE" value={`HP ${formatCompact(elitePreview.maxHp)} / ATK ${formatCompact(elitePreview.attack)}`} />
+            <MenuItem label="NEXT" value={`HP ${formatCompact(nextElitePreview.maxHp)} / G ${formatCompact(nextElitePreview.gold)}`} />
+          </div>
         </Win>
 
         <Win title="RELIC">
-          <RelicSummary relicId={progress.altar.equippedRelicId} stars={currentRelicStars(progress.altar.equippedRelicId)} />
+          <RelicSummary relicId={progress.altar.equippedRelicId} instance={equippedRelic} />
+          <div className="relic-owned">
+            <MenuItem label="O-ATK" value={formatNumber(relicOwnedStats.atk)} />
+            <MenuItem label="O-HP" value={formatNumber(relicOwnedStats.hp)} />
+            <MenuItem label="O-DEF" value={formatNumber(relicOwnedStats.def)} />
+          </div>
         </Win>
 
         <Win title={`CODEX ${ownedRelicStyleCount(progress.altar)}/6`}>
@@ -231,10 +313,6 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
       <DebugPanel open={debugOpen} />
     </>
   );
-
-  function currentRelicStars(relicId: RelicId | null): number {
-    return relicStars(progress.altar, relicId);
-  }
 }
 
 function Panel({ open, label, children }: { open: boolean; label: string; children: ReactNode }) {
@@ -296,24 +374,55 @@ function IconValue({ type, value, compact = false }: { type: "gold" | "blood"; v
 
 function EquipmentSlot({ slot, item }: { slot: ItemSlot; item: EquipmentItem | null }) {
   return (
-    <div className={item ? `slot ${rarityClass(item.rarity)}` : "slot off"}>
+    <button type="button" className={item ? `slot ${rarityClass(item.rarity)}` : "slot off"} aria-label={`${slotShort(slot)} COMPARE`}>
       <span>{slotIcon(slot)}</span>
-      <small>{slotShort(slot)}</small>
-    </div>
+      <small>{item ? `+${item.upgradeLevel}` : slotShort(slot)}</small>
+    </button>
   );
 }
 
 function ItemCell({ item, label }: { item: EquipmentItem; label?: ReactNode }) {
   return (
-    <span className={`cell ${rarityClass(item.rarity)}`} title={`${item.rarity} ${item.slot}`}>
+    <button type="button" className={`cell ${rarityClass(item.rarity)}`} title={`${item.rarity} ${item.slot}`} aria-label={`${item.rarity} ${item.slot} COMPARE`}>
       <b>{statShort(item.baseStat)}</b>
       {label ? <small>{label}</small> : null}
-    </span>
+    </button>
   );
 }
 
-function RelicSummary({ relicId, stars }: { relicId: RelicId | null; stars: number }) {
-  if (!relicId) {
+function ItemDetail({ item }: { item: EquipmentItem | null }) {
+  if (!item) {
+    return (
+      <>
+        <MenuItem label="SEL" value="NONE" />
+        <p className="tiny dim">CELL TAP / COMPARE 4C</p>
+      </>
+    );
+  }
+
+  return (
+    <div className="item-detail">
+      <MenuItem label="TYPE" value={`${item.rarity.toUpperCase()} ${slotShort(item.slot)}`} valueClassName={rarityClass(item.rarity)} />
+      <MenuItem label="BASE" value={`${statShort(item.baseStat)} ${formatNumber(item.baseValue)}`} />
+      <MenuItem label="DMG" value={`${formatNumber(item.minDmg)}-${formatNumber(item.maxDmg)}`} />
+      <MenuItem label="ACC" value={formatNumber(item.accuracy)} />
+      <MenuItem label="UPG" value={`+${item.upgradeLevel}`} />
+      <div className="option-list">
+        {item.options.length > 0 ? item.options.map((option, index) => (
+          <MenuItem
+            key={`${option.key}-${index}`}
+            label={option.sin ? "SIN" : `OP${index + 1}`}
+            value={`${affixShort(option.key)} +${formatNumber(option.value)}`}
+            valueClassName={option.sin ? "bloodc" : undefined}
+          />
+        )) : <MenuItem label="OP" value="NONE" />}
+      </div>
+    </div>
+  );
+}
+
+function RelicSummary({ relicId, instance }: { relicId: RelicId | null; instance: ReturnType<typeof bestRelicInstance> }) {
+  if (!relicId || !instance) {
     return (
       <>
         <MenuItem label="NAME" value="NONE" />
@@ -325,9 +434,11 @@ function RelicSummary({ relicId, stars }: { relicId: RelicId | null; stars: numb
   const relic = RELICS[relicId];
   return (
     <>
-      <MenuItem label="NAME" value={<span className="kr">{relic.name}</span>} />
-      <MenuItem label="SIN" value={sinShort(relic.sin)} />
-      <p className="tiny"><span className="stars">{starText(stars)}</span> / NEXT ?</p>
+      <MenuItem label="NAME" value={<span className="kr">{RELIC_KR_LABELS[relicId]}</span>} />
+      <MenuItem label="SIN" value={<span className="kr">{SIN_KR_LABELS[relic.sin]}</span>} />
+      <MenuItem label="GRADE" value={gradeShort(instance.grade)} valueClassName={rarityClass(instance.grade)} />
+      <MenuItem label="STAR" value={`${instance.stars}/${ALTAR_BALANCE.maxStars}`} />
+      <p className="tiny"><span className="stars">{starText(instance.stars)}</span> / NEXT ?</p>
     </>
   );
 }
@@ -344,11 +455,17 @@ function RelicCard({
   equipped: boolean;
 }) {
   const relic = RELICS[relicId];
+  const ownedGrade = stars > 0 ? grade : null;
   return (
     <div className={equipped ? "relic on" : stars > 0 ? "relic" : "relic off"}>
-      <span className="kr">{stars > 0 ? relic.name : "?"}</span>
-      <small className="sin">{stars > 0 && grade ? grade.slice(0, 3).toUpperCase() : sinShort(relic.sin)}</small>
-      <small className="st">{stars > 0 ? starText(stars) : "?".repeat(ALTAR_BALANCE.maxStars)}</small>
+      <span className="kr">{stars > 0 ? RELIC_KR_LABELS[relicId] : "?"}</span>
+      <small className="sin">{ownedGrade ? gradeShort(ownedGrade) : <span className="kr">{SIN_KR_LABELS[relic.sin]}</span>}</small>
+      <small className="st">{stars > 0 ? `${stars}/${ALTAR_BALANCE.maxStars}` : "?".repeat(ALTAR_BALANCE.maxStars)}</small>
+      <span className="grade-ladder">
+        {RELIC_GRADES.map((entry) => (
+          <i key={entry} className={ownedGrade && ALTAR_BALANCE.relicGrades[entry].rank <= ALTAR_BALANCE.relicGrades[ownedGrade].rank ? rarityClass(entry) : "off"} />
+        ))}
+      </span>
     </div>
   );
 }
@@ -393,8 +510,25 @@ function statShort(stat: EquipmentStatKey): string {
   return stat.toUpperCase();
 }
 
-function sinShort(sin: string): string {
-  return sin.slice(0, 3).toUpperCase();
+function gradeShort(grade: RelicGrade): string {
+  return grade.slice(0, 3).toUpperCase();
+}
+
+function affixShort(key: string): string {
+  return key
+    .replace("Chance", "CH")
+    .replace("Damage", "DMG")
+    .replace("Increase", "INC")
+    .replace("defPenetration", "PEN")
+    .replace("attackSpeed", "ASPD")
+    .replace("damageReduction", "DR")
+    .replace("lifeSteal", "LIFE")
+    .replace("goldGain", "GOLD")
+    .replace("specter", "SPC")
+    .replace("plague", "PLG")
+    .replace("martyr", "MTR")
+    .replace("execution", "EXE")
+    .replace("despair", "DSP");
 }
 
 function starText(stars: number): string {

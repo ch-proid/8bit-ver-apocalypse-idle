@@ -411,6 +411,34 @@ button {
   font-weight: 700;
 }
 
+.statbar.rich {
+  align-items: center;
+}
+
+.statbar.altar-status {
+  align-items: center;
+  gap: 5px;
+}
+
+.statbar.altar-status .gb-bar {
+  max-width: 86px;
+  height: 8px;
+}
+
+.mini-class {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+}
+
+.mini-class b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .win {
   position: relative;
   flex: 0 0 auto;
@@ -461,6 +489,33 @@ button {
   white-space: nowrap;
 }
 
+.v.thin {
+  max-width: 142px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 8px;
+}
+
+.v.r-common {
+  color: var(--r-common);
+}
+
+.v.r-magic {
+  color: var(--r-magic);
+}
+
+.v.r-rare {
+  color: var(--r-rare);
+}
+
+.v.r-epic {
+  color: var(--r-epic);
+}
+
+.v.r-legendary {
+  color: var(--r-legendary);
+}
+
 .cur {
   color: var(--light);
   font-size: 9px;
@@ -499,6 +554,13 @@ button {
   align-items: center;
 }
 
+.status-head {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+
 .skin-mini {
   width: 42px;
   height: 54px;
@@ -511,6 +573,17 @@ button {
 
 .status-lines {
   min-width: 0;
+}
+
+.stat-rows {
+  margin-top: 5px;
+}
+
+.derived-grid,
+.relic-owned {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 9px;
 }
 
 .preset-row {
@@ -532,6 +605,15 @@ button {
   font-size: 8px;
   font-weight: 700;
   cursor: pointer;
+}
+
+.pbox.add {
+  min-width: 18px;
+}
+
+.pbox.rec {
+  min-width: 25px;
+  color: var(--gold);
 }
 
 .pbox.on,
@@ -598,6 +680,8 @@ button {
   color: var(--light);
   font-size: 13px;
   font-weight: 700;
+  padding: 0;
+  cursor: pointer;
 }
 
 .slot small {
@@ -619,6 +703,8 @@ button {
   color: var(--light);
   font-size: 8px;
   font-weight: 700;
+  padding: 0;
+  cursor: pointer;
 }
 
 .cell small {
@@ -667,6 +753,24 @@ button {
   grid-template-columns: 1fr 1fr;
 }
 
+.gear-actions.wide {
+  grid-template-columns: 1fr 1fr;
+}
+
+.item-detail {
+  min-width: 0;
+}
+
+.option-list {
+  margin-top: 3px;
+  padding-top: 3px;
+  border-top: 1px dotted var(--mid);
+}
+
+.elite-hint {
+  margin-top: 5px;
+}
+
 .relic {
   min-height: 44px;
   display: flex;
@@ -695,6 +799,24 @@ button {
 .stars {
   color: var(--gold);
   font-size: 7px;
+}
+
+.grade-ladder {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 2px;
+  width: calc(100% - 8px);
+  margin-top: 2px;
+}
+
+.grade-ladder i {
+  height: 3px;
+  border: 1px solid var(--r-common);
+}
+
+.grade-ladder i.off {
+  border-color: var(--line);
+  opacity: 0.65;
 }
 
 .survivor-panel {
