@@ -78,9 +78,10 @@ export const CLASS_BALANCE = {
 
 export const MONSTER_BALANCE = {
   normalRespawnTimeMultiplier: 1.8,
+  spawnIntroSeconds: 0.4,
   respawnFadeSeconds: 0.22,
-  hpBarWidth: 18,
-  hpBarHeight: 3,
+  hpBarWidth: 10,
+  hpBarHeight: 1,
 } as const;
 
 export const WAVE_BALANCE = {

@@ -113,6 +113,12 @@ function updatePlayerAi(state: SimulationState, dt: number): void {
     player.state = "ATTACK";
     player.velocity.x = 0;
 
+    if (target.spawnInvulnTimer > 0) {
+      applyGravity(player, dt);
+      moveAndCollide(player, world.platforms, dt);
+      return;
+    }
+
     if (player.attackTimer <= 0) {
       applyRelicBeforeAttack(progress, world);
       const damageResult = dealPlayerDamage(player, target, progress, world);
@@ -247,6 +253,11 @@ function updateMonsters(
       continue;
     }
 
+    if (monster.spawnInvulnTimer > 0) {
+      monster.spawnInvulnTimer = Math.max(0, monster.spawnInvulnTimer - dt);
+      continue;
+    }
+
     const platform = getPlatformById(platforms, monster.platformId);
     if (!platform) {
       continue;
@@ -269,6 +280,7 @@ function killMonster(state: SimulationState, monster: Monster): void {
   monster.alive = false;
   monster.respawnTimer = monster.respawnTime;
   monster.fadeTimer = MONSTER_BALANCE.respawnFadeSeconds;
+  monster.spawnInvulnTimer = 0;
   const stage = STAGES[state.progress.currentStage];
   if (stage && monster.role === "normal") {
     addFloatingText(state.world, "+BLOOD", monster.position.x, monster.position.y - 12, "#c0303a");
@@ -396,6 +408,7 @@ function respawnMonster(monster: Monster): void {
   monster.position.y = monster.spawnPosition.y;
   monster.direction *= -1;
   monster.fadeTimer = 0;
+  monster.spawnInvulnTimer = MONSTER_BALANCE.spawnIntroSeconds;
 }
 
 function updateFloatingTexts(state: SimulationState, dt: number): void {

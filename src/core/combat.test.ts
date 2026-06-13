@@ -348,6 +348,7 @@ function prepareTarget(state: SimulationState, hp: number): Monster {
   monster.hp = hp;
   monster.maxHp = hp;
   monster.alive = true;
+  monster.spawnInvulnTimer = 0;
   monster.platformId = state.world.player.platformId;
   monster.position.x = state.world.player.position.x + state.world.player.attackRange - monster.width;
   monster.position.y = state.world.player.position.y;

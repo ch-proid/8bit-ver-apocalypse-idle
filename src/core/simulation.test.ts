@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FIXED_DELTA } from "../data/balance";
+import { FIXED_DELTA, MONSTER_BALANCE } from "../data/balance";
 import { estimateOfflineHuntRates } from "./offline";
 import { createInitialSimulation } from "./stage";
 import { startStage } from "./stageProgress";
@@ -39,6 +39,41 @@ describe("phase 2 simulation", () => {
     }
 
     expect(runA).toEqual(runB);
+  });
+
+  it("keeps newly spawned monsters still and invulnerable until their intro ends", () => {
+    let state = createInitialSimulation(1);
+    const monster = state.world.monsters[0];
+    const startX = monster.position.x;
+    const startHp = monster.hp;
+
+    state.world.player.platformId = monster.platformId;
+    state.world.player.position.x = monster.position.x;
+    state.world.player.position.y = monster.position.y;
+    state.world.player.attackRange = 999;
+    state.world.player.attackCooldown = 0.01;
+    state.world.player.attackTimer = 0;
+
+    expect(monster.spawnInvulnTimer).toBe(MONSTER_BALANCE.spawnIntroSeconds);
+    state = stepSimulation(state, FIXED_DELTA);
+
+    expect(state.world.monsters[0].position.x).toBe(startX);
+    expect(state.world.monsters[0].hp).toBe(startHp);
+    expect(state.world.monsters[0].spawnInvulnTimer).toBeLessThan(MONSTER_BALANCE.spawnIntroSeconds);
+
+    state.world.player.attackRange = 0;
+    for (let i = 0; i < 60; i += 1) {
+      state = stepSimulation(state, FIXED_DELTA);
+    }
+    state.world.player.attackTimer = 0;
+    state.world.player.attackRange = 999;
+    state.world.player.platformId = state.world.monsters[0].platformId;
+    state.world.player.position.x = state.world.monsters[0].position.x;
+    state.world.player.position.y = state.world.monsters[0].position.y;
+    state = stepSimulation(state, FIXED_DELTA);
+
+    expect(state.world.monsters[0].spawnInvulnTimer).toBe(0);
+    expect(state.world.monsters[0].hp).toBeLessThan(startHp);
   });
 
   it("advances waves only after the current wave is wiped out", () => {

@@ -62,6 +62,10 @@ export function dealPlayerDamage(
   progress: ProgressState,
   world: WorldState,
 ): DamageResult {
+  if (monster.spawnInvulnTimer > 0) {
+    return zeroDamageResult(monster);
+  }
+
   const affixes = calculateCombatAffixStats(progress.inventory.equipped);
   const hooks = relicDamageHooks(progress, world, player);
   const classCrit = classCritProfile(progress);
@@ -258,6 +262,27 @@ function playerWeaponDamageProfile(progress: ProgressState, player: Player): { m
     minDamage: weapon.minDmg + intrinsic + knightDefenseBonus,
     maxDamage: weapon.maxDmg + intrinsic + knightDefenseBonus,
     accuracy: weapon.accuracy,
+  };
+}
+
+function zeroDamageResult(monster: Monster): DamageResult {
+  return {
+    baseDamage: 0,
+    afterStrength: 0,
+    raw: 0,
+    accuracyDelta: 0 - monster.evasion,
+    accuracyMultiplier: 0,
+    missed: true,
+    afterAccuracy: 0,
+    afterDamageIncrease: 0,
+    effectiveDefense: monsterDefense(monster),
+    afterDefense: 0,
+    critical: false,
+    afterCritical: 0,
+    afterFinalDamage: 0,
+    afterDamageReduction: 0,
+    varianceMultiplier: 1,
+    finalDamage: 0,
   };
 }
 

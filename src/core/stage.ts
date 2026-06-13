@@ -1,4 +1,4 @@
-import { MONSTER_COMBAT, PLAYER_BALANCE, PROGRESSION, RNG_BALANCE, WAVE_BALANCE } from "../data/balance";
+import { MONSTER_BALANCE, MONSTER_COMBAT, PLAYER_BALANCE, PROGRESSION, RNG_BALANCE, WAVE_BALANCE } from "../data/balance";
 import { BOSS_BY_STAGE } from "../data/bosses";
 import { MONSTERS, type MonsterDefinition } from "../data/monsters";
 import { STAGE_1, STAGES, type StageDefinition } from "../data/stages";
@@ -150,6 +150,7 @@ export function createStageWaveMonsters(
         alive: true,
         direction: index % 2 === 0 ? 1 : -1,
         fadeTimer: 0,
+        spawnInvulnTimer: MONSTER_BALANCE.spawnIntroSeconds,
         color: definition.color,
         role: "normal",
       });

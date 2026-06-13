@@ -254,6 +254,7 @@ function createDummyMonster(): Monster {
     alive: true,
     direction: 1,
     fadeTimer: 0,
+    spawnInvulnTimer: 0,
     color: "#d8e3c8",
     role: "normal",
   };

@@ -156,7 +156,7 @@ export function applyRelicAfterHit(
   const stars = relicStars(progress.altar, relicId);
   const sin = calculateSinAffixStats(progress.inventory.equipped);
 
-  if (!relicId || stars <= 0) {
+  if (!relicId || stars <= 0 || monster.spawnInvulnTimer > 0) {
     return { extraDamage: 0, channel: "none" };
   }
 
@@ -218,7 +218,13 @@ export function applyRelicPassiveDamage(
 ): RelicHitResult {
   const relicId = progress.altar.equippedRelicId;
   const stars = relicStars(progress.altar, relicId);
-  if (relicId !== "specterLord" || stars <= 0 || world.relicCombat.specters.length <= 0 || !monster.alive) {
+  if (
+    relicId !== "specterLord"
+    || stars <= 0
+    || world.relicCombat.specters.length <= 0
+    || !monster.alive
+    || monster.spawnInvulnTimer > 0
+  ) {
     return { extraDamage: 0, channel: "none" };
   }
 

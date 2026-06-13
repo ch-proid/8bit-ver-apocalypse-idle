@@ -72,7 +72,7 @@ export function applyClassAfterHit(
   monster: Monster,
   dealtDamage: number,
 ): { extraDamage: number; channel: "none" | "mageDot" } {
-  if (progress.classId !== "mage" || dealtDamage <= 0 || !monster.alive) {
+  if (progress.classId !== "mage" || dealtDamage <= 0 || !monster.alive || monster.spawnInvulnTimer > 0) {
     return { extraDamage: 0, channel: "none" };
   }
 
@@ -96,6 +96,10 @@ export function applyClassPassiveDamage(
   }
 
   const dot = world.classCombat.mageDots[monster.instanceId];
+  if (monster.spawnInvulnTimer > 0) {
+    return { extraDamage: 0, channel: "none" };
+  }
+
   if (!dot || dot.stacks <= 0 || dot.ttl <= 0 || !monster.alive) {
     delete world.classCombat.mageDots[monster.instanceId];
     return { extraDamage: 0, channel: "none" };
