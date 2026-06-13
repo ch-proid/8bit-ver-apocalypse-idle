@@ -280,3 +280,102 @@ button {
   font-size: 8px;
   letter-spacing: 0.12em;
 }
+
+.deck button.is-active {
+  background: var(--blood);
+  color: var(--light);
+}
+
+.debug-panel {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  top: 28px;
+  bottom: 6px;
+  z-index: 10;
+  pointer-events: auto;
+  overflow: auto;
+  padding: 7px;
+  border: 1px solid var(--light);
+  background: rgba(10, 14, 19, 0.96);
+  color: var(--light);
+  font-size: 8px;
+}
+
+.debug-header,
+.debug-grid {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.debug-header {
+  justify-content: space-between;
+  margin-bottom: 5px;
+  color: var(--gold);
+}
+
+.debug-section {
+  margin: 0 0 6px;
+  padding: 5px;
+  border: 1px solid rgba(216, 227, 200, 0.35);
+}
+
+.debug-section legend {
+  padding: 0 4px;
+  color: var(--accent);
+}
+
+.debug-panel label {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.debug-panel input,
+.debug-panel select,
+.debug-panel textarea,
+.debug-panel button {
+  border: 1px solid var(--mid);
+  background: var(--ink);
+  color: var(--light);
+  font: inherit;
+}
+
+.debug-panel input,
+.debug-panel select {
+  min-width: 42px;
+  max-width: 74px;
+  height: 20px;
+}
+
+.debug-panel button {
+  min-height: 20px;
+  padding: 2px 5px;
+  cursor: pointer;
+}
+
+.debug-panel button.is-on {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+.debug-panel button.danger {
+  border-color: var(--blood);
+  color: var(--blood);
+}
+
+.debug-check input {
+  min-width: auto;
+  width: 12px;
+  height: 12px;
+}
+
+.debug-panel textarea {
+  width: 100%;
+  min-height: 72px;
+  resize: vertical;
+  margin-top: 2px;
+  white-space: pre;
+}

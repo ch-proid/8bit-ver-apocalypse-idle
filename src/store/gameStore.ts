@@ -1,23 +1,32 @@
 import { create } from "zustand";
+import { BOSS_BY_STAGE } from "../data/bosses";
+import { ITEM_RARITIES, ITEM_SLOTS } from "../data/items";
 import { RELIC_IDS } from "../data/relics";
-import { EXPERIENCE_CURVE, FIXED_DELTA, nextExperienceForLevel, PHASE_3B_DEBUG, PHASE_3C_DEBUG, PROGRESSION, STANDARD_DUMMY, TICK_RATE } from "../data/balance";
+import { RELICS } from "../data/relics";
+import { STAGES } from "../data/stages";
+import { EXPERIENCE_CURVE, FIXED_DELTA, nextExperienceForLevel, PHASE_3B_DEBUG, PHASE_3C_DEBUG, PROGRESSION, STANDARD_DUMMY, STAT_GROWTH, TICK_RATE } from "../data/balance";
 import { equipRelic, grantRelic, summonRelic, summonRequirement } from "../core/altar";
 import { calculateItemValue, generateEquipmentItem } from "../core/equipment";
-import { bestInventoryItemForSlot, equipItem } from "../core/inventory";
-import { cloneProgress, gainExperience } from "../core/progression";
+import { addItemToInventory, bestInventoryItemForSlot, createItemId, equipItem } from "../core/inventory";
+import { cloneProgress, gainExperience, updateRecordAt } from "../core/progression";
 import { cloneRelicCombatState, relicDebugSnapshot } from "../core/relics";
 import { calculateRebirthExperienceMultiplier, rebirthSimulation, unlockRebirth } from "../core/rebirth";
 import { cloneRngState, createRngState } from "../core/rng";
 import { compareEquipmentCombatScore, createBuildSnapshot, simulateStandardDummy, updateDummyScoreRecord } from "../core/sim";
 import { createInitialSimulation } from "../core/stage";
+import { clearBossStage, clearStage, startStage } from "../core/stageProgress";
 import { stepSimulation } from "../core/simulation";
-import { applyPlayerStats, combatPowerEstimate, setStatPreset as setStatDistributionPreset, spendStatPoint } from "../core/stats";
-import type { ItemSlot, RelicId, SimulationState, StatKey, StatPreset } from "../core/types";
-import { calculateOfflineReward, loadGame, saveGame } from "../save/saveGame";
+import { applyLevelStatPoints, applyPlayerStats, combatPowerEstimate, setStatPreset as setStatDistributionPreset, spendStatPoint } from "../core/stats";
+import type { ItemRarity, ItemSlot, RelicId, SimulationState, SinId, StageMode, StatKey, StatPreset } from "../core/types";
+import { calculateOfflineReward, deleteSaveGame, loadGame, saveGame } from "../save/saveGame";
+
+export type DebugSpeed = 1 | 4 | 16;
 
 interface GameStore {
   simulation: SimulationState;
   hydrated: boolean;
+  debugSpeed: DebugSpeed;
+  debugLog: string;
   lastOfflineReward: { elapsedSeconds: number; gold: number; experience: number } | null;
   tick: (dt: number) => void;
   addGold: (amount: number) => void;
@@ -33,6 +42,22 @@ interface GameStore {
   equipRelicForDebug: (relicId: RelicId) => void;
   logPhase3CDemo: () => void;
   logPhase3DDemo: () => void;
+  setDebugSpeed: (speed: DebugSpeed) => void;
+  debugJumpToStage: (stageId: number, mode?: StageMode) => void;
+  debugClearCurrentStage: () => void;
+  debugSetGold: (amount: number) => void;
+  debugGrantLevels: (amount: number) => void;
+  debugSetLevel: (level: number) => void;
+  debugGrantStatPoints: (amount: number) => void;
+  debugRebirthNow: (ignoreGate: boolean) => void;
+  debugGenerateItem: (slot: ItemSlot, rarity: ItemRarity) => void;
+  debugFillInventory: (rarity: ItemRarity) => void;
+  debugGrantRelic: (relicId: RelicId) => void;
+  debugSetRelicStars: (relicId: RelicId, stars: number) => void;
+  debugFillBlood: () => void;
+  debugToggleBossGate: (sinId: SinId) => void;
+  debugResetGame: () => Promise<void>;
+  debugDumpSaveJson: () => void;
   hydrate: () => Promise<void>;
   saveNow: () => Promise<void>;
 }
@@ -42,15 +67,21 @@ const initialSimulation = createInitialSimulation(PROGRESSION.initialStageId);
 export const useGameStore = create<GameStore>((set, get) => ({
   simulation: initialSimulation,
   hydrated: false,
+  debugSpeed: 1,
+  debugLog: "",
   lastOfflineReward: null,
 
   tick: (dt: number) => {
     if (dt <= 0) {
       return;
     }
-    set((state) => ({
-      simulation: stepSimulation(state.simulation, dt),
-    }));
+    set((state) => {
+      let simulation = state.simulation;
+      for (let i = 0; i < state.debugSpeed; i += 1) {
+        simulation = stepSimulation(simulation, dt);
+      }
+      return { simulation };
+    });
   },
 
   addGold: (amount: number) => {
@@ -256,6 +287,185 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
   },
 
+  setDebugSpeed: (speed: DebugSpeed) => {
+    set({ debugSpeed: speed });
+  },
+
+  debugJumpToStage: (stageId: number, mode?: StageMode) => {
+    set((state) => ({
+      simulation: rebuildSimulationAtStage(state.simulation, stageId, mode),
+    }));
+  },
+
+  debugClearCurrentStage: () => {
+    set((state) => {
+      const simulation = cloneSimulation(state.simulation);
+      const stageId = simulation.progress.currentStage;
+      if (BOSS_BY_STAGE[stageId]) {
+        clearBossStage(simulation.progress, stageId);
+      } else {
+        clearStage(simulation.progress, stageId);
+      }
+      return { simulation };
+    });
+  },
+
+  debugSetGold: (amount: number) => {
+    set((state) => ({
+      simulation: {
+        ...state.simulation,
+        progress: {
+          ...state.simulation.progress,
+          gold: Math.max(0, Math.floor(amount)),
+        },
+      },
+    }));
+  },
+
+  debugGrantLevels: (amount: number) => {
+    get().debugSetLevel(get().simulation.progress.level + Math.floor(amount));
+  },
+
+  debugSetLevel: (level: number) => {
+    set((state) => {
+      const simulation = cloneSimulation(state.simulation);
+      const nextLevel = Math.max(1, Math.floor(level));
+      const currentLevel = simulation.progress.level;
+      simulation.progress.level = nextLevel;
+      simulation.progress.experience = 0;
+      simulation.progress.nextExperience = nextExperienceForLevel(nextLevel);
+      if (nextLevel > currentLevel) {
+        simulation.progress.statDistribution = applyLevelStatPoints(
+          simulation.progress.statDistribution,
+          (nextLevel - currentLevel) * STAT_GROWTH.pointsPerLevel,
+        );
+        updateRecordAt(simulation.progress.records.highestLevel, nextLevel, Date.now());
+      }
+      applyPlayerStats(simulation.world.player, simulation.progress);
+      return { simulation };
+    });
+  },
+
+  debugGrantStatPoints: (amount: number) => {
+    set((state) => {
+      const simulation = cloneSimulation(state.simulation);
+      simulation.progress.statDistribution.unspentPoints = Math.max(
+        0,
+        simulation.progress.statDistribution.unspentPoints + Math.floor(amount),
+      );
+      return { simulation };
+    });
+  },
+
+  debugRebirthNow: (ignoreGate: boolean) => {
+    set((state) => {
+      const simulation = cloneSimulation(state.simulation);
+      if (ignoreGate) {
+        simulation.progress = unlockRebirth(simulation.progress);
+      }
+      return {
+        simulation: rebirthSimulation(simulation, Date.now()),
+      };
+    });
+  },
+
+  debugGenerateItem: (slot: ItemSlot, rarity: ItemRarity) => {
+    set((state) => {
+      const simulation = cloneSimulation(state.simulation);
+      const item = generateEquipmentItem({
+        id: createItemId(simulation.progress.inventory),
+        rng: simulation.world.rng,
+        stageId: simulation.progress.currentStage,
+        slot,
+        rarity,
+      });
+      addItemToInventory(simulation.progress, item);
+      return { simulation };
+    });
+  },
+
+  debugFillInventory: (rarity: ItemRarity) => {
+    set((state) => {
+      const simulation = cloneSimulation(state.simulation);
+      const previousAutoSell = { ...simulation.progress.inventory.autoSell };
+      for (const itemRarity of ITEM_RARITIES) {
+        simulation.progress.inventory.autoSell[itemRarity] = false;
+      }
+      while (simulation.progress.inventory.items.length < simulation.progress.inventory.capacity) {
+        const item = generateEquipmentItem({
+          id: createItemId(simulation.progress.inventory),
+          rng: simulation.world.rng,
+          stageId: simulation.progress.currentStage,
+          slot: ITEM_SLOTS[simulation.progress.inventory.items.length % ITEM_SLOTS.length],
+          rarity,
+        });
+        addItemToInventory(simulation.progress, item);
+      }
+      simulation.progress.inventory.autoSell = previousAutoSell;
+      return { simulation };
+    });
+  },
+
+  debugGrantRelic: (relicId: RelicId) => {
+    set((state) => {
+      const simulation = cloneSimulation(state.simulation);
+      grantRelic(simulation.progress.altar, relicId);
+      equipRelic(simulation.progress.altar, relicId);
+      return { simulation };
+    });
+  },
+
+  debugSetRelicStars: (relicId: RelicId, stars: number) => {
+    set((state) => {
+      const simulation = cloneSimulation(state.simulation);
+      const nextStars = Math.max(0, Math.min(5, Math.floor(stars)));
+      if (nextStars <= 0) {
+        delete simulation.progress.altar.owned[relicId];
+        if (simulation.progress.altar.equippedRelicId === relicId) {
+          simulation.progress.altar.equippedRelicId = null;
+        }
+      } else {
+        simulation.progress.altar.owned[relicId] = { id: relicId, stars: nextStars };
+        simulation.progress.altar.equippedRelicId = relicId;
+      }
+      return { simulation };
+    });
+  },
+
+  debugFillBlood: () => {
+    set((state) => {
+      const simulation = cloneSimulation(state.simulation);
+      simulation.progress.altar.blood = Math.max(
+        simulation.progress.altar.blood,
+        summonRequirement(simulation.progress.altar.summonCount),
+      );
+      return { simulation };
+    });
+  },
+
+  debugToggleBossGate: (sinId: SinId) => {
+    set((state) => {
+      const simulation = cloneSimulation(state.simulation);
+      simulation.progress.altar.bossDefeated[sinId] = !simulation.progress.altar.bossDefeated[sinId];
+      return { simulation };
+    });
+  },
+
+  debugResetGame: async () => {
+    await deleteSaveGame();
+    set({
+      simulation: createInitialSimulation(PROGRESSION.initialStageId),
+      lastOfflineReward: null,
+      debugLog: "SAVE CLEARED",
+    });
+  },
+
+  debugDumpSaveJson: () => {
+    const dump = JSON.stringify(get().simulation.progress, null, 2);
+    console.log(dump);
+    set({ debugLog: dump });
+  },
+
   hydrate: async () => {
     const save = await loadGame();
     if (!save) {
@@ -319,4 +529,18 @@ function equipBestBySlot(simulation: SimulationState): void {
       equipItem(simulation.progress, simulation.world.player, item.id);
     }
   }
+}
+
+function rebuildSimulationAtStage(simulation: SimulationState, stageId: number, mode?: StageMode): SimulationState {
+  const nextStageId = clampStageId(stageId);
+  const progress = cloneProgress(simulation.progress);
+  const stage = STAGES[nextStageId];
+  progress.stageProgress.unlockedStage = Math.max(progress.stageProgress.unlockedStage, nextStageId);
+  startStage(progress, nextStageId, mode ?? (stage.isBoss ? "boss" : "hunt"));
+  return createInitialSimulation(nextStageId, progress, simulation.world.rng.seed);
+}
+
+function clampStageId(stageId: number): number {
+  const safeStageId = Math.max(PROGRESSION.initialStageId, Math.min(Object.keys(STAGES).length, Math.floor(stageId)));
+  return STAGES[safeStageId] ? safeStageId : PROGRESSION.initialStageId;
 }

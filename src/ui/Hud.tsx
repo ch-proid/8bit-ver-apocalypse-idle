@@ -1,23 +1,13 @@
-import { DEBUG_GRANTS } from "../data/balance";
-import { RELIC_IDS } from "../data/relics";
 import { useGameStore } from "../store/gameStore";
+import { DebugPanel } from "./DebugPanel";
 
-export function Hud() {
+interface HudProps {
+  debugOpen: boolean;
+}
+
+export function Hud({ debugOpen }: HudProps) {
   const progress = useGameStore((state) => state.simulation.progress);
   const player = useGameStore((state) => state.simulation.world.player);
-  const addGold = useGameStore((state) => state.addGold);
-  const addExperience = useGameStore((state) => state.addExperience);
-  const setStatPreset = useGameStore((state) => state.setStatPreset);
-  const spendStatPoint = useGameStore((state) => state.spendStatPoint);
-  const unlockRebirthForDebug = useGameStore((state) => state.unlockRebirthForDebug);
-  const rebirthNow = useGameStore((state) => state.rebirthNow);
-  const logPhase3ADemo = useGameStore((state) => state.logPhase3ADemo);
-  const equipBestItems = useGameStore((state) => state.equipBestItems);
-  const logPhase3BDemo = useGameStore((state) => state.logPhase3BDemo);
-  const summonRelicForDebug = useGameStore((state) => state.summonRelicForDebug);
-  const equipRelicForDebug = useGameStore((state) => state.equipRelicForDebug);
-  const logPhase3CDemo = useGameStore((state) => state.logPhase3CDemo);
-  const logPhase3DDemo = useGameStore((state) => state.logPhase3DDemo);
   const offlineReward = useGameStore((state) => state.lastOfflineReward);
   const expPercent = Math.min(100, Math.floor((progress.experience / progress.nextExperience) * 100));
   const distribution = progress.statDistribution;
@@ -55,36 +45,6 @@ export function Hud() {
         <span>{player.state}</span>
       </div>
 
-      <div className="bottom-panel">
-        <button type="button" onClick={() => addGold(DEBUG_GRANTS.gold)}>
-          +{DEBUG_GRANTS.gold}G
-        </button>
-        <button type="button" onClick={() => addExperience(DEBUG_GRANTS.experience)}>
-          +EXP
-        </button>
-        <button type="button" onClick={unlockRebirthForDebug}>
-          GATE
-        </button>
-        <button type="button" onClick={rebirthNow} disabled={!progress.rebirth.canRebirth}>
-          RB
-        </button>
-        <button type="button" onClick={logPhase3ADemo}>
-          LOG
-        </button>
-        <button type="button" onClick={logPhase3BDemo}>
-          LOG3B
-        </button>
-        <button type="button" onClick={summonRelicForDebug}>
-          SUM
-        </button>
-        <button type="button" onClick={logPhase3CDemo}>
-          LOG3C
-        </button>
-        <button type="button" onClick={logPhase3DDemo}>
-          CP
-        </button>
-      </div>
-
       <div className="phase3-panel stat-panel">
         <span>ATK {player.attack}</span>
         <span>DEF {player.defense}</span>
@@ -92,36 +52,12 @@ export function Hud() {
         <span>REG {player.hpRegen.toFixed(1)}</span>
       </div>
 
-      <div className="phase3-panel button-panel">
-        <button type="button" onClick={() => setStatPreset("ATK")}>
-          ATK
-        </button>
-        <button type="button" onClick={() => setStatPreset("BAL")}>
-          BAL
-        </button>
-        <button type="button" onClick={() => setStatPreset("VIT")}>
-          VIT
-        </button>
-        <button type="button" onClick={() => setStatPreset("MANUAL")}>
-          MAN
-        </button>
-        <button type="button" onClick={() => spendStatPoint("atk")}>
-          +A
-        </button>
-        <button type="button" onClick={equipBestItems}>
-          EQUIP
-        </button>
-        <span>{distribution.preset}</span>
+      <div className="phase3-panel">
+        <span>PRESET {distribution.preset}</span>
+        <span>RELIC {progress.altar.equippedRelicId ?? "NONE"}</span>
       </div>
 
-      <div className="phase3-panel button-panel">
-        <span>RELIC {progress.altar.equippedRelicId ?? "NONE"}</span>
-        {RELIC_IDS.map((relicId) => (
-          <button key={relicId} type="button" onClick={() => equipRelicForDebug(relicId)}>
-            {relicId.slice(0, 3).toUpperCase()}
-          </button>
-        ))}
-      </div>
+      <DebugPanel open={debugOpen} />
 
       {offlineReward ? (
         <div className="offline-note">

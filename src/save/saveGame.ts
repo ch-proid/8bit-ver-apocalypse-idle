@@ -45,6 +45,11 @@ export async function saveGame(progress: ProgressState): Promise<void> {
   }, SAVE_KEY);
 }
 
+export async function deleteSaveGame(): Promise<void> {
+  const db = await getDb();
+  await db.delete(STORE_NAME, SAVE_KEY);
+}
+
 export async function loadGame(): Promise<SaveSnapshot | undefined> {
   const db = await getDb();
   const snapshot = await db.get(STORE_NAME, SAVE_KEY);
