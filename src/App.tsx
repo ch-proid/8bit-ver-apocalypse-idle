@@ -18,7 +18,6 @@ export default function App() {
   const hydrated = useGameStore((state) => state.hydrated);
   const progress = useGameStore((state) => state.simulation.progress);
   const setClassId = useGameStore((state) => state.setClassId);
-  const startCurrentChallenge = useGameStore((state) => state.startCurrentChallenge);
   const [activePanel, setActivePanel] = useState<HudPanelId | null>(null);
   const [debugOpen, setDebugOpen] = useState(false);
   const [dmgMode, setDmgMode] = useState(false);
@@ -76,12 +75,6 @@ export default function App() {
     setActivePanel((current) => (current === panel ? null : panel));
   };
 
-  const openAltarPanel = () => {
-    setDebugOpen(false);
-    setClassSelectOpen(false);
-    setActivePanel((current) => (current === "altar" ? current : "altar"));
-  };
-
   const toggleDebug = () => {
     setActivePanel(null);
     setClassSelectOpen(false);
@@ -137,7 +130,6 @@ export default function App() {
         </div>
 
         <div className="deck">
-          <div className="dpad" aria-hidden="true"><i /><i /></div>
           <div className="tab-btns">
             <TabButton active={activePanel === "stat"} label="STAT" onClick={() => togglePanel("stat")} />
             <TabButton active={activePanel === "gear"} label="GEAR" onClick={() => togglePanel("gear")} />
@@ -145,10 +137,6 @@ export default function App() {
             {DEBUG_PANEL_ENABLED ? (
               <TabButton active={debugOpen} label="DEBUG" onClick={toggleDebug} />
             ) : null}
-          </div>
-          <div className="pills">
-            <PillButton label="SELECT" onClick={openAltarPanel} />
-            <PillButton label="START" onClick={startCurrentChallenge} />
           </div>
           <div className="grille" aria-hidden="true"><i /><i /><i /><i /><i /><i /></div>
         </div>
@@ -160,15 +148,6 @@ export default function App() {
 function TabButton({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
   return (
     <div className={active ? "pbtn on" : "pbtn"}>
-      <button type="button" aria-label={label} onClick={onClick} />
-      <span>{label}</span>
-    </div>
-  );
-}
-
-function PillButton({ label, onClick }: { label: string; onClick: () => void }) {
-  return (
-    <div className="pill">
       <button type="button" aria-label={label} onClick={onClick} />
       <span>{label}</span>
     </div>
