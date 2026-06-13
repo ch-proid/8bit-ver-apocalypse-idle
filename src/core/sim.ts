@@ -255,6 +255,7 @@ function createDummyMonster(): Monster {
     direction: 1,
     fadeTimer: 0,
     spawnInvulnTimer: 0,
+    hitSlowTimer: 0,
     aggro: false,
     aggroDelayTimer: 0,
     color: "#d8e3c8",

@@ -19,7 +19,6 @@ import {
   FLOATING_TEXT_RENDER,
   GAMEBOY_SCREEN_HEIGHT,
   GAMEBOY_SCREEN_WIDTH,
-  HIT_FLASH_RENDER,
   HP_BAR_RENDER,
   MONSTER_FALLBACK_RENDER,
   MONSTER_TRANSITION_RENDER,
@@ -48,8 +47,6 @@ interface FloatingDisplay {
 
 interface MonsterRenderState {
   wasAlive: boolean;
-  previousHp: number;
-  hitFlashUntil: number;
 }
 
 interface RenderProjectile {
@@ -98,8 +95,6 @@ export class PixiWorld {
   private nextFloatingDisplayAt = 0;
   private lastSimulationElapsed = 0;
   private lastPlayerAttackTimer = 0;
-  private previousPlayerHp: number | null = null;
-  private playerHitFlashUntil = 0;
   private nextProjectileId = 1;
   private walkFrame: 0 | 1 = 0;
 
@@ -157,8 +152,6 @@ export class PixiWorld {
     this.projectiles.clear();
     this.floatingDisplays.clear();
     this.playerDisplay = null;
-    this.previousPlayerHp = null;
-    this.playerHitFlashUntil = 0;
   }
 
   render(simulation: SimulationState, options: RenderOptions = {}): void {
@@ -325,15 +318,13 @@ export class PixiWorld {
     const colors = renderColors(dmgMode);
     const display = this.playerDisplay ?? toEntityDisplay(player.position.x, player.position.y, player.direction, this.walkFrame);
     const asset = this.playerClassId === simulation.progress.classId ? this.playerAsset : null;
-    const playerTint = this.playerTint(player.hp, simulation.world.elapsed, colors.spriteTint);
-    const fallbackColor = playerTint === HIT_FLASH_RENDER.darkTint ? HIT_FLASH_RENDER.darkTint : colors.player;
     this.playerFallback.clear();
 
     if (this.playerSprite && asset) {
       this.playerFallback.visible = false;
       this.playerSprite.visible = true;
       this.playerSprite.texture = this.playerFrames[display.walkFrame] ?? this.playerFrames[0] ?? this.playerSprite.texture;
-      this.playerSprite.tint = playerTint;
+      this.playerSprite.tint = colors.spriteTint;
       this.playerSprite.scale.x = display.direction > 0 ? 1 : -1;
       this.playerSprite.scale.y = 1;
       this.playerSprite.x = Math.round(playerSpriteX(display.x, player.width, display.direction, asset));
@@ -344,13 +335,13 @@ export class PixiWorld {
     }
 
     this.playerFallback.visible = true;
-    this.playerFallback.rect(display.x, display.y, player.width, player.height).fill(fallbackColor);
+    this.playerFallback.rect(display.x, display.y, player.width, player.height).fill(colors.player);
     this.playerFallback.rect(
       display.x + PLAYER_FALLBACK_RENDER.accentOffsetX,
       display.y,
       player.width - PLAYER_FALLBACK_RENDER.accentWidthInset,
       PLAYER_FALLBACK_RENDER.accentHeight,
-    ).fill(playerTint === HIT_FLASH_RENDER.darkTint ? fallbackColor : colors.playerAccent);
+    ).fill(colors.playerAccent);
   }
 
   private drawMonsters(simulation: SimulationState, dmgMode: boolean): void {
@@ -374,7 +365,7 @@ export class PixiWorld {
       this.loadMonsterTexture(monster.assetKey, asset);
     }
 
-    const renderState = this.updateMonsterRenderState(monster, elapsed);
+    this.updateMonsterRenderState(monster);
     const alpha = this.monsterAlpha(monster);
     if (alpha <= 0) {
       this.removeMonsterVisuals(monster.instanceId);
@@ -391,8 +382,10 @@ export class PixiWorld {
     const display = this.monsterDisplays.get(monster.instanceId)
       ?? toEntityDisplay(monster.position.x, monster.position.y, monster.direction, this.walkFrame);
     const currentTexture = frames?.[display.walkFrame] ?? texture;
-    const monsterTint = this.monsterTint(monster, renderState, elapsed, colors.spriteTint);
-    const fallbackColor = this.monsterFallbackColor(monster, renderState, elapsed, dmgMode, colors);
+    const monsterTint = monster.spawnInvulnTimer > 0 ? MONSTER_TRANSITION_RENDER.spawnSilhouetteTint : colors.spriteTint;
+    const fallbackColor = monster.spawnInvulnTimer > 0
+      ? MONSTER_TRANSITION_RENDER.spawnSilhouetteTint
+      : (dmgMode ? colors.monster : monster.color);
     const sprite = asset && currentTexture
       ? getOrCreate(this.monsterSprites, monster.instanceId, () => {
         const item = new Sprite(currentTexture);
@@ -468,13 +461,11 @@ export class PixiWorld {
     this.world.addChild(hpBar);
   }
 
-  private updateMonsterRenderState(monster: Monster, elapsed: number): MonsterRenderState {
+  private updateMonsterRenderState(monster: Monster): MonsterRenderState {
     const existing = this.monsterRenderStates.get(monster.instanceId);
     if (!existing) {
       const initialState: MonsterRenderState = {
         wasAlive: monster.alive,
-        previousHp: monster.hp,
-        hitFlashUntil: 0,
       };
       this.monsterRenderStates.set(monster.instanceId, initialState);
       return initialState;
@@ -482,20 +473,12 @@ export class PixiWorld {
 
     if (!monster.alive) {
       existing.wasAlive = false;
-      existing.previousHp = monster.hp;
       return existing;
     }
 
     if (!existing.wasAlive) {
       existing.wasAlive = true;
-      existing.hitFlashUntil = 0;
     }
-
-    if (monster.spawnInvulnTimer <= 0 && monster.hp < existing.previousHp) {
-      existing.hitFlashUntil = elapsed + HIT_FLASH_RENDER.seconds;
-    }
-
-    existing.previousHp = monster.hp;
     return existing;
   }
 
@@ -508,45 +491,6 @@ export class PixiWorld {
     }
 
     return 1;
-  }
-
-  private monsterTint(monster: Monster, renderState: MonsterRenderState, elapsed: number, baseTint: number): number {
-    if (monster.spawnInvulnTimer > 0) {
-      return MONSTER_TRANSITION_RENDER.spawnSilhouetteTint;
-    }
-
-    if (elapsed < renderState.hitFlashUntil) {
-      return HIT_FLASH_RENDER.darkTint;
-    }
-
-    return baseTint;
-  }
-
-  private monsterFallbackColor(
-    monster: Monster,
-    renderState: MonsterRenderState,
-    elapsed: number,
-    dmgMode: boolean,
-    colors: ReturnType<typeof renderColors>,
-  ): ColorSource {
-    if (monster.spawnInvulnTimer > 0) {
-      return MONSTER_TRANSITION_RENDER.spawnSilhouetteTint;
-    }
-
-    if (elapsed < renderState.hitFlashUntil) {
-      return HIT_FLASH_RENDER.darkTint;
-    }
-
-    return (dmgMode ? colors.monster : monster.color) as ColorSource;
-  }
-
-  private playerTint(hp: number, elapsed: number, baseTint: number): number {
-    if (this.previousPlayerHp !== null && hp < this.previousPlayerHp) {
-      this.playerHitFlashUntil = elapsed + HIT_FLASH_RENDER.seconds;
-    }
-
-    this.previousPlayerHp = hp;
-    return elapsed < this.playerHitFlashUntil ? HIT_FLASH_RENDER.darkTint : baseTint;
   }
 
   private drawFloatingTexts(texts: FloatingText[], dmgMode: boolean): void {

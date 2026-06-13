@@ -152,6 +152,7 @@ export function createStageWaveMonsters(
         direction: spawnIndex % 2 === 0 ? 1 : -1,
         fadeTimer: 0,
         spawnInvulnTimer: MONSTER_BALANCE.spawnIntroSeconds,
+        hitSlowTimer: 0,
         aggro: false,
         aggroDelayTimer: MONSTER_BALANCE.autoAggroSeconds,
         color: definition.color,

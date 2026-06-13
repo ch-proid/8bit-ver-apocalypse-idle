@@ -1,4 +1,4 @@
-import { FLOATING_TEXT, MONSTER_BALANCE } from "../data/balance";
+import { FLOATING_TEXT, MAGE_AI_BALANCE, MONSTER_BALANCE } from "../data/balance";
 import { STAGES } from "../data/stages";
 import { applyClassAfterHit, applyClassPassiveDamage, cloneClassCombatState } from "./class";
 import {
@@ -99,8 +99,7 @@ function updatePlayerAi(state: SimulationState, dt: number): void {
   const passiveResult = applyRelicPassiveDamage(progress, world, target, dt);
   const classPassiveResult = applyClassPassiveDamage(progress, world, target, dt);
   if (passiveResult.extraDamage + classPassiveResult.extraDamage > 0) {
-    target.aggro = true;
-    target.aggroDelayTimer = 0;
+    markMonsterHit(target);
   }
   if (target.hp <= 0) {
     const passiveDamage = passiveResult.extraDamage + classPassiveResult.extraDamage;
@@ -114,6 +113,19 @@ function updatePlayerAi(state: SimulationState, dt: number): void {
   const targetPlatform = getPlatformById(world.platforms, target.platformId);
   const playerPlatform = getPlatformById(world.platforms, player.platformId);
   const distance = distanceBetween(player, target);
+
+  if (
+    progress.classId === "mage"
+    && target.platformId === player.platformId
+    && distance <= player.attackRange
+    && Math.abs((target.position.x + target.width / 2) - (player.position.x + player.width / 2)) < MAGE_AI_BALANCE.tooCloseDistance
+    && retreatMage(player, target, world.platforms, dt)
+  ) {
+    player.state = "MOVE";
+    applyGravity(player, dt);
+    moveAndCollide(player, world.platforms, dt);
+    return;
+  }
 
   if (distance <= player.attackRange && (player.platformId === target.platformId || progress.classId === "mage")) {
     player.state = "ATTACK";
@@ -143,8 +155,7 @@ function updatePlayerAi(state: SimulationState, dt: number): void {
         player.hp = Math.min(player.maxHp, player.hp + totalDamage * lifeSteal / 100);
       }
       if (totalDamage > 0) {
-        target.aggro = true;
-        target.aggroDelayTimer = 0;
+        markMonsterHit(target);
       }
       addFloatingText(world, `${totalDamage}`, target.position.x + target.width / 2, target.position.y - 2, "#d8e3c8");
       const hooks = relicDamageHooks(progress, world, player);
@@ -159,6 +170,12 @@ function updatePlayerAi(state: SimulationState, dt: number): void {
       }
     }
 
+    applyGravity(player, dt);
+    moveAndCollide(player, world.platforms, dt);
+    return;
+  }
+
+  if (progress.classId === "mage" && moveMageTowardRange(player, target, world.platforms, dt)) {
     applyGravity(player, dt);
     moveAndCollide(player, world.platforms, dt);
     return;
@@ -212,6 +229,68 @@ function movePlayerToward(player: SimulationState["world"]["player"], desiredX: 
 
   player.direction = delta > 0 ? 1 : -1;
   player.velocity.x = player.direction * player.moveSpeed;
+}
+
+function moveMageTowardRange(
+  player: SimulationState["world"]["player"],
+  target: Monster,
+  platforms: SimulationState["world"]["platforms"],
+  dt: number,
+): boolean {
+  player.state = "MOVE";
+  const horizontalDistance = Math.abs((target.position.x + target.width / 2) - (player.position.x + player.width / 2));
+
+  if (target.platformId === player.platformId && horizontalDistance < MAGE_AI_BALANCE.tooCloseDistance) {
+    return retreatMage(player, target, platforms, dt);
+  }
+
+  if (distanceBetween(player, target) <= player.attackRange) {
+    player.state = "ATTACK";
+    player.velocity.x = 0;
+    return true;
+  }
+
+  if (target.platformId !== player.platformId) {
+    player.velocity.x = 0;
+    return true;
+  }
+
+  movePlayerToward(player, target.position.x + target.width / 2);
+  return true;
+}
+
+function retreatMage(
+  player: SimulationState["world"]["player"],
+  target: Monster,
+  platforms: SimulationState["world"]["platforms"],
+  dt: number,
+): boolean {
+  const platform = getPlatformById(platforms, player.platformId);
+  if (!platform) {
+    return false;
+  }
+
+  const playerCenter = player.position.x + player.width / 2;
+  const targetCenter = target.position.x + target.width / 2;
+  const direction = playerCenter >= targetCenter ? 1 : -1;
+  const minX = platform.x + MAGE_AI_BALANCE.retreatDistance;
+  const maxX = platform.x + platform.width - player.width - MAGE_AI_BALANCE.retreatDistance;
+  const projectedX = player.position.x + direction * player.moveSpeed * dt;
+
+  if (projectedX < minX || projectedX > maxX) {
+    player.velocity.x = 0;
+    return false;
+  }
+
+  player.direction = direction;
+  player.velocity.x = direction * player.moveSpeed;
+  return true;
+}
+
+function markMonsterHit(monster: Monster): void {
+  monster.aggro = true;
+  monster.aggroDelayTimer = 0;
+  monster.hitSlowTimer = MONSTER_BALANCE.hitSlowSeconds;
 }
 
 function getPlatformExitTarget(
@@ -282,6 +361,7 @@ function updateMonsters(
       monster.spawnInvulnTimer = Math.max(0, monster.spawnInvulnTimer - dt);
       continue;
     }
+    monster.hitSlowTimer = Math.max(0, monster.hitSlowTimer - dt);
 
     const platform = getPlatformById(platforms, monster.platformId);
     if (!platform) {
@@ -314,7 +394,8 @@ function updateMonsters(
       }
     }
 
-    monster.position.x += monster.direction * monster.moveSpeed * dt;
+    const slowMultiplier = monster.hitSlowTimer > 0 ? MONSTER_BALANCE.hitSlowMoveMultiplier : 1;
+    monster.position.x += monster.direction * monster.moveSpeed * slowMultiplier * dt;
     const minX = platform.x + 3;
     const maxX = platform.x + platform.width - monster.width - 3;
     if (monster.position.x <= minX) {
@@ -373,6 +454,7 @@ function killMonster(state: SimulationState, monster: Monster): void {
   monster.respawnTimer = monster.respawnTime;
   monster.fadeTimer = MONSTER_BALANCE.respawnFadeSeconds;
   monster.spawnInvulnTimer = 0;
+  monster.hitSlowTimer = 0;
   monster.aggro = false;
   monster.aggroDelayTimer = 0;
   const stage = STAGES[state.progress.currentStage];
@@ -504,6 +586,7 @@ function respawnMonster(monster: Monster): void {
   monster.direction *= -1;
   monster.fadeTimer = 0;
   monster.spawnInvulnTimer = MONSTER_BALANCE.spawnIntroSeconds;
+  monster.hitSlowTimer = 0;
   monster.aggro = false;
   monster.aggroDelayTimer = MONSTER_BALANCE.autoAggroSeconds;
 }

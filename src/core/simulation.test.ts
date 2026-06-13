@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FIXED_DELTA, MONSTER_BALANCE, nextExperienceForLevel } from "../data/balance";
+import { FIXED_DELTA, MAGE_AI_BALANCE, MONSTER_BALANCE, nextExperienceForLevel } from "../data/balance";
 import { STAGES } from "../data/stages";
 import { estimateOfflineHuntRates } from "./offline";
 import { createInitialSimulation } from "./stage";
@@ -152,6 +152,43 @@ describe("phase 2 simulation", () => {
     expect(hit.world.monsters[0].aggro).toBe(true);
   });
 
+  it("slows monsters after hits and clears the slow timer deterministically", () => {
+    let hit = createInitialSimulation(1);
+    const target = isolateSamePlatformTarget(hit, 0);
+    target.evasion = 0;
+    target.maxHp = 9999;
+    target.hp = target.maxHp;
+    hit.world.player.attackRange = 999;
+    hit.world.player.attackTimer = 0;
+    hit = stepSimulation(hit, FIXED_DELTA);
+    expect(hit.world.monsters[0].hitSlowTimer).toBe(MONSTER_BALANCE.hitSlowSeconds);
+
+    let slowed = createInitialSimulation(1);
+    const slowedTarget = isolateSamePlatformTarget(slowed, 72);
+    slowed.world.player.attackRange = 0;
+    slowed.world.player.moveSpeed = 0;
+    slowedTarget.moveSpeed = 30;
+    slowedTarget.hitSlowTimer = MONSTER_BALANCE.hitSlowSeconds;
+    slowedTarget.direction = 1;
+    slowed = stepSimulation(slowed, FIXED_DELTA);
+    const slowedDelta = slowed.world.monsters[0].position.x - 72;
+
+    let normal = createInitialSimulation(1);
+    const normalTarget = isolateSamePlatformTarget(normal, 72);
+    normal.world.player.attackRange = 0;
+    normal.world.player.moveSpeed = 0;
+    normalTarget.moveSpeed = 30;
+    normalTarget.direction = 1;
+    normal = stepSimulation(normal, FIXED_DELTA);
+    const normalDelta = normal.world.monsters[0].position.x - 72;
+    expect(slowedDelta).toBeCloseTo(normalDelta * MONSTER_BALANCE.hitSlowMoveMultiplier, 5);
+
+    for (let i = 0; i < 60; i += 1) {
+      slowed = stepSimulation(slowed, FIXED_DELTA);
+    }
+    expect(slowed.world.monsters[0].hitSlowTimer).toBe(0);
+  });
+
   it("brings untouched off-platform monsters down to the player after the auto-aggro delay", () => {
     let state = createInitialSimulation(1);
     const offPlatform = state.world.monsters.find((monster) => monster.platformId !== state.world.player.platformId);
@@ -201,6 +238,40 @@ describe("phase 2 simulation", () => {
     mage.world.player.attackTimer = 0;
     mage = stepSimulation(mage, FIXED_DELTA);
     expect(mage.world.monsters.find((monster) => monster.instanceId === mageTarget.instanceId)?.hp).toBeLessThan(mageTarget.hp);
+  });
+
+  it("keeps mage at range while melee still approaches", () => {
+    let mage = createInitialSimulation(1);
+    mage.progress.classId = "mage";
+    const mageTarget = isolateSamePlatformTarget(mage, mage.world.player.position.x + 42);
+    mageTarget.evasion = 0;
+    mageTarget.maxHp = 9999;
+    mageTarget.hp = mageTarget.maxHp;
+    mage.world.player.attackRange = 60;
+    mage.world.player.attackTimer = 0;
+    const mageStartX = mage.world.player.position.x;
+    const mageStartHp = mageTarget.hp;
+    mage = stepSimulation(mage, FIXED_DELTA);
+    expect(mage.world.player.position.x).toBe(mageStartX);
+    expect(mage.world.monsters[0].hp).toBeLessThan(mageStartHp);
+
+    let retreat = createInitialSimulation(1);
+    retreat.progress.classId = "mage";
+    const retreatTarget = isolateSamePlatformTarget(retreat, retreat.world.player.position.x + MAGE_AI_BALANCE.tooCloseDistance / 2);
+    retreatTarget.evasion = 0;
+    retreat.world.player.attackRange = 60;
+    retreat.world.player.attackTimer = 0;
+    const retreatStartX = retreat.world.player.position.x;
+    retreat = stepSimulation(retreat, FIXED_DELTA);
+    expect(retreat.world.player.position.x).toBeLessThan(retreatStartX);
+
+    let knight = createInitialSimulation(1);
+    knight.progress.classId = "knight";
+    isolateSamePlatformTarget(knight, knight.world.player.position.x + 64);
+    knight.world.player.attackRange = 1;
+    const knightStartX = knight.world.player.position.x;
+    knight = stepSimulation(knight, FIXED_DELTA);
+    expect(knight.world.player.position.x).toBeGreaterThan(knightStartX);
   });
 
   it("restarts the wave cycle after all hunt waves are cleared", () => {
@@ -314,4 +385,28 @@ function isolateOffPlatformTarget(state: ReturnType<typeof createInitialSimulati
   target.maxHp = target.hp * 10;
   target.hp = target.maxHp;
   return { ...target };
+}
+
+function isolateSamePlatformTarget(state: ReturnType<typeof createInitialSimulation>, x: number) {
+  const target = state.world.monsters[0];
+  const platform = state.world.platforms.find((item) => item.id === state.world.player.platformId);
+  if (!target || !platform) {
+    throw new Error("test stage is missing a target and player platform");
+  }
+
+  state.world.monsters.forEach((monster) => {
+    if (monster.instanceId !== target.instanceId) {
+      monster.alive = false;
+    }
+  });
+  target.platformId = state.world.player.platformId;
+  target.position.x = x;
+  target.position.y = platform.y - target.height;
+  target.spawnPosition = { ...target.position };
+  target.spawnInvulnTimer = 0;
+  target.hitSlowTimer = 0;
+  target.aggro = false;
+  target.aggroDelayTimer = 999;
+  target.moveSpeed = 0;
+  return target;
 }

@@ -283,6 +283,7 @@ export interface Monster {
   direction: -1 | 1;
   fadeTimer: number;
   spawnInvulnTimer: number;
+  hitSlowTimer: number;
   aggro: boolean;
   aggroDelayTimer: number;
   color: string;

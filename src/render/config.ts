@@ -60,11 +60,6 @@ export const MONSTER_TRANSITION_RENDER = {
   spawnSilhouetteTint: 0x3a0a12,
 } as const;
 
-export const HIT_FLASH_RENDER = {
-  seconds: 2 / 60,
-  darkTint: 0x1f0b12,
-} as const;
-
 export const HP_BAR_RENDER = {
   offsetX: -1,
   offsetY: -3,
