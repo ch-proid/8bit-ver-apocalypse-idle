@@ -1,4 +1,4 @@
-import { FLOATING_TEXT, MAGE_AI_BALANCE, MONSTER_BALANCE } from "../data/balance";
+import { FLOATING_TEXT, MAGE_AI_BALANCE, MONSTER_BALANCE, PLAYER_NAVIGATION } from "../data/balance";
 import { STAGES } from "../data/stages";
 import { applyClassAfterHit, applyClassPassiveDamage, cloneClassCombatState } from "./class";
 import {
@@ -32,7 +32,7 @@ import { cloneRngState } from "./rng";
 import { addBlood } from "./altar";
 import { createInitialWaveState, createStageWaveMonsters, getPlatformById, platformCenterX } from "./stage";
 import { clearStage, continueAutoChallenge, failStageChallenge, tickStageChallenge } from "./stageProgress";
-import type { ClassId, Monster, SimulationState } from "./types";
+import type { ClassId, Monster, Platform, Player, SimulationState } from "./types";
 
 export function stepSimulation(input: SimulationState, dt: number): SimulationState {
   const { world, progress } = input;
@@ -85,9 +85,9 @@ function updatePlayerAi(state: SimulationState, dt: number): void {
   const currentTarget = hasPrioritySummon
     ? null
     : aliveMonsters.find((monster) => monster.instanceId === player.targetId);
-  const target = currentTarget && canTargetMonster(progress.classId, player, currentTarget)
+  const target = currentTarget
     ? currentTarget
-    : findNearestMonster(world.monsters, player, progress.classId);
+    : findNearestMonster(world.monsters, player, progress.classId, world.platforms);
 
   if (!target) {
     player.state = "IDLE";
@@ -114,7 +114,7 @@ function updatePlayerAi(state: SimulationState, dt: number): void {
   const playerPlatform = getPlatformById(world.platforms, player.platformId);
   const distance = distanceBetween(player, target);
 
-  if (distance <= player.attackRange && (player.platformId === target.platformId || progress.classId === "mage")) {
+  if (distance <= player.attackRange && canAttackMonster(progress.classId, player, target, world.platforms)) {
     player.state = "ATTACK";
     player.velocity.x = 0;
 
@@ -173,15 +173,10 @@ function updatePlayerAi(state: SimulationState, dt: number): void {
   let desiredX = targetCenter;
 
   if (targetPlatform && playerPlatform && targetPlatform.id !== playerPlatform.id) {
-    desiredX = platformCenterX(targetPlatform);
-
-    if (targetPlatform.y < playerPlatform.y && Math.abs(player.position.x - desiredX) < 26) {
-      jump(player);
-    }
-
-    if (targetPlatform.y > playerPlatform.y) {
-      desiredX = getPlatformExitTarget(playerPlatform, player, desiredX);
-    }
+    movePlayerTowardPlatform(player, targetPlatform, world.platforms);
+    applyGravity(player, dt);
+    moveAndCollide(player, world.platforms, dt);
+    return;
   }
 
   movePlayerToward(player, desiredX);
@@ -218,6 +213,135 @@ function movePlayerToward(player: SimulationState["world"]["player"], desiredX: 
   player.velocity.x = player.direction * player.moveSpeed;
 }
 
+function movePlayerTowardPlatform(player: Player, targetPlatform: Platform, platforms: Platform[]): boolean {
+  const currentPlatform = getPlatformById(platforms, player.platformId);
+  if (!currentPlatform) {
+    player.velocity.x = 0;
+    return false;
+  }
+
+  if (currentPlatform.id === targetPlatform.id) {
+    movePlayerToward(player, platformCenterX(targetPlatform));
+    return true;
+  }
+
+  const nextPlatform = nextPlatformToward(platforms, currentPlatform.id, targetPlatform.id);
+  if (!nextPlatform) {
+    player.velocity.x = 0;
+    return false;
+  }
+
+  if (nextPlatform.y < currentPlatform.y) {
+    const launchX = jumpLaunchCenterX(currentPlatform, nextPlatform, player);
+    const airborne = Math.abs(player.velocity.y) > 0.001 || player.position.y + player.height < currentPlatform.y - 1;
+    const desiredX = airborne ? platformCenterX(nextPlatform) : launchX;
+    movePlayerToward(player, desiredX);
+
+    if (!airborne && Math.abs(player.position.x + player.width / 2 - launchX) <= PLAYER_NAVIGATION.jumpLaunchTolerance) {
+      jump(player);
+    }
+    return true;
+  }
+
+  if (nextPlatform.y > currentPlatform.y) {
+    movePlayerToward(player, platformExitTarget(currentPlatform, player, platformCenterX(nextPlatform)));
+    return true;
+  }
+
+  movePlayerToward(player, platformCenterX(nextPlatform));
+  return true;
+}
+
+function nextPlatformToward(platforms: Platform[], fromId: string, targetId: string): Platform | null {
+  const route = platformRoute(platforms, fromId, targetId);
+  if (route.length < 2) {
+    return null;
+  }
+
+  return getPlatformById(platforms, route[1]) ?? null;
+}
+
+function platformRouteDistance(platforms: Platform[], fromId: string, targetId: string): number {
+  if (fromId === targetId) {
+    return 0;
+  }
+
+  const route = platformRoute(platforms, fromId, targetId);
+  return route.length > 0 ? route.length - 1 : Number.POSITIVE_INFINITY;
+}
+
+function platformRoute(platforms: Platform[], fromId: string, targetId: string): string[] {
+  if (fromId === targetId) {
+    return [fromId];
+  }
+
+  const queue: string[][] = [[fromId]];
+  const visited = new Set<string>([fromId]);
+
+  while (queue.length > 0) {
+    const route = queue.shift() ?? [];
+    const currentId = route[route.length - 1];
+    const current = getPlatformById(platforms, currentId);
+    if (!current) {
+      continue;
+    }
+
+    for (const adjacentId of current.adjacentPlatformIds) {
+      if (visited.has(adjacentId)) {
+        continue;
+      }
+      const adjacent = getPlatformById(platforms, adjacentId);
+      if (!adjacent || !canTraversePlatformEdge(current, adjacent)) {
+        continue;
+      }
+
+      const nextRoute = [...route, adjacentId];
+      if (adjacentId === targetId) {
+        return nextRoute;
+      }
+
+      visited.add(adjacentId);
+      queue.push(nextRoute);
+    }
+  }
+
+  return [];
+}
+
+function canTraversePlatformEdge(from: Platform, to: Platform): boolean {
+  if (to.y < from.y) {
+    return from.y - to.y <= PLAYER_NAVIGATION.jumpReachHeight;
+  }
+
+  return true;
+}
+
+function jumpLaunchCenterX(from: Platform, to: Platform, player: Player): number {
+  const padding = PLAYER_NAVIGATION.platformEdgePadding;
+  const fromMin = from.x + player.width / 2 + padding;
+  const fromMax = from.x + from.width - player.width / 2 - padding;
+  const toMin = to.x + player.width / 2;
+  const toMax = to.x + to.width - player.width / 2;
+  const overlapMin = Math.max(fromMin, toMin);
+  const overlapMax = Math.min(fromMax, toMax);
+
+  if (overlapMin <= overlapMax) {
+    return (overlapMin + overlapMax) / 2;
+  }
+
+  return platformCenterX(to) < platformCenterX(from) ? fromMin : fromMax;
+}
+
+function platformExitTarget(platform: Platform, player: Player, targetX: number): number {
+  const platformCenter = platformCenterX(platform);
+
+  if (targetX >= platformCenter) {
+    return platform.x + platform.width + player.width + 8;
+  }
+
+  return platform.x - player.width - 8;
+}
+
 function moveMageTowardRange(
   player: SimulationState["world"]["player"],
   target: Monster,
@@ -227,7 +351,7 @@ function moveMageTowardRange(
   player.state = "MOVE";
   const horizontalDistance = Math.abs((target.position.x + target.width / 2) - (player.position.x + player.width / 2));
 
-  if (distanceBetween(player, target) <= player.attackRange) {
+  if (distanceBetween(player, target) <= player.attackRange && canAttackMonster("mage", player, target, platforms)) {
     player.state = "ATTACK";
     player.velocity.x = 0;
     return true;
@@ -238,7 +362,12 @@ function moveMageTowardRange(
   }
 
   if (target.platformId !== player.platformId) {
-    player.velocity.x = 0;
+    const targetPlatform = getPlatformById(platforms, target.platformId);
+    if (targetPlatform) {
+      movePlayerTowardPlatform(player, targetPlatform, platforms);
+    } else {
+      player.velocity.x = 0;
+    }
     return true;
   }
 
@@ -280,24 +409,11 @@ function markMonsterHit(monster: Monster): void {
   monster.hitSlowTimer = MONSTER_BALANCE.hitSlowSeconds;
 }
 
-function getPlatformExitTarget(
-  platform: NonNullable<ReturnType<typeof getPlatformById>>,
-  player: SimulationState["world"]["player"],
-  targetX: number,
-): number {
-  const platformCenter = platformCenterX(platform);
-
-  if (targetX >= platformCenter) {
-    return platform.x + platform.width + player.width + 8;
-  }
-
-  return platform.x - player.width - 8;
-}
-
 function findNearestMonster(
   monsters: Monster[],
   player: SimulationState["world"]["player"],
   classId: ClassId,
+  platforms: SimulationState["world"]["platforms"],
 ): Monster | null {
   let best: Monster | null = null;
   let bestScore = Number.POSITIVE_INFINITY;
@@ -305,11 +421,18 @@ function findNearestMonster(
   const y = player.position.y;
 
   for (const monster of monsters) {
-    if (!monster.alive || !canTargetMonster(classId, player, monster)) {
+    if (!monster.alive) {
+      continue;
+    }
+    const routeDistance = platformRouteDistance(platforms, player.platformId, monster.platformId);
+    if (routeDistance === Number.POSITIVE_INFINITY) {
       continue;
     }
     const rolePriority = monster.role === "bossSummon" ? 0 : monster.role === "boss" ? 1 : 2;
-    const score = rolePriority * 100000 + Math.abs(monster.position.x - x) + Math.abs(monster.position.y - y) * 1.8;
+    const samePlatformPriority = monster.platformId === player.platformId ? 0 : 1;
+    const mageAttackPriority = classId === "mage" && canAttackMonster(classId, player, monster, platforms) ? 0 : 1;
+    const platformPriority = samePlatformPriority * 1000 + mageAttackPriority * 100 + routeDistance * 10;
+    const score = rolePriority * 100000 + platformPriority * 1000 + Math.abs(monster.position.x - x) + Math.abs(monster.position.y - y) * 1.8;
     if (score < bestScore) {
       best = monster;
       bestScore = score;
@@ -319,12 +442,28 @@ function findNearestMonster(
   return best;
 }
 
-function canTargetMonster(classId: ClassId, player: SimulationState["world"]["player"], monster: Monster): boolean {
+function canAttackMonster(
+  classId: ClassId,
+  player: SimulationState["world"]["player"],
+  monster: Monster,
+  platforms: SimulationState["world"]["platforms"],
+): boolean {
   if (monster.platformId === player.platformId) {
     return true;
   }
 
-  return classId === "mage" && distanceBetween(player, monster) <= player.attackRange;
+  if (classId !== "mage") {
+    return false;
+  }
+
+  const playerPlatform = getPlatformById(platforms, player.platformId);
+  const monsterPlatform = getPlatformById(platforms, monster.platformId);
+  if (!playerPlatform || !monsterPlatform) {
+    return false;
+  }
+
+  const layerDelta = monsterPlatform.layer - playerPlatform.layer;
+  return layerDelta >= 0 && layerDelta <= MAGE_AI_BALANCE.verticalRange;
 }
 
 function updateMonsters(
@@ -334,27 +473,6 @@ function updateMonsters(
   dt: number,
   waveCycleEnabled: boolean,
 ): void {
-  const playerPlatform = getPlatformById(platforms, player.platformId);
-  let playerPlatformAggroCount = monsters.filter(
-    (monster) => monster.alive && monster.aggro && monster.platformId === player.platformId,
-  ).length;
-  let transfersToPlayerPlatform = 0;
-
-  const transferToPlayerPlatform = (monster: Monster): boolean => {
-    if (
-      !playerPlatform
-      || playerPlatformAggroCount >= MONSTER_BALANCE.maxAggroOnPlayerPlatform
-      || transfersToPlayerPlatform >= MONSTER_BALANCE.maxPlatformTransfersPerTick
-    ) {
-      return false;
-    }
-
-    transferMonsterToPlatform(monster, playerPlatform, player);
-    playerPlatformAggroCount += 1;
-    transfersToPlayerPlatform += 1;
-    return true;
-  };
-
   for (const monster of monsters) {
     if (!monster.alive) {
       monster.respawnTimer -= dt;
@@ -382,15 +500,7 @@ function updateMonsters(
     }
 
     if (monster.aggro) {
-      if (playerPlatform && monster.platformId !== player.platformId) {
-        const exitX = platformExitX(platform, player);
-        const monsterCenter = monster.position.x + monster.width / 2;
-        const delta = exitX - monsterCenter;
-        if (Math.abs(delta) <= MONSTER_BALANCE.platformTransferEdgeThreshold && transferToPlayerPlatform(monster)) {
-          continue;
-        }
-        monster.direction = delta > 0 ? 1 : -1;
-      } else {
+      if (monster.platformId === player.platformId) {
         const playerCenter = player.position.x + player.width / 2;
         const monsterCenter = monster.position.x + monster.width / 2;
         const delta = playerCenter - monsterCenter;
@@ -406,44 +516,11 @@ function updateMonsters(
     const maxX = platform.x + platform.width - monster.width - 3;
     if (monster.position.x <= minX) {
       monster.position.x = minX;
-      if (monster.aggro && monster.platformId !== player.platformId) {
-        if (transferToPlayerPlatform(monster)) {
-          continue;
-        }
-      }
       monster.direction = 1;
     } else if (monster.position.x >= maxX) {
       monster.position.x = maxX;
-      if (monster.aggro && monster.platformId !== player.platformId) {
-        if (transferToPlayerPlatform(monster)) {
-          continue;
-        }
-      }
       monster.direction = -1;
     }
-  }
-}
-
-function platformExitX(platform: NonNullable<ReturnType<typeof getPlatformById>>, player: SimulationState["world"]["player"]): number {
-  const playerCenter = player.position.x + player.width / 2;
-  return clamp(playerCenter, platform.x, platform.x + platform.width);
-}
-
-function transferMonsterToPlatform(
-  monster: Monster,
-  platform: NonNullable<ReturnType<typeof getPlatformById>>,
-  player: SimulationState["world"]["player"],
-): void {
-  const minX = platform.x + 3;
-  const maxX = platform.x + platform.width - monster.width - 3;
-  monster.platformId = platform.id;
-  monster.position.x = clamp(monster.position.x, minX, maxX);
-  monster.position.y = platform.y - monster.height;
-  const playerCenter = player.position.x + player.width / 2;
-  const monsterCenter = monster.position.x + monster.width / 2;
-  const delta = playerCenter - monsterCenter;
-  if (Math.abs(delta) > 1) {
-    monster.direction = delta > 0 ? 1 : -1;
   }
 }
 

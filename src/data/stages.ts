@@ -9,6 +9,8 @@ export interface PlatformDefinition {
   y: number;
   width: number;
   height: number;
+  layer: number;
+  adjacentPlatformIds: string[];
 }
 
 export interface MonsterSpawnDefinition {
@@ -45,12 +47,12 @@ export interface StageDefinition {
 }
 
 const BASE_PLATFORMS: PlatformDefinition[] = [
-  { id: "floor", x: 0, y: 137, width: 320, height: 7 },
-  { id: "low-left", x: 31, y: 99, width: 86, height: 7 },
-  { id: "mid-right", x: 230, y: 98, width: 62, height: 7 },
-  { id: "high-mid", x: 136, y: 71, width: 63, height: 7 },
-  { id: "high-left", x: 48, y: 43, width: 62, height: 7 },
-  { id: "high-right", x: 188, y: 44, width: 94, height: 7 },
+  { id: "floor", x: 0, y: 137, width: 320, height: 7, layer: 0, adjacentPlatformIds: ["low-left", "mid-right"] },
+  { id: "low-left", x: 31, y: 99, width: 86, height: 7, layer: 1, adjacentPlatformIds: ["floor", "high-left", "high-mid"] },
+  { id: "mid-right", x: 230, y: 98, width: 62, height: 7, layer: 1, adjacentPlatformIds: ["floor", "high-right"] },
+  { id: "high-mid", x: 136, y: 71, width: 63, height: 7, layer: 2, adjacentPlatformIds: ["low-left", "high-left", "high-right"] },
+  { id: "high-left", x: 48, y: 43, width: 62, height: 7, layer: 2, adjacentPlatformIds: ["low-left", "high-mid"] },
+  { id: "high-right", x: 188, y: 44, width: 94, height: 7, layer: 2, adjacentPlatformIds: ["mid-right", "high-mid"] },
 ];
 
 const BASE_SPAWN_LAYERS: StageSpawnLayerDefinition[] = [
@@ -98,7 +100,10 @@ function createStage(id: number): StageDefinition {
     bossId: boss?.id,
     goldPerMinute: 180 + id * 30,
     experiencePerMinute: 150 + id * 25,
-    platforms: BASE_PLATFORMS.map((platform) => ({ ...platform })),
+    platforms: BASE_PLATFORMS.map((platform) => ({
+      ...platform,
+      adjacentPlatformIds: [...platform.adjacentPlatformIds],
+    })),
     spawnLayers: BASE_SPAWN_LAYERS.map((layer) => ({
       ...layer,
       xRange: [...layer.xRange],

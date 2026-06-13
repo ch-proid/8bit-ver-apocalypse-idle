@@ -9,6 +9,8 @@ export interface Platform {
   y: number;
   width: number;
   height: number;
+  layer: number;
+  adjacentPlatformIds: string[];
 }
 
 export type PlayerAiState = "IDLE" | "MOVE" | "ATTACK";

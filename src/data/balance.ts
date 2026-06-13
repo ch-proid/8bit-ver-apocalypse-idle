@@ -80,9 +80,6 @@ export const MONSTER_BALANCE = {
   normalRespawnTimeMultiplier: 1.8,
   moveSpeedMultiplier: 0.55,
   autoAggroSeconds: 2.5,
-  platformTransferEdgeThreshold: 1.5,
-  maxPlatformTransfersPerTick: 1,
-  maxAggroOnPlayerPlatform: 2,
   spawnInsetX: 4,
   spawnIntroSeconds: 0.4,
   hitSlowSeconds: 0.45,
@@ -95,6 +92,14 @@ export const MONSTER_BALANCE = {
 export const MAGE_AI_BALANCE = {
   tooCloseDistance: 16,
   retreatDistance: 10,
+  verticalRange: 1,
+} as const;
+
+export const PLAYER_NAVIGATION = {
+  jumpReachHeight: 62,
+  jumpLaunchTolerance: 5,
+  platformEdgePadding: 2,
+  routeStuckDistance: 2,
 } as const;
 
 export const WAVE_BALANCE = {

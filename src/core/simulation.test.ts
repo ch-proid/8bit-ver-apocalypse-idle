@@ -189,12 +189,11 @@ describe("phase 2 simulation", () => {
     expect(slowed.world.monsters[0].hitSlowTimer).toBe(0);
   });
 
-  it("brings untouched off-platform monsters down to the player after the auto-aggro delay", () => {
+  it("keeps untouched off-platform monsters on their own platform after auto-aggro", () => {
     let state = createInitialSimulation(1);
     const offPlatform = state.world.monsters.find((monster) => monster.platformId !== state.world.player.platformId);
-    const floor = state.world.platforms.find((platform) => platform.id === state.world.player.platformId);
 
-    if (!offPlatform || !floor) {
+    if (!offPlatform) {
       throw new Error("test stage needs an off-platform monster and a player floor platform");
     }
 
@@ -206,6 +205,8 @@ describe("phase 2 simulation", () => {
     offPlatform.spawnInvulnTimer = 0;
     offPlatform.aggro = false;
     offPlatform.aggroDelayTimer = MONSTER_BALANCE.autoAggroSeconds;
+    const originalPlatformId = offPlatform.platformId;
+    const originalY = offPlatform.position.y;
     state.world.player.attackRange = 0;
     state.world.player.moveSpeed = 0;
     const playerPlatformId = state.world.player.platformId;
@@ -217,8 +218,8 @@ describe("phase 2 simulation", () => {
     const moved = state.world.monsters.find((monster) => monster.instanceId === offPlatform.instanceId);
     expect(state.world.player.platformId).toBe(playerPlatformId);
     expect(moved?.aggro).toBe(true);
-    expect(moved?.platformId).toBe(playerPlatformId);
-    expect(moved?.position.y).toBe(floor.y - offPlatform.height);
+    expect(moved?.platformId).toBe(originalPlatformId);
+    expect(moved?.position.y).toBe(originalY);
   });
 
   it("lets mage attack off-platform monsters in range while melee waits for same-platform contact", () => {
@@ -238,6 +239,39 @@ describe("phase 2 simulation", () => {
     mage.world.player.attackTimer = 0;
     mage = stepSimulation(mage, FIXED_DELTA);
     expect(mage.world.monsters.find((monster) => monster.instanceId === mageTarget.instanceId)?.hp).toBeLessThan(mageTarget.hp);
+  });
+
+  it("limits mage vertical shots to the current and next upper layer", () => {
+    let midShot = createInitialSimulation(1);
+    midShot.progress.classId = "mage";
+    const midTarget = isolatePlatformTarget(midShot, "low-left", 40);
+    midShot.world.player.attack = 999;
+    midShot.world.player.attackRange = 60;
+    midShot.world.player.attackTimer = 0;
+    const midStartHp = midTarget.hp;
+    midShot = stepSimulation(midShot, FIXED_DELTA);
+    expect(midShot.world.player.platformId).toBe("floor");
+    expect(midShot.world.monsters.find((monster) => monster.instanceId === midTarget.instanceId)?.hp).toBeLessThan(midStartHp);
+
+    let highShot = createInitialSimulation(1);
+    highShot.progress.classId = "mage";
+    const highTarget = isolatePlatformTarget(highShot, "high-left", 52);
+    highTarget.maxHp = 999999;
+    highTarget.hp = highTarget.maxHp;
+    highShot.world.player.attack = 999;
+    highShot.world.player.attackCooldown = 0.05;
+    highShot.world.player.attackRange = 999;
+    highShot.world.player.attackTimer = 0;
+    const highStartHp = highTarget.hp;
+    highShot = stepSimulation(highShot, FIXED_DELTA);
+    expect(highShot.world.monsters.find((monster) => monster.instanceId === highTarget.instanceId)?.hp).toBe(highStartHp);
+
+    for (let i = 0; i < 60 * 30; i += 1) {
+      highShot = stepSimulation(highShot, FIXED_DELTA);
+    }
+
+    expect(highShot.world.player.platformId).toBe("low-left");
+    expect(highShot.world.monsters.find((monster) => monster.instanceId === highTarget.instanceId)?.hp).toBeLessThan(highStartHp);
   });
 
   it("makes mage fire in range and retreat only while searching", () => {
@@ -288,39 +322,39 @@ describe("phase 2 simulation", () => {
     expect(knight.world.player.position.x).toBeGreaterThan(knightStartX);
   });
 
-  it("limits aggro platform transfers onto the player floor", () => {
+  it("moves melee characters to off-platform targets instead of teleporting monsters", () => {
     let state = createInitialSimulation(1);
-    const playerPlatformId = state.world.player.platformId;
-    const offPlatformIds = state.world.monsters
-      .filter((monster) => monster.platformId !== playerPlatformId)
-      .map((monster) => monster.instanceId);
+    const target = state.world.monsters.find((monster) => monster.platformId !== state.world.player.platformId);
 
-    expect(offPlatformIds.length).toBeGreaterThanOrEqual(2);
+    if (!target) {
+      throw new Error("test stage needs an off-platform monster");
+    }
 
-    state.world.player.attackRange = 0;
-    state.world.player.moveSpeed = 0;
+    const targetPlatformId = target.platformId;
+    const targetStartY = target.position.y;
+    state.world.player.attack = 999;
+    state.world.player.attackCooldown = 0.05;
     state.world.monsters.forEach((monster) => {
-      const platform = state.world.platforms.find((item) => item.id === monster.platformId);
       monster.spawnInvulnTimer = 0;
-      monster.aggro = true;
-      monster.aggroDelayTimer = 0;
-      monster.moveSpeed = 0;
-      if (platform && monster.platformId !== playerPlatformId) {
-        monster.position.x = platform.x + 3;
+      monster.evasion = 0;
+      if (monster.instanceId !== target.instanceId) {
+        monster.alive = false;
+      } else {
+        monster.maxHp = 999999;
+        monster.hp = monster.maxHp;
       }
     });
+    const targetStartHp = target.hp;
 
-    state = stepSimulation(state, FIXED_DELTA);
+    for (let i = 0; i < 60 * 30; i += 1) {
+      state = stepSimulation(state, FIXED_DELTA);
+    }
 
-    const transferred = offPlatformIds.filter((id) => (
-      state.world.monsters.find((monster) => monster.instanceId === id)?.platformId === playerPlatformId
-    ));
-    const aggroOnPlayerPlatform = state.world.monsters.filter(
-      (monster) => monster.alive && monster.aggro && monster.platformId === playerPlatformId,
-    );
-
-    expect(transferred).toHaveLength(MONSTER_BALANCE.maxPlatformTransfersPerTick);
-    expect(aggroOnPlayerPlatform).toHaveLength(MONSTER_BALANCE.maxAggroOnPlayerPlatform);
+    const movedTarget = state.world.monsters.find((monster) => monster.instanceId === target.instanceId);
+    expect(movedTarget?.platformId).toBe(targetPlatformId);
+    expect(movedTarget?.position.y).toBe(targetStartY);
+    expect(state.world.player.platformId).toBe(targetPlatformId);
+    expect(movedTarget?.hp ?? 0).toBeLessThan(targetStartHp);
   });
 
   it("restarts the wave cycle after all hunt waves are cleared", () => {
@@ -382,6 +416,21 @@ describe("phase 2 simulation", () => {
     let state = createInitialSimulation(1);
     state.world.player.attack = 999;
     state.world.player.attackCooldown = 0.05;
+
+    for (let i = 0; i < 60 * 120; i += 1) {
+      state = stepSimulation(state, FIXED_DELTA);
+    }
+
+    expect(state.world.wave?.cycle ?? 0).toBeGreaterThan(0);
+    expect(state.world.wave?.totalKills ?? 0).toBeGreaterThanOrEqual(9);
+  });
+
+  it("allows mage to clear distributed waves with vertical range and partial climbing", () => {
+    let state = createInitialSimulation(1);
+    state.progress.classId = "mage";
+    state.world.player.attack = 999;
+    state.world.player.attackCooldown = 0.05;
+    state.world.player.attackRange = 80;
 
     for (let i = 0; i < 60 * 120; i += 1) {
       state = stepSimulation(state, FIXED_DELTA);
@@ -456,6 +505,33 @@ function isolateSamePlatformTarget(state: ReturnType<typeof createInitialSimulat
   target.hitSlowTimer = 0;
   target.aggro = false;
   target.aggroDelayTimer = 999;
+  target.moveSpeed = 0;
+  return target;
+}
+
+function isolatePlatformTarget(state: ReturnType<typeof createInitialSimulation>, platformId: string, x: number) {
+  const target = state.world.monsters[0];
+  const platform = state.world.platforms.find((item) => item.id === platformId);
+  if (!target || !platform) {
+    throw new Error("test stage is missing a target and requested platform");
+  }
+
+  state.world.monsters.forEach((monster) => {
+    if (monster.instanceId !== target.instanceId) {
+      monster.alive = false;
+    }
+  });
+  target.platformId = platform.id;
+  target.position.x = x;
+  target.position.y = platform.y - target.height;
+  target.spawnPosition = { ...target.position };
+  target.spawnInvulnTimer = 0;
+  target.hitSlowTimer = 0;
+  target.aggro = false;
+  target.aggroDelayTimer = 999;
+  target.evasion = 0;
+  target.maxHp = 9999;
+  target.hp = target.maxHp;
   target.moveSpeed = 0;
   return target;
 }
