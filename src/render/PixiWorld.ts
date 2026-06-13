@@ -459,7 +459,7 @@ export class PixiWorld {
     if (!existing) {
       const initialState: MonsterRenderState = {
         wasAlive: monster.alive,
-        fadeInStartedAt: null,
+        fadeInStartedAt: monster.alive ? elapsed : null,
       };
       this.monsterRenderStates.set(monster.instanceId, initialState);
       return initialState;

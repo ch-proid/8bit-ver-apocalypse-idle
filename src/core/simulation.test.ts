@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { FIXED_DELTA } from "../data/balance";
+import { estimateOfflineHuntRates } from "./offline";
 import { createInitialSimulation } from "./stage";
+import { startStage } from "./stageProgress";
 import { stepSimulation } from "./simulation";
 
 describe("phase 2 simulation", () => {
@@ -37,6 +39,95 @@ describe("phase 2 simulation", () => {
     }
 
     expect(runA).toEqual(runB);
+  });
+
+  it("advances waves only after the current wave is wiped out", () => {
+    let state = createInitialSimulation(1);
+    expect(state.world.wave?.currentWaveIndex).toBe(0);
+    expect(state.world.monsters).toHaveLength(2);
+
+    state.world.monsters[0].alive = false;
+    state = stepSimulation(state, FIXED_DELTA);
+    expect(state.world.wave?.currentWaveIndex).toBe(0);
+    expect(state.world.monsters).toHaveLength(2);
+
+    state.world.monsters.forEach((monster) => {
+      monster.alive = false;
+    });
+    state = stepSimulation(state, FIXED_DELTA);
+
+    expect(state.world.wave?.currentWaveIndex).toBe(1);
+    expect(state.world.wave?.completedWaves).toBe(1);
+    expect(state.world.monsters).toHaveLength(2);
+    expect(state.world.monsters.every((monster) => monster.alive)).toBe(true);
+  });
+
+  it("restarts the wave cycle after all hunt waves are cleared", () => {
+    let state = createInitialSimulation(1);
+    const totalWaves = state.world.wave?.totalWaves ?? 0;
+
+    for (let wave = 0; wave < totalWaves; wave += 1) {
+      state.world.monsters.forEach((monster) => {
+        monster.alive = false;
+      });
+      state = stepSimulation(state, FIXED_DELTA);
+    }
+
+    expect(state.world.wave?.cycle).toBe(1);
+    expect(state.world.wave?.currentWaveIndex).toBe(0);
+    expect(state.world.monsters.every((monster) => monster.alive)).toBe(true);
+  });
+
+  it("clears challenge stages only after all waves are defeated", () => {
+    let state = createInitialSimulation(1);
+    startStage(state.progress, 1, "challenge");
+    const totalWaves = state.world.wave?.totalWaves ?? 0;
+
+    for (let wave = 0; wave < totalWaves - 1; wave += 1) {
+      state.world.monsters.forEach((monster) => {
+        monster.alive = false;
+      });
+      state = stepSimulation(state, FIXED_DELTA);
+      expect(state.progress.stageProgress.clearedStages[1]).toBeUndefined();
+    }
+
+    state.world.monsters.forEach((monster) => {
+      monster.alive = false;
+    });
+    state = stepSimulation(state, FIXED_DELTA);
+
+    expect(state.progress.stageProgress.clearedStages[1]).toBe(true);
+    expect(state.progress.stageProgress.mode).toBe("hunt");
+  });
+
+  it("scales wave kill pace with player damage", () => {
+    let low = createInitialSimulation(1);
+    let high = createInitialSimulation(1);
+    low.world.player.attack = 1;
+    low.world.player.attackCooldown = 2;
+    high.world.player.attack = 999;
+    high.world.player.attackCooldown = 0.05;
+    high.world.player.attackRange = 999;
+
+    for (let i = 0; i < 60 * 20; i += 1) {
+      low = stepSimulation(low, FIXED_DELTA);
+      high = stepSimulation(high, FIXED_DELTA);
+    }
+
+    expect(high.world.wave?.totalKills ?? 0).toBeGreaterThan(low.world.wave?.totalKills ?? 0);
+  });
+
+  it("links offline rates to the current build hunt speed estimate", () => {
+    const low = createInitialSimulation(1).progress;
+    const high = createInitialSimulation(1).progress;
+    high.statDistribution.assigned.str = 80;
+
+    const lowRates = estimateOfflineHuntRates(low);
+    const highRates = estimateOfflineHuntRates(high);
+
+    expect(highRates.killsPerMinute).toBeGreaterThan(lowRates.killsPerMinute);
+    expect(highRates.goldPerMinute).toBeGreaterThan(lowRates.goldPerMinute);
+    expect(highRates.experiencePerMinute).toBeGreaterThan(lowRates.experiencePerMinute);
   });
 
   it("walks completely off an elevated platform instead of stopping on the edge", () => {

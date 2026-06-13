@@ -6,6 +6,8 @@ import {
   bossDamageTakenMultiplier,
   bossPlayerAttackCooldownMultiplier,
   bossPlayerRegenMultiplier,
+  createBossCombatState,
+  createBossMonster,
   isBossMonster,
   isBossSummon,
   resolveBossDefeat,
@@ -28,7 +30,7 @@ import {
 } from "./relics";
 import { cloneRngState } from "./rng";
 import { addBlood } from "./altar";
-import { getPlatformById, platformCenterX } from "./stage";
+import { createInitialWaveState, createStageWaveMonsters, getPlatformById, platformCenterX } from "./stage";
 import { clearStage, continueAutoChallenge, failStageChallenge, tickStageChallenge } from "./stageProgress";
 import type { Monster, SimulationState } from "./types";
 
@@ -42,8 +44,9 @@ export function stepSimulation(input: SimulationState, dt: number): SimulationSt
   updateBossMechanics(input, dt);
   tickStageProgress(input, dt);
 
-  updateMonsters(world.monsters, world.platforms, dt);
+  updateMonsters(world.monsters, world.platforms, dt, Boolean(world.wave?.enabled));
   updatePlayerAi(input, dt);
+  advanceWaveIfCleared(input);
   updateFloatingTexts(input, dt);
 
   return {
@@ -54,6 +57,7 @@ export function stepSimulation(input: SimulationState, dt: number): SimulationSt
       relicCombat: cloneRelicCombatState(world.relicCombat),
       classCombat: cloneClassCombatState(world.classCombat),
       boss: world.boss ? { ...world.boss } : null,
+      wave: world.wave ? { ...world.wave } : null,
       player: {
         ...world.player,
         position: { ...world.player.position },
@@ -227,12 +231,17 @@ function findNearestMonster(monsters: Monster[], x: number, y: number): Monster 
   return best;
 }
 
-function updateMonsters(monsters: Monster[], platforms: SimulationState["world"]["platforms"], dt: number): void {
+function updateMonsters(
+  monsters: Monster[],
+  platforms: SimulationState["world"]["platforms"],
+  dt: number,
+  waveCycleEnabled: boolean,
+): void {
   for (const monster of monsters) {
     if (!monster.alive) {
       monster.respawnTimer -= dt;
       monster.fadeTimer = Math.max(0, monster.fadeTimer - dt);
-      if (monster.role === "normal" && monster.respawnTimer <= 0) {
+      if (!waveCycleEnabled && monster.role === "normal" && monster.respawnTimer <= 0) {
         respawnMonster(monster);
       }
       continue;
@@ -284,7 +293,10 @@ function resolveMonsterDeath(state: SimulationState, monster: Monster): void {
   addBlood(state.progress.altar, "normal", state.progress.currentStage);
   applyRelicOnKill(state.progress, state.world, monster);
   grantDrop(state);
-  maybeClearChallenge(state);
+  if (state.world.wave) {
+    state.world.wave.totalKills += 1;
+  }
+  advanceWaveIfCleared(state);
 }
 
 function grantDrop(state: SimulationState): void {
@@ -316,18 +328,65 @@ function tickStageProgress(state: SimulationState, dt: number): void {
   tickStageChallenge(state.progress, dt);
 }
 
-function maybeClearChallenge(state: SimulationState): void {
-  if (state.progress.stageProgress.mode !== "challenge") {
+function advanceWaveIfCleared(state: SimulationState): void {
+  const wave = state.world.wave;
+  if (!wave?.enabled) {
     return;
   }
 
-  const hasAliveNormalMonster = state.world.monsters.some((item) => item.role === "normal" && item.alive);
-  if (hasAliveNormalMonster) {
+  const hasAliveNormal = state.world.monsters.some((item) => item.role === "normal" && item.alive);
+  if (hasAliveNormal) {
     return;
   }
 
-  clearStage(state.progress, state.progress.currentStage);
-  continueAutoChallenge(state.progress);
+  const stage = STAGES[state.progress.currentStage];
+  if (!stage || stage.isBoss) {
+    return;
+  }
+
+  const completedStageId = stage.id;
+  const isFinalWave = wave.currentWaveIndex >= wave.totalWaves - 1;
+  wave.completedWaves += 1;
+
+  if (state.progress.stageProgress.mode === "challenge" && isFinalWave) {
+    clearStage(state.progress, completedStageId);
+    continueAutoChallenge(state.progress);
+  }
+
+  const nextStage = STAGES[state.progress.currentStage];
+  if (!nextStage) {
+    state.world.wave = null;
+    state.world.monsters = [];
+    state.world.player.targetId = null;
+    return;
+  }
+
+  if (nextStage.isBoss && nextStage.bossId) {
+    const floor = getPlatformById(state.world.platforms, "floor") ?? state.world.platforms[0];
+    state.world.wave = null;
+    state.world.boss = createBossCombatState(nextStage.bossId, nextStage.id);
+    state.world.monsters = [createBossMonster(nextStage.bossId, floor)];
+    state.world.player.targetId = null;
+    return;
+  }
+
+  if (state.progress.currentStage !== completedStageId) {
+    state.world.wave = createInitialWaveState(nextStage);
+    state.world.boss = null;
+  } else if (isFinalWave) {
+    wave.cycle += 1;
+    wave.currentWaveIndex = 0;
+  } else {
+    wave.currentWaveIndex += 1;
+  }
+
+  state.world.monsters = createStageWaveMonsters(
+    nextStage,
+    state.world.platforms,
+    state.world.wave,
+    () => state.world.nextEntityId++,
+  );
+  state.world.player.targetId = null;
 }
 
 function respawnMonster(monster: Monster): void {

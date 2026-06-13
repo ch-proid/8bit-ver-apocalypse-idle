@@ -133,6 +133,7 @@ function createDummySimulation(snapshot: BuildSnapshot, seed: number): Simulatio
   player.attackTimer = 0;
   player.hp = player.maxHp;
   simulation.world.monsters = [createDummyMonster()];
+  simulation.world.wave = null;
   return simulation;
 }
 

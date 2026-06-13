@@ -83,6 +83,18 @@ export const MONSTER_BALANCE = {
   hpBarHeight: 3,
 } as const;
 
+export const WAVE_BALANCE = {
+  wavesPerStage: 3,
+  minMonstersPerWave: 2,
+  maxMonstersPerWave: 3,
+  chapterHpMultiplier: 0.18,
+  chapterAttackMultiplier: 0.12,
+  chapterRewardMultiplier: 0.1,
+  offlineDpsEfficiency: 0.68,
+  offlineMinimumWaveSeconds: 1.2,
+  offlineMovementSecondsPerWave: 0.75,
+} as const;
+
 export const FLOATING_TEXT = {
   ttl: 0.75,
   riseSpeed: 18,

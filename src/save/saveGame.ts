@@ -1,7 +1,7 @@
 import { openDB, type DBSchema } from "idb";
-import { STAGES } from "../data/stages";
 import type { ProgressState } from "../core/types";
 import { PROGRESSION } from "../data/balance";
+import { estimateOfflineHuntRates } from "../core/offline";
 import { normalizeProgress } from "../core/progression";
 
 const DB_NAME = "apocalypse-idle-save";
@@ -62,13 +62,13 @@ export async function loadGame(): Promise<SaveSnapshot | undefined> {
 
 export function calculateOfflineReward(snapshot: SaveSnapshot, now = Date.now()) {
   const elapsedSeconds = Math.max(0, Math.min((now - snapshot.lastSavedAt) / 1000, PROGRESSION.offlineCapSeconds));
-  const stage = STAGES[snapshot.progress.currentStage];
+  const rates = estimateOfflineHuntRates(snapshot.progress);
   const minutes = elapsedSeconds / 60;
 
   return {
     elapsedSeconds,
-    gold: Math.floor((stage?.goldPerMinute ?? 0) * minutes),
-    experience: Math.floor((stage?.experiencePerMinute ?? 0) * minutes),
+    gold: Math.floor(rates.goldPerMinute * minutes),
+    experience: Math.floor(rates.experiencePerMinute * minutes),
   };
 }
 

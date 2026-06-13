@@ -1,4 +1,4 @@
-import { STAGE_BALANCE } from "./balance";
+import { STAGE_BALANCE, WAVE_BALANCE } from "./balance";
 import { BOSS_BY_STAGE } from "./bosses";
 import { MONSTERS } from "./monsters";
 import type { BossId, ItemSlot } from "../core/types";
@@ -17,6 +17,10 @@ export interface MonsterSpawnDefinition {
   count: number;
 }
 
+export interface MonsterWaveDefinition {
+  spawns: MonsterSpawnDefinition[];
+}
+
 export interface StageDefinition {
   id: number;
   label: string;
@@ -26,6 +30,7 @@ export interface StageDefinition {
   bossId?: BossId;
   platforms: PlatformDefinition[];
   spawns: MonsterSpawnDefinition[];
+  waves: MonsterWaveDefinition[];
   goldPerMinute: number;
   experiencePerMinute: number;
   dropBias: Record<ItemSlot, number>;
@@ -40,10 +45,10 @@ const BASE_PLATFORMS: PlatformDefinition[] = [
   { id: "high-right", x: 188, y: 44, width: 94, height: 7 },
 ];
 
-const BASE_SPAWNS: MonsterSpawnDefinition[] = [
-  { monsterId: "wildDog", platformId: "floor", count: 3 },
-  { monsterId: "nobleWraith", platformId: "low-left", count: 2 },
-  { monsterId: "lesserImp", platformId: "mid-right", count: 2 },
+const BASE_WAVES: MonsterWaveDefinition[] = [
+  { spawns: [{ monsterId: "wildDog", platformId: "floor", count: 2 }] },
+  { spawns: [{ monsterId: "nobleWraith", platformId: "low-left", count: 2 }] },
+  { spawns: [{ monsterId: "lesserImp", platformId: "mid-right", count: 2 }] },
 ];
 
 const DROP_BIASES: Record<ItemSlot, Record<ItemSlot, number>> = {
@@ -68,6 +73,7 @@ function createStage(id: number): StageDefinition {
   const indexInChapter = ((id - 1) % STAGE_BALANCE.stagesPerChapter) + 1;
   const boss = BOSS_BY_STAGE[id];
   const biasSlot = biasSlotForStage(indexInChapter);
+  const waves = boss ? [] : scaleWaves(chapter);
 
   return {
     id,
@@ -79,7 +85,8 @@ function createStage(id: number): StageDefinition {
     goldPerMinute: 180 + id * 30,
     experiencePerMinute: 150 + id * 25,
     platforms: BASE_PLATFORMS.map((platform) => ({ ...platform })),
-    spawns: boss ? [] : scaleSpawns(chapter),
+    spawns: waves.flatMap((wave) => wave.spawns.map((spawn) => ({ ...spawn }))),
+    waves,
     dropBias: DROP_BIASES[biasSlot],
   };
 }
@@ -97,9 +104,19 @@ function biasSlotForStage(indexInChapter: number): ItemSlot {
   return "accessory";
 }
 
-function scaleSpawns(chapter: number): MonsterSpawnDefinition[] {
-  return BASE_SPAWNS.map((spawn) => ({
-    ...spawn,
-    count: Math.min(4, spawn.count + Math.floor((chapter - 1) / 2)),
+function scaleWaves(chapter: number): MonsterWaveDefinition[] {
+  return BASE_WAVES.slice(0, WAVE_BALANCE.wavesPerStage).map((wave, waveIndex) => ({
+    spawns: wave.spawns.map((spawn) => ({
+      ...spawn,
+      count: waveMonsterCount(spawn.count, chapter, waveIndex),
+    })),
   }));
+}
+
+function waveMonsterCount(baseCount: number, chapter: number, waveIndex: number): number {
+  const chapterBonus = Math.floor((chapter - 1 + waveIndex) / 3);
+  return Math.max(
+    WAVE_BALANCE.minMonstersPerWave,
+    Math.min(WAVE_BALANCE.maxMonstersPerWave, baseCount + chapterBonus),
+  );
 }

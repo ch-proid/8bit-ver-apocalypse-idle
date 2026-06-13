@@ -97,6 +97,15 @@ export interface StageProgressState {
   lastFailure: StageFailureReport | null;
 }
 
+export interface WaveCycleState {
+  enabled: boolean;
+  currentWaveIndex: number;
+  cycle: number;
+  completedWaves: number;
+  totalKills: number;
+  totalWaves: number;
+}
+
 export interface RebirthRecord {
   run: number;
   reachedStage: number;
@@ -311,6 +320,7 @@ export interface WorldState {
   relicCombat: RelicCombatState;
   classCombat: ClassCombatState;
   boss: BossCombatState | null;
+  wave: WaveCycleState | null;
   platforms: Platform[];
   player: Player;
   monsters: Monster[];

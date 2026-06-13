@@ -637,6 +637,7 @@ function cloneSimulation(simulation: SimulationState): SimulationState {
       relicCombat: cloneRelicCombatState(simulation.world.relicCombat),
       classCombat: cloneClassCombatState(simulation.world.classCombat),
       boss: simulation.world.boss ? { ...simulation.world.boss } : null,
+      wave: simulation.world.wave ? { ...simulation.world.wave } : null,
       platforms: simulation.world.platforms.map((platform) => ({ ...platform })),
       player: {
         ...simulation.world.player,
