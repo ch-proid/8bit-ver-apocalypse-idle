@@ -1,12 +1,15 @@
 export const PLAYER_CHARACTER = {
-  path: "/assets/Character.png",
-  width: 16,
-  height: 16,
+  path: "/assets/knight.png",
+  width: 32,
+  height: 32,
+  frameWidth: 32,
+  frameHeight: 32,
+  frameCount: 2,
   padding: {
-    left: 4,
-    right: 4,
-    top: 3,
-    bottom: 3,
+    left: 9,
+    right: 8,
+    top: 5,
+    bottom: 7,
   },
 } as const;
 

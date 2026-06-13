@@ -3,11 +3,12 @@ import {
   Assets,
   Container,
   Graphics,
+  Rectangle,
   Sprite,
   Text,
   TextStyle,
+  Texture,
   type ColorSource,
-  type Texture,
 } from "pixi.js";
 import { MONSTER_ASSETS, PLAYER_CHARACTER, type PixelSpriteAsset } from "../data/assets";
 import { MONSTER_BALANCE, WORLD } from "../data/balance";
@@ -53,6 +54,7 @@ export class PixiWorld {
   private platforms = new Graphics();
   private playerFallback = new Graphics();
   private playerSprite: Sprite | null = null;
+  private playerFrames: Texture[] = [];
   private monsters = new Map<string, Graphics>();
   private monsterSprites = new Map<string, Sprite>();
   private monsterTextures = new Map<string, Texture>();
@@ -102,6 +104,7 @@ export class PixiWorld {
       }
     }
     this.playerSprite = null;
+    this.playerFrames = [];
     this.monsters.clear();
     this.monsterSprites.clear();
     this.monsterDisplays.clear();
@@ -132,12 +135,13 @@ export class PixiWorld {
 
   private async loadPlayerSprite(app: Application): Promise<void> {
     try {
-      const playerTexture = await Assets.load(PLAYER_CHARACTER.path);
+      const playerTexture = await Assets.load<Texture>(PLAYER_CHARACTER.path);
       if (this.app !== app) {
         return;
       }
 
-      this.playerSprite = new Sprite(playerTexture);
+      this.playerFrames = createPlayerFrames(playerTexture);
+      this.playerSprite = new Sprite(this.playerFrames[0] ?? playerTexture);
       this.playerSprite.roundPixels = true;
       this.world.addChild(this.playerSprite);
     } catch {
@@ -202,15 +206,14 @@ export class PixiWorld {
     if (this.playerSprite) {
       this.playerFallback.visible = false;
       this.playerSprite.visible = true;
+      this.playerSprite.texture = this.playerFrames[display.walkFrame] ?? this.playerFrames[0] ?? this.playerSprite.texture;
       this.playerSprite.tint = colors.spriteTint;
       this.playerSprite.scale.x = display.direction > 0 ? 1 : -1;
       this.playerSprite.scale.y = 1;
-      this.playerSprite.x = Math.round(
-        display.direction > 0
-          ? display.x - PLAYER_CHARACTER.padding.left
-          : display.x + player.width + PLAYER_CHARACTER.padding.right,
+      this.playerSprite.x = Math.round(playerSpriteX(display.x, player.width, display.direction));
+      this.playerSprite.y = Math.round(
+        display.y + player.height + PLAYER_CHARACTER.padding.bottom - PLAYER_CHARACTER.frameHeight,
       );
-      this.playerSprite.y = Math.round(display.y - PLAYER_CHARACTER.padding.top);
       return;
     }
 
@@ -501,6 +504,25 @@ function toEntityDisplay(x: number, y: number, direction: -1 | 1, walkFrame: 0 |
     direction,
     walkFrame,
   };
+}
+
+function createPlayerFrames(texture: Texture): Texture[] {
+  return Array.from({ length: PLAYER_CHARACTER.frameCount }, (_, index) => new Texture({
+    source: texture.source,
+    frame: new Rectangle(
+      index * PLAYER_CHARACTER.frameWidth,
+      0,
+      PLAYER_CHARACTER.frameWidth,
+      PLAYER_CHARACTER.frameHeight,
+    ),
+  }));
+}
+
+function playerSpriteX(x: number, width: number, direction: -1 | 1): number {
+  const visibleWidth = PLAYER_CHARACTER.frameWidth - PLAYER_CHARACTER.padding.left - PLAYER_CHARACTER.padding.right;
+  const localCenterX = PLAYER_CHARACTER.padding.left + visibleWidth / 2;
+  const worldCenterX = x + width / 2;
+  return direction > 0 ? worldCenterX - localCenterX : worldCenterX + localCenterX;
 }
 
 function renderColors(dmgMode: boolean) {
