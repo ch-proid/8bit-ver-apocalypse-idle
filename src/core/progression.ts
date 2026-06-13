@@ -157,12 +157,22 @@ export function addDropIcon(
     kind,
     position: { x, y },
     age: 0,
-    ttl: DROP_REWARD_BALANCE.iconTtl,
+    ttl: dropIconTtl(kind),
   });
 
   if (world.dropIcons.length > DROP_REWARD_BALANCE.maxIcons) {
     world.dropIcons.shift();
   }
+}
+
+function dropIconTtl(kind: DropIconKind): number {
+  const rareBonus = kind === "ability" || kind === "weapon" || kind === "helmet" || kind === "armor" || kind === "accessory"
+    ? DROP_REWARD_BALANCE.rareIconSettleBonusSeconds
+    : 0;
+  return DROP_REWARD_BALANCE.iconLaunchSeconds
+    + DROP_REWARD_BALANCE.iconSettleSeconds
+    + DROP_REWARD_BALANCE.iconPickupFadeSeconds
+    + rareBonus;
 }
 
 export function createDefaultRebirthState(): RebirthState {

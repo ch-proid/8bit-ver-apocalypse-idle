@@ -82,9 +82,9 @@ export const FLOATING_TEXT_RENDER = {
 } as const;
 
 export const DROP_ICON_RENDER = {
-  offsetX: -9,
-  offsetY: -3,
-  stackOffsetY: -7,
+  offsetX: -4,
+  offsetY: 0,
+  stackOffsetY: -2,
   scale: 1,
 } as const;
 

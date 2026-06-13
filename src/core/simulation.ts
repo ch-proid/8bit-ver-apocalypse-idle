@@ -597,7 +597,7 @@ function resolveMonsterDeath(state: SimulationState, monster: Monster): void {
   killMonster(state, monster);
   gainExperience(state.progress, state.world, monster.experience);
   applyRelicOnKill(state.progress, state.world, monster);
-  grantDrop(state);
+  grantDrop(state, monster);
   grantProbabilisticKillRewards(state, monster);
   if (state.world.wave) {
     state.world.wave.totalKills += 1;
@@ -626,7 +626,7 @@ function grantProbabilisticKillRewards(state: SimulationState, monster: Monster)
   }
 }
 
-function grantDrop(state: SimulationState): void {
+function grantDrop(state: SimulationState, monster: Monster): void {
   const item = rollMonsterDrop(state.progress, state.world.rng);
   if (!item) {
     return;
@@ -637,8 +637,8 @@ function grantDrop(state: SimulationState): void {
   addDropIcon(
     state.world,
     DROP_ICON_FOR_EQUIPMENT_SLOT[item.slot],
-    state.world.player.position.x + state.world.player.width / 2,
-    state.world.player.position.y - 8,
+    monster.position.x + monster.width / 2,
+    monster.position.y - 8,
   );
 }
 
@@ -746,7 +746,6 @@ function updateFloatingTexts(state: SimulationState, dt: number): void {
 function updateDropIcons(state: SimulationState, dt: number): void {
   for (const icon of state.world.dropIcons) {
     icon.age += dt;
-    icon.position.y -= DROP_REWARD_BALANCE.iconRiseSpeed * dt;
   }
 
   state.world.dropIcons = state.world.dropIcons.filter((icon) => icon.age <= icon.ttl);

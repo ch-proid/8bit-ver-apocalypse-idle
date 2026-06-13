@@ -127,8 +127,12 @@ export const DROP_REWARD_BALANCE = {
   bloodChance: 0.15,
   healChance: 0.08,
   healMaxHpPercent: 8,
-  iconTtl: 0.8,
-  iconRiseSpeed: 16,
+  iconLaunchSeconds: 0.42,
+  iconSettleSeconds: 1.15,
+  rareIconSettleBonusSeconds: 0.45,
+  iconPickupFadeSeconds: 0.18,
+  iconHopHeightPx: 7,
+  iconHorizontalDriftPx: 4,
   maxIcons: 40,
 } as const;
 

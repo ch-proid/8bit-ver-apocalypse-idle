@@ -18,9 +18,9 @@ import {
   type DropIconFrame,
   type DropIconSheetId,
 } from "../data/dropIcons";
-import { MONSTER_BALANCE, WORLD } from "../data/balance";
+import { DROP_REWARD_BALANCE, MONSTER_BALANCE, WORLD } from "../data/balance";
 import { CHAPTER_PALETTES, PLACEHOLDER_COLORS } from "../data/palettes";
-import type { ClassId, FloatingText, Monster, SimulationState } from "../core/types";
+import type { ClassId, DropIconEvent, DropIconKind, FloatingText, Monster, Platform, SimulationState } from "../core/types";
 import {
   BACKGROUND_RENDER,
   DROP_ICON_RENDER,
@@ -661,14 +661,16 @@ export class PixiWorld {
 
       item.texture = texture;
       item.tint = 0xffffff;
-      item.alpha = Math.max(0, 1 - icon.age / icon.ttl);
+      const frameSize = dropIconFrameSize(icon.kind);
+      const rawDisplay = dropIconDisplay(icon, simulation, frameSize);
       const display = {
-        x: quantize(icon.position.x, STEPPED_MOTION.floatingTextStepPx),
-        y: quantize(icon.position.y, STEPPED_MOTION.floatingTextStepPx),
+        x: quantize(rawDisplay.x, STEPPED_MOTION.floatingTextStepPx),
+        y: quantize(rawDisplay.y, STEPPED_MOTION.floatingTextStepPx),
       };
       const stackKey = `${display.x}:${display.y}`;
       const stackIndex = stackedCounts.get(stackKey) ?? 0;
       stackedCounts.set(stackKey, stackIndex + 1);
+      item.alpha = dropIconAlpha(icon);
       item.position.set(
         Math.round(display.x + DROP_ICON_RENDER.offsetX),
         Math.round(display.y + DROP_ICON_RENDER.offsetY + stackIndex * DROP_ICON_RENDER.stackOffsetY),
@@ -926,6 +928,66 @@ function playerSpriteX(x: number, width: number, direction: -1 | 1, asset: Playe
   const localCenterX = asset.padding.left + visibleWidth / 2;
   const worldCenterX = x + width / 2;
   return direction > 0 ? worldCenterX - localCenterX : worldCenterX + localCenterX;
+}
+
+function dropIconFrameSize(kind: DropIconKind): number {
+  const frame = DROP_ICON_FRAMES[kind];
+  return DROP_ICON_SHEETS[frame.sheet].frameSize;
+}
+
+function dropIconDisplay(icon: DropIconEvent, simulation: SimulationState, frameSize: number): { x: number; y: number } {
+  const landingY = dropIconLandingY(icon, simulation.world.platforms, frameSize);
+  const launchSeconds = DROP_REWARD_BALANCE.iconLaunchSeconds;
+  const launchProgress = clamp(icon.age / launchSeconds, 0, 1);
+  const drift = dropIconDrift(icon.id) * DROP_REWARD_BALANCE.iconHorizontalDriftPx * launchProgress;
+
+  if (icon.age >= launchSeconds) {
+    return {
+      x: icon.position.x + drift,
+      y: landingY,
+    };
+  }
+
+  return {
+    x: icon.position.x + drift,
+    y: icon.position.y
+      + (landingY - icon.position.y) * launchProgress
+      - Math.sin(Math.PI * launchProgress) * DROP_REWARD_BALANCE.iconHopHeightPx,
+  };
+}
+
+function dropIconLandingY(icon: DropIconEvent, platforms: Platform[], frameSize: number): number {
+  const x = icon.position.x;
+  const landingPlatform = platforms
+    .filter((platform) => x >= platform.x - frameSize && x <= platform.x + platform.width + frameSize && platform.y >= icon.position.y)
+    .sort((a, b) => a.y - b.y)[0];
+  return (landingPlatform?.y ?? GAMEBOY_SCREEN_HEIGHT) - frameSize;
+}
+
+function dropIconDrift(id: string): -1 | 1 {
+  let hash = 0;
+  for (let i = 0; i < id.length; i += 1) {
+    hash = (hash + id.charCodeAt(i)) % 2;
+  }
+  return hash === 0 ? -1 : 1;
+}
+
+function dropIconAlpha(icon: DropIconEvent): number {
+  const pickupFadeSeconds = DROP_REWARD_BALANCE.iconPickupFadeSeconds;
+  const pickupStart = Math.max(0, icon.ttl - pickupFadeSeconds);
+  if (icon.age >= pickupStart) {
+    return clamp(1 - (icon.age - pickupStart) / pickupFadeSeconds, 0, 1);
+  }
+
+  if (isRareDropIcon(icon.kind) && icon.age > DROP_REWARD_BALANCE.iconLaunchSeconds) {
+    return Math.floor(icon.age * 8) % 2 === 0 ? 1 : 0.82;
+  }
+
+  return 1;
+}
+
+function isRareDropIcon(kind: DropIconKind): boolean {
+  return kind === "ability" || kind === "weapon" || kind === "helmet" || kind === "armor" || kind === "accessory";
 }
 
 function renderColors(dmgMode: boolean) {
