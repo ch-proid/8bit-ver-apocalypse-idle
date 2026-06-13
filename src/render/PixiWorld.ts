@@ -10,10 +10,10 @@ import {
   Texture,
   type ColorSource,
 } from "pixi.js";
-import { MONSTER_ASSETS, PLAYER_CHARACTER, type PixelSpriteAsset } from "../data/assets";
+import { MONSTER_ASSETS, PLAYER_CLASS_ASSETS, STAGE_MAP_ASSETS, type PixelSpriteAsset, type PlayerSpriteAsset } from "../data/assets";
 import { MONSTER_BALANCE, WORLD } from "../data/balance";
 import { CHAPTER_PALETTES, PLACEHOLDER_COLORS } from "../data/palettes";
-import type { FloatingText, Monster, SimulationState } from "../core/types";
+import type { ClassId, FloatingText, Monster, SimulationState } from "../core/types";
 import {
   BACKGROUND_RENDER,
   FLOATING_TEXT_RENDER,
@@ -24,6 +24,7 @@ import {
   PIXI_RENDER_OPTIONS,
   PLAYER_FALLBACK_RENDER,
   PLATFORM_RENDER,
+  PROJECTILE_RENDER,
   RENDER_CLOCK,
   STEPPED_MOTION,
 } from "./config";
@@ -43,6 +44,16 @@ interface FloatingDisplay {
   y: number;
 }
 
+interface RenderProjectile {
+  id: string;
+  startTime: number;
+  startX: number;
+  startY: number;
+  endX: number;
+  endY: number;
+  sprite: Sprite;
+}
+
 export interface RenderOptions {
   dmgMode?: boolean;
 }
@@ -51,10 +62,17 @@ export class PixiWorld {
   private app: Application | null = null;
   private world = new Container();
   private bg = new Graphics();
+  private projectileLayer = new Container();
+  private stageBackgroundSprite: Sprite | null = null;
+  private stageTerrainSprite: Sprite | null = null;
   private platforms = new Graphics();
   private playerFallback = new Graphics();
   private playerSprite: Sprite | null = null;
+  private playerClassId: ClassId | null = null;
+  private loadingPlayerClassId: ClassId | null = null;
+  private playerAsset: PlayerSpriteAsset | null = null;
   private playerFrames: Texture[] = [];
+  private mageProjectileTexture: Texture | null = null;
   private monsters = new Map<string, Graphics>();
   private monsterSprites = new Map<string, Sprite>();
   private monsterTextures = new Map<string, Texture>();
@@ -62,6 +80,7 @@ export class PixiWorld {
   private loadingMonsterAssets = new Set<string>();
   private hpBars = new Map<string, Graphics>();
   private floating = new Map<string, Text>();
+  private projectiles = new Map<string, RenderProjectile>();
   private monsterDisplays = new Map<string, EntityDisplay>();
   private floatingDisplays = new Map<string, FloatingDisplay>();
   private playerDisplay: EntityDisplay | null = null;
@@ -69,6 +88,8 @@ export class PixiWorld {
   private nextEntityDisplayAt = 0;
   private nextFloatingDisplayAt = 0;
   private lastSimulationElapsed = 0;
+  private lastPlayerAttackTimer = 0;
+  private nextProjectileId = 1;
   private walkFrame: 0 | 1 = 0;
 
   async mount(host: HTMLElement): Promise<void> {
@@ -90,8 +111,9 @@ export class PixiWorld {
     app.stage.addChild(this.world);
     this.world.addChild(this.platforms);
     this.world.addChild(this.playerFallback);
+    this.world.addChild(this.projectileLayer);
 
-    void this.loadPlayerSprite(app);
+    void this.loadStageMap(app);
   }
 
   destroy(): void {
@@ -104,8 +126,14 @@ export class PixiWorld {
         app.canvas.remove();
       }
     }
+    this.stageBackgroundSprite = null;
+    this.stageTerrainSprite = null;
     this.playerSprite = null;
+    this.playerClassId = null;
+    this.loadingPlayerClassId = null;
+    this.playerAsset = null;
     this.playerFrames = [];
+    this.mageProjectileTexture = null;
     this.monsters.clear();
     this.monsterSprites.clear();
     this.monsterDisplays.clear();
@@ -114,6 +142,7 @@ export class PixiWorld {
     this.loadingMonsterAssets.clear();
     this.hpBars.clear();
     this.floating.clear();
+    this.projectiles.clear();
     this.floatingDisplays.clear();
     this.playerDisplay = null;
   }
@@ -124,36 +153,92 @@ export class PixiWorld {
     }
 
     this.updateDisplayState(simulation);
+    this.requestPlayerSprite(simulation.progress.classId);
 
     const dmgMode = options.dmgMode === true;
     const cameraX = this.cameraDisplayX;
     this.world.x = -cameraX;
     this.drawBackground(cameraX, dmgMode);
+    this.drawStageMap(dmgMode);
     this.drawPlatforms(simulation, dmgMode);
     this.drawPlayer(simulation, dmgMode);
     this.drawMonsters(simulation, dmgMode);
+    this.maybeLaunchMageProjectile(simulation);
+    this.drawProjectiles(simulation, dmgMode);
     this.drawFloatingTexts(simulation.world.floatingTexts, dmgMode);
+    this.lastPlayerAttackTimer = simulation.world.player.attackTimer;
   }
 
-  private async loadPlayerSprite(app: Application): Promise<void> {
+  private requestPlayerSprite(classId: ClassId): void {
+    const app = this.app;
+    if (!app || this.playerClassId === classId || this.loadingPlayerClassId === classId) {
+      return;
+    }
+
+    void this.loadPlayerSprite(app, classId);
+  }
+
+  private async loadPlayerSprite(app: Application, classId: ClassId): Promise<void> {
+    const asset = PLAYER_CLASS_ASSETS[classId];
+    this.loadingPlayerClassId = classId;
     try {
-      const playerTexture = await Assets.load<Texture>(PLAYER_CHARACTER.path);
-      if (this.app !== app) {
+      const playerTexture = await Assets.load<Texture>(asset.path);
+      if (this.app !== app || this.loadingPlayerClassId !== classId) {
         return;
       }
 
-      this.playerFrames = createPlayerFrames(playerTexture);
+      this.playerSprite?.destroy();
+      this.playerFrames = createSpriteFrames(playerTexture, asset);
+      this.mageProjectileTexture = asset.projectileFrameIndex !== undefined
+        ? createFrameTexture(playerTexture, asset, asset.projectileFrameIndex)
+        : null;
+      this.playerAsset = asset;
+      this.playerClassId = classId;
       this.playerSprite = new Sprite(this.playerFrames[0] ?? playerTexture);
       this.playerSprite.roundPixels = true;
       this.world.addChild(this.playerSprite);
     } catch {
       this.playerSprite = null;
+      this.playerClassId = null;
+      this.playerAsset = null;
+      this.mageProjectileTexture = null;
+    } finally {
+      if (this.loadingPlayerClassId === classId) {
+        this.loadingPlayerClassId = null;
+      }
+    }
+  }
+
+  private async loadStageMap(app: Application): Promise<void> {
+    try {
+      const [backgroundTexture, terrainTexture] = await Promise.all([
+        Assets.load<Texture>(STAGE_MAP_ASSETS.stage1.backgroundPath),
+        Assets.load<Texture>(STAGE_MAP_ASSETS.stage1.terrainPath),
+      ]);
+      if (this.app !== app) {
+        return;
+      }
+
+      this.stageBackgroundSprite = new Sprite(backgroundTexture);
+      this.stageTerrainSprite = new Sprite(terrainTexture);
+      this.stageBackgroundSprite.roundPixels = true;
+      this.stageTerrainSprite.roundPixels = true;
+      this.world.addChildAt(this.stageBackgroundSprite, 0);
+      this.world.addChildAt(this.stageTerrainSprite, 2);
+    } catch {
+      this.stageBackgroundSprite = null;
+      this.stageTerrainSprite = null;
     }
   }
 
   private drawBackground(cameraX: number, dmgMode: boolean): void {
     const palette = dmgMode ? CHAPTER_PALETTES.dmg : CHAPTER_PALETTES.bloodBanquet;
     this.bg.clear();
+    if (this.stageBackgroundSprite) {
+      this.bg.rect(0, 0, GAMEBOY_SCREEN_WIDTH, GAMEBOY_SCREEN_HEIGHT).fill(palette[0]);
+      return;
+    }
+
     this.bg.rect(0, 0, GAMEBOY_SCREEN_WIDTH, GAMEBOY_SCREEN_HEIGHT).fill(palette[0]);
     this.bg.rect(0, 0, GAMEBOY_SCREEN_WIDTH, BACKGROUND_RENDER.skyBandHeight).fill(palette[1]);
 
@@ -190,9 +275,31 @@ export class PixiWorld {
     }
   }
 
+  private drawStageMap(dmgMode: boolean): void {
+    const colors = renderColors(dmgMode);
+    if (this.stageBackgroundSprite) {
+      this.stageBackgroundSprite.visible = true;
+      this.stageBackgroundSprite.x = 0;
+      this.stageBackgroundSprite.y = 0;
+      this.stageBackgroundSprite.tint = colors.mapTint;
+    }
+    if (this.stageTerrainSprite) {
+      this.stageTerrainSprite.visible = true;
+      this.stageTerrainSprite.x = 0;
+      this.stageTerrainSprite.y = 0;
+      this.stageTerrainSprite.tint = colors.mapTint;
+    }
+  }
+
   private drawPlatforms(simulation: SimulationState, dmgMode: boolean): void {
     const colors = renderColors(dmgMode);
     this.platforms.clear();
+    if (this.stageTerrainSprite) {
+      this.platforms.visible = false;
+      return;
+    }
+
+    this.platforms.visible = true;
     for (const platform of simulation.world.platforms) {
       this.platforms.rect(platform.x, platform.y, platform.width, platform.height).fill(colors.platform);
       this.platforms.rect(platform.x, platform.y, platform.width, PLATFORM_RENDER.topLineHeight).fill(colors.platformTop);
@@ -203,18 +310,19 @@ export class PixiWorld {
     const { player } = simulation.world;
     const colors = renderColors(dmgMode);
     const display = this.playerDisplay ?? toEntityDisplay(player.position.x, player.position.y, player.direction, this.walkFrame);
+    const asset = this.playerClassId === simulation.progress.classId ? this.playerAsset : null;
     this.playerFallback.clear();
 
-    if (this.playerSprite) {
+    if (this.playerSprite && asset) {
       this.playerFallback.visible = false;
       this.playerSprite.visible = true;
       this.playerSprite.texture = this.playerFrames[display.walkFrame] ?? this.playerFrames[0] ?? this.playerSprite.texture;
       this.playerSprite.tint = colors.spriteTint;
       this.playerSprite.scale.x = display.direction > 0 ? 1 : -1;
       this.playerSprite.scale.y = 1;
-      this.playerSprite.x = Math.round(playerSpriteX(display.x, player.width, display.direction));
+      this.playerSprite.x = Math.round(playerSpriteX(display.x, player.width, display.direction, asset));
       this.playerSprite.y = Math.round(
-        display.y + player.height + PLAYER_CHARACTER.padding.bottom - PLAYER_CHARACTER.frameHeight,
+        display.y + player.height + asset.padding.bottom - spriteFrameHeight(asset),
       );
       return;
     }
@@ -375,6 +483,71 @@ export class PixiWorld {
     }
   }
 
+  private maybeLaunchMageProjectile(simulation: SimulationState): void {
+    const { player, monsters } = simulation.world;
+    if (
+      simulation.progress.classId !== "mage"
+      || !this.mageProjectileTexture
+      || player.state !== "ATTACK"
+      || !player.targetId
+      || player.attackTimer <= this.lastPlayerAttackTimer + RENDER_CLOCK.displayEpsilon
+    ) {
+      return;
+    }
+
+    const target = monsters.find((monster) => monster.instanceId === player.targetId && monster.alive);
+    if (!target) {
+      return;
+    }
+
+    const playerDisplay = this.playerDisplay ?? toEntityDisplay(player.position.x, player.position.y, player.direction, this.walkFrame);
+    const targetDisplay = this.monsterDisplays.get(target.instanceId)
+      ?? toEntityDisplay(target.position.x, target.position.y, target.direction, this.walkFrame);
+    const sprite = new Sprite(this.mageProjectileTexture);
+    sprite.roundPixels = true;
+    this.projectileLayer.addChild(sprite);
+
+    const id = `proj${this.nextProjectileId++}`;
+    this.projectiles.set(id, {
+      id,
+      startTime: simulation.world.elapsed,
+      startX: playerDisplay.x + player.width / 2,
+      startY: playerDisplay.y + player.height / 2 + PROJECTILE_RENDER.originYOffset,
+      endX: targetDisplay.x + target.width / 2,
+      endY: targetDisplay.y + target.height / 2,
+      sprite,
+    });
+  }
+
+  private drawProjectiles(simulation: SimulationState, dmgMode: boolean): void {
+    const colors = renderColors(dmgMode);
+    this.world.addChild(this.projectileLayer);
+
+    for (const [id, projectile] of this.projectiles) {
+      const age = simulation.world.elapsed - projectile.startTime;
+      const progress = Math.max(0, Math.min(1, age / PROJECTILE_RENDER.durationSeconds));
+      if (progress >= 1) {
+        projectile.sprite.destroy();
+        this.projectiles.delete(id);
+        continue;
+      }
+
+      const x = quantize(
+        projectile.startX + (projectile.endX - projectile.startX) * progress,
+        PROJECTILE_RENDER.stepPx,
+      );
+      const y = quantize(
+        projectile.startY + (projectile.endY - projectile.startY) * progress,
+        PROJECTILE_RENDER.stepPx,
+      );
+      projectile.sprite.visible = true;
+      projectile.sprite.tint = colors.spriteTint;
+      projectile.sprite.alpha = 1;
+      projectile.sprite.x = Math.round(x - 16);
+      projectile.sprite.y = Math.round(y - 16);
+    }
+  }
+
   private updateDisplayState(simulation: SimulationState): void {
     const elapsed = simulation.world.elapsed;
     const resetClock = elapsed < this.lastSimulationElapsed;
@@ -514,18 +687,6 @@ function toEntityDisplay(x: number, y: number, direction: -1 | 1, walkFrame: 0 |
   };
 }
 
-function createPlayerFrames(texture: Texture): Texture[] {
-  return Array.from({ length: PLAYER_CHARACTER.frameCount }, (_, index) => new Texture({
-    source: texture.source,
-    frame: new Rectangle(
-      index * PLAYER_CHARACTER.frameWidth,
-      0,
-      PLAYER_CHARACTER.frameWidth,
-      PLAYER_CHARACTER.frameHeight,
-    ),
-  }));
-}
-
 function createSpriteFrames(texture: Texture, asset: PixelSpriteAsset): Texture[] {
   const frameCount = asset.frameCount ?? 1;
   const frameWidth = asset.frameWidth ?? asset.width;
@@ -534,19 +695,26 @@ function createSpriteFrames(texture: Texture, asset: PixelSpriteAsset): Texture[
     return [texture];
   }
 
-  return Array.from({ length: frameCount }, (_, index) => new Texture({
+  return Array.from({ length: frameCount }, (_, index) => createFrameTexture(texture, asset, index));
+}
+
+function createFrameTexture(texture: Texture, asset: PixelSpriteAsset, index: number): Texture {
+  const frameWidth = asset.frameWidth ?? asset.width;
+  const frameHeight = asset.frameHeight ?? asset.height;
+  return new Texture({
     source: texture.source,
     frame: new Rectangle(index * frameWidth, 0, frameWidth, frameHeight),
-  }));
+  });
 }
 
 function spriteFrameHeight(asset: PixelSpriteAsset): number {
   return asset.frameHeight ?? asset.height;
 }
 
-function playerSpriteX(x: number, width: number, direction: -1 | 1): number {
-  const visibleWidth = PLAYER_CHARACTER.frameWidth - PLAYER_CHARACTER.padding.left - PLAYER_CHARACTER.padding.right;
-  const localCenterX = PLAYER_CHARACTER.padding.left + visibleWidth / 2;
+function playerSpriteX(x: number, width: number, direction: -1 | 1, asset: PlayerSpriteAsset): number {
+  const frameWidth = asset.frameWidth ?? asset.width;
+  const visibleWidth = frameWidth - asset.padding.left - asset.padding.right;
+  const localCenterX = asset.padding.left + visibleWidth / 2;
   const worldCenterX = x + width / 2;
   return direction > 0 ? worldCenterX - localCenterX : worldCenterX + localCenterX;
 }
@@ -563,6 +731,7 @@ function renderColors(dmgMode: boolean) {
       hpBack: CHAPTER_PALETTES.dmg[0],
       floatingText: CHAPTER_PALETTES.dmg[4],
       spriteTint: 0xe0f8d0,
+      mapTint: 0xe0f8d0,
     };
   }
 
@@ -576,5 +745,6 @@ function renderColors(dmgMode: boolean) {
     hpBack: PLACEHOLDER_COLORS.hpBack,
     floatingText: PLACEHOLDER_COLORS.gold,
     spriteTint: 0xffffff,
+    mapTint: 0xffffff,
   };
 }

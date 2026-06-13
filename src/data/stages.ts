@@ -32,10 +32,12 @@ export interface StageDefinition {
 }
 
 const BASE_PLATFORMS: PlatformDefinition[] = [
-  { id: "floor", x: 0, y: 130, width: 480, height: 10 },
-  { id: "low-left", x: 42, y: 101, width: 112, height: 6 },
-  { id: "mid-right", x: 256, y: 83, width: 122, height: 6 },
-  { id: "high-mid", x: 158, y: 58, width: 86, height: 6 },
+  { id: "floor", x: 0, y: 137, width: 320, height: 7 },
+  { id: "low-left", x: 31, y: 99, width: 86, height: 7 },
+  { id: "mid-right", x: 230, y: 98, width: 62, height: 7 },
+  { id: "high-mid", x: 136, y: 71, width: 63, height: 7 },
+  { id: "high-left", x: 48, y: 43, width: 62, height: 7 },
+  { id: "high-right", x: 188, y: 44, width: 94, height: 7 },
 ];
 
 const BASE_SPAWNS: MonsterSpawnDefinition[] = [

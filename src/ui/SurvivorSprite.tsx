@@ -1,18 +1,19 @@
-export function SurvivorSprite({ rows, scale = 2 }: { rows: string[]; scale?: number }) {
-  const pixels = rows.flatMap((row, y) => [...row].map((char, x) => ({ char, x, y })));
+import type { SurvivorSkin } from "../data/sprites/survivors";
+
+export function SurvivorSprite({ skin, scale = 2 }: { skin: SurvivorSkin; scale?: number }) {
+  const frameX = skin.previewFrame * skin.frameWidth * scale;
 
   return (
     <span
       className="survivor-sprite"
       style={{
-        gridTemplateColumns: `repeat(${rows[0]?.length ?? 1}, ${scale}px)`,
-        gridAutoRows: `${scale}px`,
+        width: `${skin.frameWidth * scale}px`,
+        height: `${skin.frameHeight * scale}px`,
+        backgroundImage: `url(${skin.path})`,
+        backgroundSize: `${skin.sheetWidth * scale}px ${skin.sheetHeight * scale}px`,
+        backgroundPosition: `-${frameX}px 0`,
       }}
       aria-hidden="true"
-    >
-      {pixels.map((pixel) => (
-        <i key={`${pixel.x}-${pixel.y}`} className={pixel.char === "." ? "p0" : `p${pixel.char}`} />
-      ))}
-    </span>
+    />
   );
 }

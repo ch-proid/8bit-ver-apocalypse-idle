@@ -58,7 +58,7 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
         <Win title="STATUS">
           <div className="status-grid">
             <button type="button" className="skin-mini" onClick={onOpenClassSelect} aria-label="CLASS">
-              <SurvivorSprite rows={skin.idle} scale={2} />
+              <SurvivorSprite skin={skin} scale={1} />
             </button>
             <div className="status-lines">
               <MenuItem label="EXP" value={`${formatNumber(progress.experience)}/${formatNumber(progress.nextExperience)}`}>

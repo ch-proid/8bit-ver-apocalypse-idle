@@ -2,7 +2,7 @@ export const TICK_RATE = 60;
 export const FIXED_DELTA = 1 / TICK_RATE;
 
 export const WORLD = {
-  width: 480,
+  width: 320,
   height: 144,
   gravity: 820,
   terminalVelocity: 360,

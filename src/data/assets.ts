@@ -1,17 +1,4 @@
-export const PLAYER_CHARACTER = {
-  path: "/assets/knight.png",
-  width: 32,
-  height: 32,
-  frameWidth: 32,
-  frameHeight: 32,
-  frameCount: 2,
-  padding: {
-    left: 9,
-    right: 8,
-    top: 5,
-    bottom: 7,
-  },
-} as const;
+import type { ClassId } from "../core/types";
 
 export interface PixelSpriteAsset {
   path: string;
@@ -27,6 +14,65 @@ export interface PixelSpriteAsset {
     bottom: number;
   };
 }
+
+export interface PlayerSpriteAsset extends PixelSpriteAsset {
+  projectileFrameIndex?: number;
+}
+
+export const PLAYER_CLASS_ASSETS: Record<ClassId, PlayerSpriteAsset> = {
+  assassin: {
+    path: "/assets/classes/thief.png",
+    width: 64,
+    height: 32,
+    frameWidth: 32,
+    frameHeight: 32,
+    frameCount: 2,
+    padding: {
+      left: 10,
+      right: 10,
+      top: 6,
+      bottom: 7,
+    },
+  },
+  knight: {
+    path: "/assets/classes/knight.png",
+    width: 64,
+    height: 32,
+    frameWidth: 32,
+    frameHeight: 32,
+    frameCount: 2,
+    padding: {
+      left: 9,
+      right: 8,
+      top: 5,
+      bottom: 7,
+    },
+  },
+  mage: {
+    path: "/assets/classes/magician.png",
+    width: 96,
+    height: 32,
+    frameWidth: 32,
+    frameHeight: 32,
+    frameCount: 2,
+    projectileFrameIndex: 2,
+    padding: {
+      left: 9,
+      right: 8,
+      top: 6,
+      bottom: 7,
+    },
+  },
+} as const;
+
+export const STAGE_MAP_ASSETS = {
+  stage1: {
+    backgroundPath: "/assets/map/Stage01/Stage01_map_bg.png",
+    terrainPath: "/assets/map/Stage01/Stage01_map.png",
+    width: 320,
+    height: 144,
+  },
+} as const;
 
 export const MONSTER_ASSETS: Record<string, PixelSpriteAsset> = {
   "monster.stage1.wildDog": {

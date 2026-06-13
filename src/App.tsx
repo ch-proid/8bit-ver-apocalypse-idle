@@ -197,7 +197,7 @@ function ClassSelectPanel({
               className={index === selectedClassIndex ? "skin-card on" : "skin-card"}
               onClick={() => onSelect(index)}
             >
-              <SurvivorSprite rows={skin.idle} scale={3} />
+              <SurvivorSprite skin={skin} scale={2} />
             </button>
           ))}
         </div>

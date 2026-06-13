@@ -68,3 +68,9 @@ export const FLOATING_TEXT_RENDER = {
   anchor: 0.5,
   stackOffsetY: -7,
 } as const;
+
+export const PROJECTILE_RENDER = {
+  durationSeconds: 0.22,
+  stepPx: 1,
+  originYOffset: -3,
+} as const;

@@ -561,7 +561,7 @@ button {
 
 .survivor-list {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 5px;
   margin-bottom: 8px;
 }
@@ -589,33 +589,9 @@ button {
 }
 
 .survivor-sprite {
-  display: grid;
-  gap: 0;
-}
-
-.survivor-sprite i {
-  width: 100%;
-  height: 100%;
-}
-
-.survivor-sprite .p0 {
-  background: transparent;
-}
-
-.survivor-sprite .p1 {
-  background: var(--ink);
-}
-
-.survivor-sprite .p2 {
-  background: var(--mid);
-}
-
-.survivor-sprite .p3 {
-  background: var(--light);
-}
-
-.survivor-sprite .p4 {
-  background: var(--accent);
+  display: inline-block;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
 }
 
 .deck {
