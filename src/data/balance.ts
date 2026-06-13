@@ -13,14 +13,14 @@ export const WORLD = {
 export const PLAYER_BALANCE = {
   width: 8,
   height: 10,
-  moveSpeed: 52,
+  moveSpeed: 34,
   maxHp: 120,
   attack: 16,
   defense: 0,
   evasion: 1,
   hpRegen: 0,
   attackRange: 18,
-  attackCooldown: 0.55,
+  attackCooldown: 1.35,
 } as const;
 
 export const CLASS_BALANCE = {
@@ -78,6 +78,7 @@ export const CLASS_BALANCE = {
 
 export const MONSTER_BALANCE = {
   normalRespawnTimeMultiplier: 1.8,
+  moveSpeedMultiplier: 0.55,
   spawnIntroSeconds: 0.4,
   respawnFadeSeconds: 0.22,
   hpBarWidth: 10,
@@ -91,9 +92,10 @@ export const WAVE_BALANCE = {
   chapterHpMultiplier: 0.18,
   chapterAttackMultiplier: 0.12,
   chapterRewardMultiplier: 0.1,
-  offlineDpsEfficiency: 0.68,
-  offlineMinimumWaveSeconds: 1.2,
-  offlineMovementSecondsPerWave: 0.75,
+  offlineDpsEfficiency: 0.52,
+  offlineExperienceMultiplier: 0.75,
+  offlineMinimumWaveSeconds: 3.5,
+  offlineMovementSecondsPerWave: 2.4,
 } as const;
 
 export const FLOATING_TEXT = {
@@ -104,19 +106,19 @@ export const FLOATING_TEXT = {
 
 export const PROGRESSION = {
   initialStageId: 1,
-  offlineCapSeconds: 60 * 60 * 10,
+  offlineCapSeconds: 60 * 60 * 24,
 } as const;
 
 export const EXPERIENCE_CURVE = {
-  // TODO(Phase 7): Tune against pacing target "Lucian at 40-60 minutes".
-  baseNextExperience: 32,
+  // TODO(Phase 7): Reserve daily quest XP on top of this slow AFK-only baseline.
+  baseNextExperience: 40000,
   firstKneeLevel: 40,
   secondKneeLevel: 80,
-  earlyExponent: 1.35,
-  midExponent: 1.65,
-  lateExponent: 1.95,
-  midSlope: 8,
-  lateSlope: 180,
+  earlyExponent: 1.25,
+  midExponent: 1.7,
+  lateExponent: 2.05,
+  midSlope: 10,
+  lateSlope: 240,
 } as const;
 
 export const STAT_GROWTH = {

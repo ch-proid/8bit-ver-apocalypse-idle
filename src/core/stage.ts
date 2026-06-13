@@ -131,7 +131,7 @@ export function createStageWaveMonsters(
         assetKey: definition.assetKey,
         position: { x, y },
         spawnPosition: { x, y },
-        velocity: { x: definition.moveSpeed, y: 0 },
+        velocity: { x: normalMonsterMoveSpeed(definition), y: 0 },
         platformId: platform.id,
         width: definition.width,
         height: definition.height,
@@ -144,13 +144,14 @@ export function createStageWaveMonsters(
         attack: stats.attack,
         experience: stats.experience,
         gold: stats.gold,
-        moveSpeed: definition.moveSpeed,
+        moveSpeed: normalMonsterMoveSpeed(definition),
         respawnTime: definition.respawnTime,
         respawnTimer: 0,
         alive: true,
         direction: index % 2 === 0 ? 1 : -1,
         fadeTimer: 0,
         spawnInvulnTimer: MONSTER_BALANCE.spawnIntroSeconds,
+        aggro: false,
         color: definition.color,
         role: "normal",
       });
@@ -159,6 +160,10 @@ export function createStageWaveMonsters(
   }
 
   return monsters;
+}
+
+function normalMonsterMoveSpeed(definition: MonsterDefinition): number {
+  return Math.round(definition.moveSpeed * MONSTER_BALANCE.moveSpeedMultiplier * 100) / 100;
 }
 
 export function normalMonsterStatsForStage(stageId: number, definition: MonsterDefinition): Pick<Monster, "maxHp" | "attack" | "experience" | "gold"> {

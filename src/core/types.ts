@@ -283,6 +283,7 @@ export interface Monster {
   direction: -1 | 1;
   fadeTimer: number;
   spawnInvulnTimer: number;
+  aggro: boolean;
   color: string;
   role: MonsterRole;
   bossId?: BossId;

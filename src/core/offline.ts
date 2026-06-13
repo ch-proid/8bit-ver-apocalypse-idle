@@ -63,7 +63,7 @@ export function estimateOfflineHuntRates(progress: ProgressState): OfflineHuntRa
     stageId: stage.id,
     killsPerMinute: cycleKills * cyclesPerMinute,
     goldPerMinute: cycleGold * cyclesPerMinute,
-    experiencePerMinute: cycleExperience * cyclesPerMinute,
+    experiencePerMinute: cycleExperience * cyclesPerMinute * WAVE_BALANCE.offlineExperienceMultiplier,
     cycleSeconds,
   };
 }

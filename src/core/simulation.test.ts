@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FIXED_DELTA, MONSTER_BALANCE } from "../data/balance";
+import { FIXED_DELTA, MONSTER_BALANCE, nextExperienceForLevel } from "../data/balance";
 import { estimateOfflineHuntRates } from "./offline";
 import { createInitialSimulation } from "./stage";
 import { startStage } from "./stageProgress";
@@ -18,15 +18,16 @@ describe("phase 2 simulation", () => {
     expect(state.progress.level).toBeGreaterThanOrEqual(1);
   });
 
-  it("levels up from repeated automatic combat", () => {
+  it("accumulates combat progress without rapid early leveling", () => {
     let state = createInitialSimulation(1);
 
     for (let i = 0; i < 60 * 90; i += 1) {
       state = stepSimulation(state, FIXED_DELTA);
     }
 
-    expect(state.progress.level).toBeGreaterThan(1);
-    expect(state.world.player.attack).toBeGreaterThan(16);
+    expect(state.progress.level).toBe(1);
+    expect(state.progress.experience).toBeGreaterThan(0);
+    expect(state.progress.experience).toBeLessThan(state.progress.nextExperience);
   });
 
   it("keeps the entire simulation deterministic for identical initial state", () => {
@@ -97,6 +98,44 @@ describe("phase 2 simulation", () => {
     expect(state.world.monsters.every((monster) => monster.alive)).toBe(true);
   });
 
+  it("chases the player after being hit while unhit monsters keep patrolling", () => {
+    let unhit = createInitialSimulation(1);
+    unhit.world.player.position.x = 20;
+    unhit.world.player.attackRange = 0;
+    unhit.world.player.moveSpeed = 0;
+    unhit.world.monsters[0].spawnInvulnTimer = 0;
+    unhit.world.monsters[0].aggro = false;
+    unhit.world.monsters[0].position.x = 100;
+    unhit.world.monsters[0].direction = 1;
+    unhit = stepSimulation(unhit, FIXED_DELTA);
+    expect(unhit.world.monsters[0].position.x).toBeGreaterThan(100);
+
+    let aggro = createInitialSimulation(1);
+    aggro.world.player.position.x = 20;
+    aggro.world.player.attackRange = 0;
+    aggro.world.player.moveSpeed = 0;
+    aggro.world.monsters[0].spawnInvulnTimer = 0;
+    aggro.world.monsters[0].aggro = true;
+    aggro.world.monsters[0].position.x = 100;
+    aggro.world.monsters[0].direction = 1;
+    aggro = stepSimulation(aggro, FIXED_DELTA);
+    expect(aggro.world.monsters[0].position.x).toBeLessThan(100);
+
+    let hit = createInitialSimulation(1);
+    const target = hit.world.monsters[0];
+    target.spawnInvulnTimer = 0;
+    target.evasion = 0;
+    target.hp = target.maxHp * 10;
+    target.maxHp = target.hp;
+    hit.world.player.platformId = target.platformId;
+    hit.world.player.position.x = target.position.x;
+    hit.world.player.position.y = target.position.y;
+    hit.world.player.attackRange = 999;
+    hit.world.player.attackTimer = 0;
+    hit = stepSimulation(hit, FIXED_DELTA);
+    expect(hit.world.monsters[0].aggro).toBe(true);
+  });
+
   it("restarts the wave cycle after all hunt waves are cleared", () => {
     let state = createInitialSimulation(1);
     const totalWaves = state.world.wave?.totalWaves ?? 0;
@@ -139,12 +178,12 @@ describe("phase 2 simulation", () => {
     let low = createInitialSimulation(1);
     let high = createInitialSimulation(1);
     low.world.player.attack = 1;
-    low.world.player.attackCooldown = 2;
+    low.world.player.attackCooldown = 10;
     high.world.player.attack = 999;
     high.world.player.attackCooldown = 0.05;
     high.world.player.attackRange = 999;
 
-    for (let i = 0; i < 60 * 20; i += 1) {
+    for (let i = 0; i < 60 * 60; i += 1) {
       low = stepSimulation(low, FIXED_DELTA);
       high = stepSimulation(high, FIXED_DELTA);
     }
@@ -163,6 +202,16 @@ describe("phase 2 simulation", () => {
     expect(highRates.killsPerMinute).toBeGreaterThan(lowRates.killsPerMinute);
     expect(highRates.goldPerMinute).toBeGreaterThan(lowRates.goldPerMinute);
     expect(highRates.experiencePerMinute).toBeGreaterThan(lowRates.experiencePerMinute);
+  });
+
+  it("keeps blocked offline experience near one level over twelve hours", () => {
+    const progress = createInitialSimulation(1).progress;
+    const rates = estimateOfflineHuntRates(progress);
+    const twelveHourExperience = rates.experiencePerMinute * 60 * 12;
+    const nextLevel = nextExperienceForLevel(progress.level);
+
+    expect(twelveHourExperience).toBeGreaterThan(nextLevel * 0.75);
+    expect(twelveHourExperience).toBeLessThan(nextLevel * 1.25);
   });
 
   it("walks completely off an elevated platform instead of stopping on the edge", () => {

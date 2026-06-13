@@ -44,7 +44,7 @@ export function stepSimulation(input: SimulationState, dt: number): SimulationSt
   updateBossMechanics(input, dt);
   tickStageProgress(input, dt);
 
-  updateMonsters(world.monsters, world.platforms, dt, Boolean(world.wave?.enabled));
+  updateMonsters(world.monsters, world.platforms, world.player, dt, Boolean(world.wave?.enabled));
   updatePlayerAi(input, dt);
   advanceWaveIfCleared(input);
   updateFloatingTexts(input, dt);
@@ -96,6 +96,9 @@ function updatePlayerAi(state: SimulationState, dt: number): void {
   player.targetId = target.instanceId;
   const passiveResult = applyRelicPassiveDamage(progress, world, target, dt);
   const classPassiveResult = applyClassPassiveDamage(progress, world, target, dt);
+  if (passiveResult.extraDamage + classPassiveResult.extraDamage > 0) {
+    target.aggro = true;
+  }
   if (target.hp <= 0) {
     const passiveDamage = passiveResult.extraDamage + classPassiveResult.extraDamage;
     if (passiveDamage > 0) {
@@ -135,6 +138,9 @@ function updatePlayerAi(state: SimulationState, dt: number): void {
       const lifeSteal = clampCombatAffixes(combatAffixes).lifeSteal;
       if (lifeSteal > 0 && totalDamage > 0) {
         player.hp = Math.min(player.maxHp, player.hp + totalDamage * lifeSteal / 100);
+      }
+      if (totalDamage > 0) {
+        target.aggro = true;
       }
       addFloatingText(world, `${totalDamage}`, target.position.x + target.width / 2, target.position.y - 2, "#d8e3c8");
       const hooks = relicDamageHooks(progress, world, player);
@@ -240,6 +246,7 @@ function findNearestMonster(monsters: Monster[], x: number, y: number): Monster 
 function updateMonsters(
   monsters: Monster[],
   platforms: SimulationState["world"]["platforms"],
+  player: SimulationState["world"]["player"],
   dt: number,
   waveCycleEnabled: boolean,
 ): void {
@@ -261,6 +268,15 @@ function updateMonsters(
     const platform = getPlatformById(platforms, monster.platformId);
     if (!platform) {
       continue;
+    }
+
+    if (monster.aggro) {
+      const playerCenter = player.position.x + player.width / 2;
+      const monsterCenter = monster.position.x + monster.width / 2;
+      const delta = playerCenter - monsterCenter;
+      if (Math.abs(delta) > 1) {
+        monster.direction = delta > 0 ? 1 : -1;
+      }
     }
 
     monster.position.x += monster.direction * monster.moveSpeed * dt;
@@ -409,6 +425,7 @@ function respawnMonster(monster: Monster): void {
   monster.direction *= -1;
   monster.fadeTimer = 0;
   monster.spawnInvulnTimer = MONSTER_BALANCE.spawnIntroSeconds;
+  monster.aggro = false;
 }
 
 function updateFloatingTexts(state: SimulationState, dt: number): void {
