@@ -1,7 +1,7 @@
-import type { ItemSlot } from "../core/types";
+import type { DropIconKind, ItemSlot } from "../core/types";
 
 export type DropIconSheetId = "drop01" | "drop02";
-export type DropIconId = "gold" | "blood" | "ability" | "heal" | ItemSlot;
+export type DropIconId = DropIconKind;
 
 export interface DropIconSheet {
   path: string;

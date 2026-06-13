@@ -643,6 +643,7 @@ function cloneSimulation(simulation: SimulationState): SimulationState {
     world: {
       ...simulation.world,
       rng: cloneRngState(simulation.world.rng),
+      rewardRng: cloneRngState(simulation.world.rewardRng),
       relicCombat: cloneRelicCombatState(simulation.world.relicCombat),
       classCombat: cloneClassCombatState(simulation.world.classCombat),
       altarElite: simulation.world.altarElite ? { ...simulation.world.altarElite } : null,
@@ -663,6 +664,10 @@ function cloneSimulation(simulation: SimulationState): SimulationState {
       floatingTexts: simulation.world.floatingTexts.map((text) => ({
         ...text,
         position: { ...text.position },
+      })),
+      dropIcons: simulation.world.dropIcons.map((icon) => ({
+        ...icon,
+        position: { ...icon.position },
       })),
     },
   };

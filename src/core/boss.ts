@@ -1,11 +1,12 @@
 import { BOSS_BALANCE, MONSTER_BALANCE } from "../data/balance";
 import { BOSS_DEFINITIONS } from "../data/bosses";
+import { DROP_ICON_FOR_EQUIPMENT_SLOT } from "../data/dropIcons";
 import { MONSTERS } from "../data/monsters";
 import { addBlood } from "./altar";
 import { rollPlayerEvasion } from "./combat";
 import { rollBossDrop } from "./drop";
 import { addItemToInventory } from "./inventory";
-import { addFloatingText, grantRewards } from "./progression";
+import { addDropIcon, grantRewards } from "./progression";
 import { clearBossStage, continueAutoChallenge } from "./stageProgress";
 import type { BossCombatState, BossId, Monster, Platform, ProgressState, SimulationState, WorldState } from "./types";
 
@@ -115,9 +116,16 @@ export function resolveBossDefeat(state: SimulationState, boss: Monster): void {
   boss.alive = false;
   boss.fadeTimer = MONSTER_BALANCE.respawnFadeSeconds;
   grantRewards(state.progress, state.world, boss.experience, boss.gold);
-  addBlood(state.progress.altar, "boss", state.progress.currentStage);
+  if (boss.gold > 0) {
+    addDropIcon(state.world, "gold", boss.position.x + boss.width / 2, boss.position.y - 4);
+  }
+  const blood = addBlood(state.progress.altar, "boss", state.progress.currentStage);
+  if (blood > 0) {
+    addDropIcon(state.world, "blood", boss.position.x + boss.width / 2, boss.position.y - 10);
+  }
   const drop = rollBossDrop(state.progress, state.world.rng, boss.bossId);
   addItemToInventory(state.progress, drop);
+  addDropIcon(state.world, DROP_ICON_FOR_EQUIPMENT_SLOT[drop.slot], boss.position.x + boss.width / 2, boss.position.y - 12);
   clearBossStage(state.progress, state.progress.currentStage);
 
   const definition = BOSS_DEFINITIONS[boss.bossId];
@@ -128,7 +136,6 @@ export function resolveBossDefeat(state: SimulationState, boss: Monster): void {
   }
 
   state.world.boss = null;
-  addFloatingText(state.world, "BOSS DOWN", boss.position.x, boss.position.y - 18, "#e0c04a");
   continueAutoChallenge(state.progress);
 }
 

@@ -22,6 +22,7 @@ export function createInitialSimulation(
   progress.currentStage = stage.id;
   const wave = createInitialWaveState(stage);
   const rng = createRngState(seed);
+  const rewardRng = createRngState(seed ^ 0x9e3779b9);
   let nextEntityId = 1;
   const monsters = stage.isBoss
     ? createStageBossMonsters(stage, platforms)
@@ -57,6 +58,7 @@ export function createInitialSimulation(
     world: {
       elapsed: 0,
       rng,
+      rewardRng,
       relicCombat: createDefaultRelicCombatState(),
       classCombat: createDefaultClassCombatState(),
       altarElite: null,
@@ -66,6 +68,7 @@ export function createInitialSimulation(
       player,
       monsters,
       floatingTexts: [],
+      dropIcons: [],
       nextEntityId,
     },
   };

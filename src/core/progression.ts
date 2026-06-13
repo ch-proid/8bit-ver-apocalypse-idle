@@ -1,4 +1,4 @@
-import { FLOATING_TEXT, nextExperienceForLevel, PROGRESSION, REBIRTH_BALANCE, STAT_GROWTH } from "../data/balance";
+import { DROP_REWARD_BALANCE, FLOATING_TEXT, nextExperienceForLevel, PROGRESSION, REBIRTH_BALANCE, STAT_GROWTH } from "../data/balance";
 import { cloneAltarState, createDefaultAltarState, normalizeAltarState } from "./altar";
 import { getPlayerClass, normalizeClassId } from "./class";
 import { calculateCombatAffixStats, cloneItem } from "./equipment";
@@ -12,7 +12,7 @@ import {
   emptyAllocation,
   normalizeStatDistribution,
 } from "./stats";
-import type { ProgressRecords, ProgressState, RebirthState, RecordEntry, WorldState } from "./types";
+import type { DropIconKind, ProgressRecords, ProgressState, RebirthState, RecordEntry, WorldState } from "./types";
 
 export function createDefaultProgress(stageId: number = PROGRESSION.initialStageId): ProgressState {
   const classId = normalizeClassId(undefined);
@@ -103,9 +103,6 @@ export function grantRewards(
   const affixes = calculateCombatAffixStats(progress.inventory.equipped);
   const actualGold = Math.max(0, Math.floor(gold * (1 + affixes.goldGain / 100)));
   progress.gold += actualGold;
-  if (actualGold > 0) {
-    addFloatingText(world, `+${actualGold}G`, world.player.position.x, world.player.position.y - 10, "#e0c04a");
-  }
 
   gainExperience(progress, world, experience);
 }
@@ -123,7 +120,6 @@ export function gainExperience(progress: ProgressState, world: WorldState, baseE
     progress.statDistribution = applyLevelStatPoints(progress.statDistribution, STAT_GROWTH.pointsPerLevel);
     progress.nextExperience = nextExperienceForLevel(progress.level);
     updateRecord(progress.records.highestLevel, progress.level, world.elapsed);
-    addFloatingText(world, `LV ${progress.level}`, world.player.position.x, world.player.position.y - 24, "#7da963");
   }
 
   applyPlayerStats(world.player, progress);
@@ -147,6 +143,25 @@ export function addFloatingText(
 
   if (world.floatingTexts.length > FLOATING_TEXT.maxCount) {
     world.floatingTexts.shift();
+  }
+}
+
+export function addDropIcon(
+  world: WorldState,
+  kind: DropIconKind,
+  x: number,
+  y: number,
+): void {
+  world.dropIcons.push({
+    id: `drop${world.nextEntityId++}`,
+    kind,
+    position: { x, y },
+    age: 0,
+    ttl: DROP_REWARD_BALANCE.iconTtl,
+  });
+
+  if (world.dropIcons.length > DROP_REWARD_BALANCE.maxIcons) {
+    world.dropIcons.shift();
   }
 }
 

@@ -280,6 +280,8 @@ button {
   color: var(--light);
   font-size: 8px;
   line-height: 1;
+  -webkit-font-smoothing: none;
+  text-rendering: geometricPrecision;
   text-shadow: 1px 0 0 var(--ink), -1px 0 0 var(--ink), 0 1px 0 var(--ink), 0 -1px 0 var(--ink);
 }
 

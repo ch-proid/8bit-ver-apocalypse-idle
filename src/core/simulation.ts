@@ -1,4 +1,5 @@
-import { FLOATING_TEXT, MAGE_AI_BALANCE, MONSTER_BALANCE, PLAYER_NAVIGATION } from "../data/balance";
+import { DROP_REWARD_BALANCE, FLOATING_TEXT, MAGE_AI_BALANCE, MONSTER_BALANCE, PLAYER_NAVIGATION } from "../data/balance";
+import { DROP_ICON_FOR_EQUIPMENT_SLOT } from "../data/dropIcons";
 import { STAGES } from "../data/stages";
 import { applyClassAfterHit, applyClassPassiveDamage, cloneClassCombatState } from "./class";
 import {
@@ -19,7 +20,7 @@ import { calculateCombatAffixStats } from "./equipment";
 import { resolveAltarEliteDefeat, updateAltarEliteEncounter } from "./elites";
 import { addItemToInventory } from "./inventory";
 import { applyGravity, jump, moveAndCollide } from "./physics";
-import { addFloatingText, cloneProgress, grantRewards } from "./progression";
+import { addDropIcon, addFloatingText, cloneProgress, gainExperience, grantRewards } from "./progression";
 import {
   applyRelicAfterHit,
   applyRelicBeforeAttack,
@@ -29,7 +30,7 @@ import {
   relicDamageHooks,
   updateRelicCombat,
 } from "./relics";
-import { cloneRngState } from "./rng";
+import { chance, cloneRngState } from "./rng";
 import { addBlood } from "./altar";
 import { createInitialWaveState, createStageWaveMonsters, getPlatformById, platformCenterX } from "./stage";
 import { clearStage, continueAutoChallenge, failStageChallenge, tickStageChallenge } from "./stageProgress";
@@ -50,12 +51,14 @@ export function stepSimulation(input: SimulationState, dt: number): SimulationSt
   updatePlayerAi(input, dt);
   advanceWaveIfCleared(input);
   updateFloatingTexts(input, dt);
+  updateDropIcons(input, dt);
 
   return {
     progress: cloneProgress(progress),
     world: {
       ...world,
       rng: cloneRngState(world.rng),
+      rewardRng: cloneRngState(world.rewardRng),
       relicCombat: cloneRelicCombatState(world.relicCombat),
       classCombat: cloneClassCombatState(world.classCombat),
       altarElite: world.altarElite ? { ...world.altarElite } : null,
@@ -75,6 +78,10 @@ export function stepSimulation(input: SimulationState, dt: number): SimulationSt
       floatingTexts: world.floatingTexts.map((text) => ({
         ...text,
         position: { ...text.position },
+      })),
+      dropIcons: world.dropIcons.map((icon) => ({
+        ...icon,
+        position: { ...icon.position },
       })),
     },
   };
@@ -566,10 +573,6 @@ function killMonster(state: SimulationState, monster: Monster): void {
   monster.hitSlowTimer = 0;
   monster.aggro = false;
   monster.aggroDelayTimer = 0;
-  const stage = STAGES[state.progress.currentStage];
-  if (stage && monster.role === "normal") {
-    addFloatingText(state.world, "+BLOOD", monster.position.x, monster.position.y - 12, "#c0303a");
-  }
 }
 
 function resolveMonsterDeath(state: SimulationState, monster: Monster): void {
@@ -592,14 +595,35 @@ function resolveMonsterDeath(state: SimulationState, monster: Monster): void {
   }
 
   killMonster(state, monster);
-  grantRewards(state.progress, state.world, monster.experience, monster.gold);
-  addBlood(state.progress.altar, "normal", state.progress.currentStage);
+  gainExperience(state.progress, state.world, monster.experience);
   applyRelicOnKill(state.progress, state.world, monster);
   grantDrop(state);
+  grantProbabilisticKillRewards(state, monster);
   if (state.world.wave) {
     state.world.wave.totalKills += 1;
   }
   advanceWaveIfCleared(state);
+}
+
+function grantProbabilisticKillRewards(state: SimulationState, monster: Monster): void {
+  const x = monster.position.x + monster.width / 2;
+  const y = monster.position.y - 6;
+
+  if (chance(state.world.rewardRng, DROP_REWARD_BALANCE.goldChance)) {
+    grantRewards(state.progress, state.world, 0, monster.gold);
+    addDropIcon(state.world, "gold", x, y);
+  }
+
+  if (chance(state.world.rewardRng, DROP_REWARD_BALANCE.bloodChance)) {
+    addBlood(state.progress.altar, "normal", state.progress.currentStage);
+    addDropIcon(state.world, "blood", x, y);
+  }
+
+  if (chance(state.world.rewardRng, DROP_REWARD_BALANCE.healChance) && state.world.player.hp < state.world.player.maxHp) {
+    const healAmount = Math.max(1, Math.floor(state.world.player.maxHp * DROP_REWARD_BALANCE.healMaxHpPercent / 100));
+    state.world.player.hp = Math.min(state.world.player.maxHp, state.world.player.hp + healAmount);
+    addDropIcon(state.world, "heal", x, y);
+  }
 }
 
 function grantDrop(state: SimulationState): void {
@@ -609,12 +633,12 @@ function grantDrop(state: SimulationState): void {
   }
 
   const result = addItemToInventory(state.progress, item);
-  addFloatingText(
+  void result;
+  addDropIcon(
     state.world,
-    result.kept ? "ITEM" : `+${result.soldGold}G`,
-    state.world.player.position.x,
-    state.world.player.position.y - 18,
-    "#e0c04a",
+    DROP_ICON_FOR_EQUIPMENT_SLOT[item.slot],
+    state.world.player.position.x + state.world.player.width / 2,
+    state.world.player.position.y - 8,
   );
 }
 
@@ -717,4 +741,13 @@ function updateFloatingTexts(state: SimulationState, dt: number): void {
   }
 
   state.world.floatingTexts = state.world.floatingTexts.filter((text) => text.age <= text.ttl);
+}
+
+function updateDropIcons(state: SimulationState, dt: number): void {
+  for (const icon of state.world.dropIcons) {
+    icon.age += dt;
+    icon.position.y -= DROP_REWARD_BALANCE.iconRiseSpeed * dt;
+  }
+
+  state.world.dropIcons = state.world.dropIcons.filter((icon) => icon.age <= icon.ttl);
 }

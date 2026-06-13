@@ -121,6 +121,17 @@ export const FLOATING_TEXT = {
   maxCount: 50,
 } as const;
 
+export const DROP_REWARD_BALANCE = {
+  // TODO(Phase tuning): First pass kill-drop pacing after reward text removal.
+  goldChance: 0.35,
+  bloodChance: 0.15,
+  healChance: 0.08,
+  healMaxHpPercent: 8,
+  iconTtl: 0.8,
+  iconRiseSpeed: 16,
+  maxIcons: 40,
+} as const;
+
 export const PROGRESSION = {
   initialStageId: 1,
   offlineCapSeconds: 60 * 60 * 24,

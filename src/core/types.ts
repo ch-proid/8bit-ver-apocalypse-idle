@@ -318,6 +318,16 @@ export interface FloatingText {
   ttl: number;
 }
 
+export type DropIconKind = "gold" | "blood" | "ability" | "heal" | ItemSlot;
+
+export interface DropIconEvent {
+  id: string;
+  kind: DropIconKind;
+  position: Vec2;
+  age: number;
+  ttl: number;
+}
+
 export interface ProgressState {
   gold: number;
   experience: number;
@@ -339,6 +349,7 @@ export interface ProgressState {
 export interface WorldState {
   elapsed: number;
   rng: RngState;
+  rewardRng: RngState;
   relicCombat: RelicCombatState;
   classCombat: ClassCombatState;
   altarElite: AltarEliteCombatState | null;
@@ -348,6 +359,7 @@ export interface WorldState {
   player: Player;
   monsters: Monster[];
   floatingTexts: FloatingText[];
+  dropIcons: DropIconEvent[];
   nextEntityId: number;
 }
 

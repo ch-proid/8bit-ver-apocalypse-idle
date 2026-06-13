@@ -8,7 +8,7 @@ import {
   rollEliteRelicDrop,
   spendBloodForElite,
 } from "./altar";
-import { addFloatingText, grantRewards } from "./progression";
+import { addDropIcon, grantRewards } from "./progression";
 import { getPlatformById, platformCenterX } from "./stage";
 import { applyPlayerStats } from "./stats";
 import type { Monster, Platform, SimulationState } from "./types";
@@ -32,7 +32,6 @@ export function startAltarEliteEncounter(state: SimulationState): boolean {
     timeLimit: ALTAR_BALANCE.eliteTimeLimitSeconds,
   };
   state.world.player.targetId = elite.instanceId;
-  addFloatingText(state.world, "ELITE", elite.position.x, elite.position.y - 12, "#c0303a");
   return true;
 }
 
@@ -100,13 +99,15 @@ export function updateAltarEliteEncounter(state: SimulationState, dt: number): v
   }
 
   removeAltarElite(state, encounter.instanceId);
-  addFloatingText(state.world, "FAIL", elite.position.x, elite.position.y - 12, "#8a2630");
 }
 
 export function resolveAltarEliteDefeat(state: SimulationState, monster: Monster): void {
   const level = state.world.altarElite?.level ?? state.progress.altar.level;
   const rewards = altarEliteStatsForLevel(level);
   grantRewards(state.progress, state.world, rewards.experience, rewards.gold);
+  if (rewards.gold > 0) {
+    addDropIcon(state.world, "gold", monster.position.x + monster.width / 2, monster.position.y - 4);
+  }
   addAltarExperience(state.progress.altar, rewards.altarExperience);
 
   const relicDrop = rollEliteRelicDrop(state.progress.altar, state.progress.rebirth.count, state.world.rng);
@@ -116,10 +117,9 @@ export function resolveAltarEliteDefeat(state: SimulationState, monster: Monster
       state.progress.altar.equippedRelicId = relicDrop.id;
     }
     applyPlayerStats(state.world.player, state.progress);
-    addFloatingText(state.world, "RELIC", monster.position.x, monster.position.y - 20, "#e0c04a");
+    addDropIcon(state.world, "ability", monster.position.x + monster.width / 2, monster.position.y - 10);
   }
 
-  addFloatingText(state.world, "AXP", monster.position.x, monster.position.y - 12, "#c0303a");
   removeAltarElite(state, monster.instanceId);
 }
 

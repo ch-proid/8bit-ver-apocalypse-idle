@@ -45,6 +45,33 @@ describe("phase 2 simulation", () => {
     expect(runA).toEqual(runB);
   });
 
+  it("uses deterministic icon events for kill rewards without reward floating text", () => {
+    let state = createInitialSimulation(1);
+    const target = state.world.monsters[0];
+    state.world.monsters = [target];
+    state.world.wave = null;
+    state.world.rewardRng.seed = 31;
+    state.world.player.hp = state.world.player.maxHp / 2;
+    state.world.player.attack = 9999;
+    state.world.player.attackRange = 999;
+    state.world.player.attackTimer = 0;
+    target.hp = 1;
+    target.maxHp = 1;
+    target.evasion = 0;
+    target.spawnInvulnTimer = 0;
+    target.platformId = state.world.player.platformId;
+    target.position.x = state.world.player.position.x + 4;
+    target.position.y = state.world.player.position.y;
+
+    state = stepSimulation(state, FIXED_DELTA);
+
+    expect(state.world.floatingTexts.every((text) => /^\d+$/.test(text.value))).toBe(true);
+    expect(state.world.dropIcons.map((icon) => icon.kind)).toEqual(expect.arrayContaining(["gold", "blood", "heal"]));
+    expect(state.progress.gold).toBeGreaterThan(0);
+    expect(state.progress.altar.blood).toBeGreaterThan(0);
+    expect(state.world.player.hp).toBeGreaterThan(state.world.player.maxHp / 2);
+  });
+
   it("runs altar elite challenge combat, grants rewards on kill, and stores altar experience", () => {
     let state = createInitialSimulation(1);
     const startGold = state.progress.gold;

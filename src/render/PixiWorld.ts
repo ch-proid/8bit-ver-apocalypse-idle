@@ -12,7 +12,6 @@ import {
 } from "pixi.js";
 import { MONSTER_ASSETS, PLAYER_CLASS_ASSETS, STAGE_MAP_ASSETS, type PixelSpriteAsset, type PlayerSpriteAsset } from "../data/assets";
 import {
-  DROP_ICON_FOR_EQUIPMENT_SLOT,
   DROP_ICON_FRAMES,
   DROP_ICON_SHEETS,
   type DropIconId,
@@ -21,7 +20,7 @@ import {
 } from "../data/dropIcons";
 import { MONSTER_BALANCE, WORLD } from "../data/balance";
 import { CHAPTER_PALETTES, PLACEHOLDER_COLORS } from "../data/palettes";
-import type { ClassId, FloatingText, ItemSlot, Monster, SimulationState } from "../core/types";
+import type { ClassId, FloatingText, Monster, SimulationState } from "../core/types";
 import {
   BACKGROUND_RENDER,
   DROP_ICON_RENDER,
@@ -418,7 +417,11 @@ export class PixiWorld {
 
     const display = this.playerDisplay ?? toEntityDisplay(player.position.x, player.position.y, player.direction, this.walkFrame);
     const x = Math.round(display.x + player.width / 2 - PLAYER_HP_BAR_RENDER.width / 2);
-    const y = Math.round(display.y + PLAYER_HP_BAR_RENDER.offsetY);
+    const asset = this.playerClassId === simulation.progress.classId ? this.playerAsset : null;
+    const spriteTop = asset
+      ? display.y + player.height + asset.padding.bottom - spriteFrameHeight(asset)
+      : display.y;
+    const y = Math.round(spriteTop + PLAYER_HP_BAR_RENDER.offsetY);
     this.playerHpBar.alpha = 1;
     this.playerHpBar
       .rect(x, y, PLAYER_HP_BAR_RENDER.width, PLAYER_HP_BAR_RENDER.height)
@@ -627,12 +630,7 @@ export class PixiWorld {
   }
 
   private drawDropIcons(simulation: SimulationState): void {
-    const latestSlot = simulation.progress.inventory.items[simulation.progress.inventory.items.length - 1]?.slot;
-    const ids = new Set(
-      simulation.world.floatingTexts
-        .filter((text) => dropIconForText(text.value, latestSlot))
-        .map((text) => text.id),
-    );
+    const ids = new Set(simulation.world.dropIcons.map((icon) => icon.id));
 
     for (const id of this.dropIcons.keys()) {
       if (!ids.has(id)) {
@@ -647,18 +645,13 @@ export class PixiWorld {
     }
 
     const stackedCounts = new Map<string, number>();
-    for (const text of simulation.world.floatingTexts) {
-      const iconId = dropIconForText(text.value, latestSlot);
-      if (!iconId) {
-        continue;
-      }
-
-      const texture = this.dropIconTextures.get(iconId);
+    for (const icon of simulation.world.dropIcons) {
+      const texture = this.dropIconTextures.get(icon.kind);
       if (!texture) {
         continue;
       }
 
-      const item = getOrCreate(this.dropIcons, text.id, () => {
+      const item = getOrCreate(this.dropIcons, icon.id, () => {
         const created = new Sprite(texture);
         created.roundPixels = true;
         created.scale.set(DROP_ICON_RENDER.scale);
@@ -668,9 +661,11 @@ export class PixiWorld {
 
       item.texture = texture;
       item.tint = 0xffffff;
-      item.alpha = Math.max(0, 1 - text.age / text.ttl);
-      const display = this.floatingDisplays.get(text.id)
-        ?? { x: quantize(text.position.x, STEPPED_MOTION.floatingTextStepPx), y: quantize(text.position.y, STEPPED_MOTION.floatingTextStepPx) };
+      item.alpha = Math.max(0, 1 - icon.age / icon.ttl);
+      const display = {
+        x: quantize(icon.position.x, STEPPED_MOTION.floatingTextStepPx),
+        y: quantize(icon.position.y, STEPPED_MOTION.floatingTextStepPx),
+      };
       const stackKey = `${display.x}:${display.y}`;
       const stackIndex = stackedCounts.get(stackKey) ?? 0;
       stackedCounts.set(stackKey, stackIndex + 1);
@@ -931,25 +926,6 @@ function playerSpriteX(x: number, width: number, direction: -1 | 1, asset: Playe
   const localCenterX = asset.padding.left + visibleWidth / 2;
   const worldCenterX = x + width / 2;
   return direction > 0 ? worldCenterX - localCenterX : worldCenterX + localCenterX;
-}
-
-function dropIconForText(value: string, latestSlot: ItemSlot | undefined): DropIconId | null {
-  if (/^\+\d+G$/.test(value)) {
-    return "gold";
-  }
-  if (value === "+BLOOD" || value === "AXP") {
-    return "blood";
-  }
-  if (value === "RELIC") {
-    return "ability";
-  }
-  if (value === "ITEM") {
-    return latestSlot ? DROP_ICON_FOR_EQUIPMENT_SLOT[latestSlot] : "weapon";
-  }
-  if (value === "HEAL" || value === "+HP") {
-    return "heal";
-  }
-  return null;
 }
 
 function renderColors(dmgMode: boolean) {
