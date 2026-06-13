@@ -1,19 +1,23 @@
 import { describe, expect, it } from "vitest";
 import { RELIC_IDS } from "../data/relics";
-import { DAMAGE_FORMULA, FIXED_DELTA, RELIC_BALANCE, TICK_RATE } from "../data/balance";
+import { ALTAR_BALANCE, DAMAGE_FORMULA, FIXED_DELTA, RELIC_BALANCE, TICK_RATE } from "../data/balance";
 import {
   addBlood,
   addAltarExperience,
   altarEliteStatsForLevel,
   altarExperienceForLevel,
   canLevelUpAltar,
+  calculateRelicOwnedStats,
   createDefaultAltarState,
   eliteSummonCost,
   equipRelic,
   grantRelic,
   levelUpAltar,
   relicStars,
+  rollRelicOwnedStats,
+  setRelicStarsForDebug,
   spendBloodForElite,
+  unlockedRelicGrades,
 } from "./altar";
 import {
   calculateDamage,
@@ -33,6 +37,7 @@ import {
 import { createRngState } from "./rng";
 import { createInitialSimulation } from "./stage";
 import { stepSimulation } from "./simulation";
+import { calculatePlayerStats } from "./stats";
 import type { CombatAffixStats, Monster, RelicId, SimulationState } from "./types";
 
 interface RelicDuelSignature {
@@ -236,6 +241,62 @@ describe("phase 3C damage formula, altar, and relic builds", () => {
     gated.bossDefeated.pride = true;
     grantRelic(gated, "specterLord");
     expect(relicStars(gated, "specterLord")).toBe(3);
+  });
+
+  it("separates equipped style effects from owned relic stat bonuses", () => {
+    const state = createInitialSimulation(1);
+    const baseline = calculatePlayerStats(state.progress);
+
+    grantRelic(state.progress.altar, "specterLord", "common", { atk: 2, hp: 10, def: 1 });
+    grantRelic(state.progress.altar, "martyr", "magic", { atk: 4, hp: 20, def: 2 });
+    equipRelic(state.progress.altar, "specterLord");
+
+    const ownedStats = calculateRelicOwnedStats(state.progress.altar);
+    const withRelics = calculatePlayerStats(state.progress);
+
+    expect(ownedStats).toEqual({ atk: 6, hp: 30, def: 3, reg: 0 });
+    expect(withRelics.attack).toBeCloseTo(baseline.attack + ownedStats.atk);
+    expect(withRelics.maxHp).toBeCloseTo(baseline.maxHp + ownedStats.hp);
+    expect(withRelics.defense).toBeCloseTo(baseline.defense + ownedStats.def);
+  });
+
+  it("rolls deterministic same-grade relic stat variance and raises future caps with altar level", () => {
+    const lowA = rollRelicOwnedStats("rare", 6, createRngState(100));
+    const lowB = rollRelicOwnedStats("rare", 6, createRngState(101));
+    const high = rollRelicOwnedStats("rare", 16, createRngState(100));
+
+    expect(lowA).toEqual(rollRelicOwnedStats("rare", 6, createRngState(100)));
+    expect(lowA).not.toEqual(lowB);
+    expect(high.atk).toBeGreaterThan(lowA.atk);
+    expect(high.hp).toBeGreaterThan(lowA.hp);
+  });
+
+  it("uses altar level and rebirth count to unlock relic grades", () => {
+    const altar = createDefaultAltarState();
+
+    expect(unlockedRelicGrades(altar, 0)).toEqual(["common"]);
+    altar.level = ALTAR_BALANCE.relicGrades.rare.altarLevel;
+    expect(unlockedRelicGrades(altar, 0)).toEqual(["common", "magic", "rare"]);
+    altar.level = ALTAR_BALANCE.relicGrades.epic.altarLevel;
+    expect(unlockedRelicGrades(altar, 0)).not.toContain("epic");
+    expect(unlockedRelicGrades(altar, 1)).toContain("epic");
+  });
+
+  it("uses rising duplicate requirements through 7 stars and promotes overflow to the next grade", () => {
+    const altar = createDefaultAltarState();
+    altar.bossDefeated.pride = true;
+
+    setRelicStarsForDebug(altar, "specterLord", 3);
+    grantRelic(altar, "specterLord");
+    expect(relicStars(altar, "specterLord")).toBe(3);
+    grantRelic(altar, "specterLord");
+    expect(relicStars(altar, "specterLord")).toBe(4);
+
+    setRelicStarsForDebug(altar, "specterLord", ALTAR_BALANCE.maxStars);
+    grantRelic(altar, "specterLord");
+
+    expect(altar.owned.specterLord?.common?.stars).toBe(ALTAR_BALANCE.maxStars);
+    expect(altar.owned.specterLord?.magic?.stars).toBe(1);
   });
 
   it("applies each of the six relic build rules through deterministic combat state", () => {

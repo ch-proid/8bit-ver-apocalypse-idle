@@ -1,4 +1,4 @@
-import type { RelicId, SinId } from "../core/types";
+import type { RelicGrade, RelicId, SinId } from "../core/types";
 
 export interface RelicDefinition {
   id: RelicId;
@@ -14,6 +14,8 @@ export const RELIC_IDS: RelicId[] = [
   "executioner",
   "kingsShadow",
 ];
+
+export const RELIC_GRADES: RelicGrade[] = ["common", "magic", "rare", "epic", "legendary"];
 
 export const RELICS: Record<RelicId, RelicDefinition> = {
   specterLord: { id: "specterLord", sin: "pride", name: "망령 군주" },

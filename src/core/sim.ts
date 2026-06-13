@@ -1,5 +1,5 @@
 import { FIXED_DELTA, STANDARD_DUMMY, TICK_RATE } from "../data/balance";
-import { RELIC_IDS } from "../data/relics";
+import { cloneOwnedRelics } from "./altar";
 import { applyClassAfterHit, applyClassPassiveDamage } from "./class";
 import { calculateCombatAffixStats, cloneEquipped, cloneItem } from "./equipment";
 import { createDefaultProgress, updateRecord } from "./progression";
@@ -18,6 +18,7 @@ import type {
   EquippedItems,
   EquipmentItem,
   Monster,
+  OwnedRelics,
   ProgressState,
   RelicId,
   SimulationState,
@@ -32,7 +33,7 @@ export interface BuildSnapshot {
   permanentStats: StatAllocation;
   equipped: EquippedItems;
   equippedRelicId: RelicId | null;
-  relicStars: Partial<Record<RelicId, number>>;
+  ownedRelics: OwnedRelics;
 }
 
 export interface DummySimulationOptions {
@@ -54,21 +55,13 @@ export interface EquipmentScoreComparison {
 }
 
 export function createBuildSnapshot(progress: ProgressState): BuildSnapshot {
-  const relicStars = RELIC_IDS.reduce((acc, relicId) => {
-    const stars = progress.altar.owned[relicId]?.stars;
-    if (stars) {
-      acc[relicId] = stars;
-    }
-    return acc;
-  }, {} as Partial<Record<RelicId, number>>);
-
   return {
     classId: progress.classId,
     statDistribution: cloneStatDistribution(progress.statDistribution),
     permanentStats: { ...progress.rebirth.permanentStats },
     equipped: cloneEquipped(progress.inventory.equipped),
     equippedRelicId: progress.altar.equippedRelicId,
-    relicStars,
+    ownedRelics: cloneOwnedRelics(progress.altar.owned),
   };
 }
 
@@ -143,13 +136,7 @@ function createProgressFromSnapshot(snapshot: BuildSnapshot): ProgressState {
   progress.statDistribution = cloneStatDistribution(snapshot.statDistribution);
   progress.rebirth.permanentStats = { ...snapshot.permanentStats };
   progress.inventory.equipped = cloneEquipped(snapshot.equipped);
-  progress.altar.owned = RELIC_IDS.reduce((acc, relicId) => {
-    const stars = Math.max(0, Math.floor(snapshot.relicStars[relicId] ?? 0));
-    if (stars > 0) {
-      acc[relicId] = { id: relicId, stars };
-    }
-    return acc;
-  }, {} as ProgressState["altar"]["owned"]);
+  progress.altar.owned = cloneOwnedRelics(snapshot.ownedRelics);
   progress.altar.equippedRelicId = snapshot.equippedRelicId && progress.altar.owned[snapshot.equippedRelicId]
     ? snapshot.equippedRelicId
     : null;
@@ -215,7 +202,7 @@ function cloneBuildSnapshot(snapshot: BuildSnapshot): BuildSnapshot {
     permanentStats: { ...snapshot.permanentStats },
     equipped: cloneEquipped(snapshot.equipped),
     equippedRelicId: snapshot.equippedRelicId,
-    relicStars: { ...snapshot.relicStars },
+    ownedRelics: cloneOwnedRelics(snapshot.ownedRelics),
   };
 }
 

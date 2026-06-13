@@ -1,6 +1,13 @@
 import type { ReactNode } from "react";
-import { altarExperienceForLevel, eliteSummonCost } from "../core/altar";
+import {
+  altarExperienceForLevel,
+  eliteSummonCost,
+  highestRelicGrade,
+  ownedRelicStyleCount,
+  relicStars,
+} from "../core/altar";
 import type { ClassId, EquipmentItem, EquipmentStatKey, ItemRarity, ItemSlot, RelicId, StatKey } from "../core/types";
+import { ALTAR_BALANCE } from "../data/balance";
 import { ITEM_SLOTS } from "../data/items";
 import { RELIC_IDS, RELICS } from "../data/relics";
 import { SURVIVOR_SKINS } from "../data/sprites/survivors";
@@ -197,13 +204,14 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
           <RelicSummary relicId={progress.altar.equippedRelicId} stars={currentRelicStars(progress.altar.equippedRelicId)} />
         </Win>
 
-        <Win title={`CODEX ${Object.keys(progress.altar.owned).length}/6`}>
+        <Win title={`CODEX ${ownedRelicStyleCount(progress.altar)}/6`}>
           <div className="relics">
             {RELIC_IDS.map((relicId) => (
               <RelicCard
                 key={relicId}
                 relicId={relicId}
-                stars={progress.altar.owned[relicId]?.stars ?? 0}
+                stars={relicStars(progress.altar, relicId)}
+                grade={highestRelicGrade(progress.altar, relicId)}
                 equipped={progress.altar.equippedRelicId === relicId}
               />
             ))}
@@ -216,7 +224,7 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
   );
 
   function currentRelicStars(relicId: RelicId | null): number {
-    return relicId ? progress.altar.owned[relicId]?.stars ?? 0 : 0;
+    return relicStars(progress.altar, relicId);
   }
 }
 
@@ -315,13 +323,23 @@ function RelicSummary({ relicId, stars }: { relicId: RelicId | null; stars: numb
   );
 }
 
-function RelicCard({ relicId, stars, equipped }: { relicId: RelicId; stars: number; equipped: boolean }) {
+function RelicCard({
+  relicId,
+  stars,
+  grade,
+  equipped,
+}: {
+  relicId: RelicId;
+  stars: number;
+  grade: ItemRarity | null;
+  equipped: boolean;
+}) {
   const relic = RELICS[relicId];
   return (
     <div className={equipped ? "relic on" : stars > 0 ? "relic" : "relic off"}>
       <span className="kr">{stars > 0 ? relic.name : "?"}</span>
-      <small className="sin">{sinShort(relic.sin)}</small>
-      <small className="st">{stars > 0 ? starText(stars) : "?????"}</small>
+      <small className="sin">{stars > 0 && grade ? grade.slice(0, 3).toUpperCase() : sinShort(relic.sin)}</small>
+      <small className="st">{stars > 0 ? starText(stars) : "?".repeat(ALTAR_BALANCE.maxStars)}</small>
     </div>
   );
 }
@@ -371,5 +389,5 @@ function sinShort(sin: string): string {
 }
 
 function starText(stars: number): string {
-  return `${"*".repeat(stars)}${"?".repeat(Math.max(0, 5 - stars))}`;
+  return `${"*".repeat(stars)}${"?".repeat(Math.max(0, ALTAR_BALANCE.maxStars - stars))}`;
 }

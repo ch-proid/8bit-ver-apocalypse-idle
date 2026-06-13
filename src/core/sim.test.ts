@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { RELIC_IDS } from "../data/relics";
+import { setRelicStarsForDebug } from "./altar";
 import { createDefaultProgress } from "./progression";
 import {
   calculateCombatScore,
@@ -83,7 +84,7 @@ describe("phase 3D standard dummy simulation", () => {
       { key: "finalDamage", value: 50, sin: false },
     ]);
     progress.altar.equippedRelicId = "martyr";
-    progress.altar.owned.martyr = { id: "martyr", stars: 5 };
+    setRelicStarsForDebug(progress.altar, "martyr", 5);
 
     expect(calculateCombatScore(snapshot)).toBe(before);
   });
@@ -101,7 +102,7 @@ describe("phase 3D standard dummy simulation", () => {
 
 function createProgressWithRelic(relicId: RelicId, stars: number) {
   const progress = createDefaultProgress(1);
-  progress.altar.owned[relicId] = { id: relicId, stars };
+  setRelicStarsForDebug(progress.altar, relicId, stars);
   progress.altar.equippedRelicId = relicId;
   return progress;
 }

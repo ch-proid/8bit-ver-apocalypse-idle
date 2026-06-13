@@ -20,6 +20,7 @@ export type EquipmentStatKey = "atk" | "def" | "hp" | "reg";
 export type StatPreset = "STR" | "BAL" | "GRIT" | "AGI" | "MANUAL";
 export type ItemSlot = "weapon" | "helmet" | "armor" | "accessory";
 export type ItemRarity = "common" | "magic" | "rare" | "epic" | "legendary";
+export type RelicGrade = ItemRarity;
 export type GeneralAffixKey =
   | "critChance"
   | "critDamage"
@@ -194,12 +195,21 @@ export interface SinAffixStats {
   despairBurst: number;
 }
 
-export interface RelicInstance {
-  id: RelicId;
-  stars: number;
+export interface RelicOwnedStats {
+  atk: number;
+  hp: number;
+  def: number;
 }
 
-export type OwnedRelics = Partial<Record<RelicId, RelicInstance>>;
+export interface RelicInstance {
+  id: RelicId;
+  grade: RelicGrade;
+  stars: number;
+  duplicateProgress: number;
+  ownedStats: RelicOwnedStats;
+}
+
+export type OwnedRelics = Partial<Record<RelicId, Partial<Record<RelicGrade, RelicInstance>>>>;
 export type BossDefeatedFlags = Record<SinId, boolean>;
 
 export interface AltarState {

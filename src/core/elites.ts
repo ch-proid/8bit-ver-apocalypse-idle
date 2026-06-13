@@ -10,6 +10,7 @@ import {
 } from "./altar";
 import { addFloatingText, grantRewards } from "./progression";
 import { getPlatformById, platformCenterX } from "./stage";
+import { applyPlayerStats } from "./stats";
 import type { Monster, Platform, SimulationState } from "./types";
 
 export function startAltarEliteEncounter(state: SimulationState): boolean {
@@ -108,12 +109,13 @@ export function resolveAltarEliteDefeat(state: SimulationState, monster: Monster
   grantRewards(state.progress, state.world, rewards.experience, rewards.gold);
   addAltarExperience(state.progress.altar, rewards.altarExperience);
 
-  const relicId = rollEliteRelicDrop(state.world.rng);
-  if (relicId) {
-    grantRelic(state.progress.altar, relicId);
+  const relicDrop = rollEliteRelicDrop(state.progress.altar, state.progress.rebirth.count, state.world.rng);
+  if (relicDrop) {
+    grantRelic(state.progress.altar, relicDrop.id, relicDrop.grade, relicDrop.ownedStats);
     if (!state.progress.altar.equippedRelicId) {
-      state.progress.altar.equippedRelicId = relicId;
+      state.progress.altar.equippedRelicId = relicDrop.id;
     }
+    applyPlayerStats(state.world.player, state.progress);
     addFloatingText(state.world, "RELIC", monster.position.x, monster.position.y - 20, "#e0c04a");
   }
 

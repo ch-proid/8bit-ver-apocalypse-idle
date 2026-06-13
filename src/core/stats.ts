@@ -1,5 +1,6 @@
 import { CLASS_BALANCE, COMBAT_POWER, PLAYER_BALANCE, STAT_GROWTH } from "../data/balance";
 import { PLAYER_CLASSES } from "../data/classes";
+import { calculateRelicOwnedStats } from "./altar";
 import { calculateEquipmentStats } from "./equipment";
 import { defaultClassId, getPlayerClass } from "./class";
 import type {
@@ -115,6 +116,7 @@ export function calculatePlayerStats(progress: ProgressState): PlayerStats {
   const levelSteps = Math.max(0, progress.level - 1);
   const statPoints = addAllocation(progress.statDistribution.assigned, progress.rebirth.permanentStats, 1);
   const equipmentStats = calculateEquipmentStats(progress.inventory.equipped);
+  const relicStats = calculateRelicOwnedStats(progress.altar);
 
   let attack = PLAYER_BALANCE.attack + classDefinition.growth.attackPerLevel * levelSteps;
   let defense = PLAYER_BALANCE.defense + classDefinition.growth.defensePerLevel * levelSteps;
@@ -133,8 +135,9 @@ export function calculatePlayerStats(progress: ProgressState): PlayerStats {
   }
 
   const withEquipment = applyEquipmentStats({ attack, defense, maxHp, hpRegen, evasion }, equipmentStats);
+  const withRelics = applyEquipmentStats(withEquipment, relicStats);
   return {
-    ...withEquipment,
+    ...withRelics,
     moveSpeed: roundTo(PLAYER_BALANCE.moveSpeed * classDefinition.growth.moveSpeedMultiplier, 2),
     attackCooldown: roundTo(PLAYER_BALANCE.attackCooldown * classDefinition.growth.attackCooldownMultiplier, 3),
     attackRange: classDefinition.growth.attackRange,

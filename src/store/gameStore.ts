@@ -4,8 +4,8 @@ import { ITEM_RARITIES, ITEM_SLOTS } from "../data/items";
 import { RELIC_IDS } from "../data/relics";
 import { RELICS } from "../data/relics";
 import { STAGES } from "../data/stages";
-import { EXPERIENCE_CURVE, FIXED_DELTA, nextExperienceForLevel, PHASE_3B_DEBUG, PHASE_3C_DEBUG, PROGRESSION, STANDARD_DUMMY, STAT_GROWTH, TICK_RATE } from "../data/balance";
-import { eliteSummonCost, equipRelic, grantRelic, levelUpAltar } from "../core/altar";
+import { ALTAR_BALANCE, EXPERIENCE_CURVE, FIXED_DELTA, nextExperienceForLevel, PHASE_3B_DEBUG, PHASE_3C_DEBUG, PROGRESSION, STANDARD_DUMMY, STAT_GROWTH, TICK_RATE } from "../data/balance";
+import { eliteSummonCost, equipRelic, grantRelic, levelUpAltar, setRelicStarsForDebug } from "../core/altar";
 import { triggerAltarCounter } from "../core/boss";
 import { cloneClassCombatState } from "../core/class";
 import { calculateItemValue, generateEquipmentItem } from "../core/equipment";
@@ -275,6 +275,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         grantRelic(simulation.progress.altar, relicId);
       }
       equipRelic(simulation.progress.altar, relicId);
+      applyPlayerStats(simulation.world.player, simulation.progress);
       return { simulation };
     });
   },
@@ -288,6 +289,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       );
       grantRelic(demo.progress.altar, relicId);
       equipRelic(demo.progress.altar, relicId);
+      applyPlayerStats(demo.world.player, demo.progress);
 
       for (let i = 0; i < PHASE_3C_DEBUG.demoSeconds * TICK_RATE; i += 1) {
         demo = stepSimulation(demo, FIXED_DELTA);
@@ -536,6 +538,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const simulation = cloneSimulation(state.simulation);
       grantRelic(simulation.progress.altar, relicId);
       equipRelic(simulation.progress.altar, relicId);
+      applyPlayerStats(simulation.world.player, simulation.progress);
       return { simulation };
     });
   },
@@ -543,16 +546,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
   debugSetRelicStars: (relicId: RelicId, stars: number) => {
     set((state) => {
       const simulation = cloneSimulation(state.simulation);
-      const nextStars = Math.max(0, Math.min(5, Math.floor(stars)));
-      if (nextStars <= 0) {
-        delete simulation.progress.altar.owned[relicId];
-        if (simulation.progress.altar.equippedRelicId === relicId) {
-          simulation.progress.altar.equippedRelicId = null;
-        }
-      } else {
-        simulation.progress.altar.owned[relicId] = { id: relicId, stars: nextStars };
-        simulation.progress.altar.equippedRelicId = relicId;
+      const nextStars = Math.max(0, Math.min(ALTAR_BALANCE.maxStars, Math.floor(stars)));
+      setRelicStarsForDebug(simulation.progress.altar, relicId, nextStars);
+      if (nextStars > 0) {
+        equipRelic(simulation.progress.altar, relicId);
       }
+      applyPlayerStats(simulation.world.player, simulation.progress);
       return { simulation };
     });
   },
