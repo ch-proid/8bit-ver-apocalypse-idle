@@ -185,8 +185,8 @@ describe("phase 3B equipment, drops, and gold", () => {
   });
 
   it("keeps inventory drops deterministic for the same seed over idle simulation", () => {
-    let runA = createInitialSimulation(1, undefined, 20240613);
-    let runB = createInitialSimulation(1, undefined, 20240613);
+    let runA = createInitialSimulation(1, undefined, 39);
+    let runB = createInitialSimulation(1, undefined, 39);
     runA.world.player.attack = 999;
     runA.world.player.attackCooldown = 0.05;
     runB.world.player.attack = 999;

@@ -180,9 +180,10 @@ export const RNG_BALANCE = {
 } as const;
 
 export const EQUIPMENT_BALANCE = {
-  // TODO(Phase 7): Tune after the first full Chapter 1 loot pacing pass.
+  // TODO(Phase 7): Current Stage 1 24h core sim is ~16,200 kills/day;
+  // 0.0185% keeps regular equipment near 2-3 drops/day while preserving rarity weights.
   inventoryCapacity: 60,
-  dropChance: 0.08,
+  dropChance: 0.000185,
   bossDropChance: 1,
   stagesPerChapter: 10,
   itemLevelPerStage: 1,
@@ -327,15 +328,16 @@ export const MONSTER_COMBAT = {
 } as const;
 
 export const ALTAR_BALANCE = {
-  // TODO(Phase 7): Tune to first relic at 5-8 minutes and stable summon every 15-30 minutes.
+  // TODO(Phase 7): Current Stage 1 24h core sim is ~16,200 blood/day;
+  // 323 blood per summon is ~50 altar charges/day at the present wave pace.
   bloodByKillType: {
     normal: 1,
     elite: 5,
     boss: 100,
   },
   stageBloodMultiplier: 0.05,
-  baseSummonBlood: 30,
-  summonGrowth: 1.22,
+  baseSummonBlood: 323,
+  summonGrowth: 1,
   unownedWeightMultiplier: 2,
   pityEverySummons: 5,
   maxStars: 5,
