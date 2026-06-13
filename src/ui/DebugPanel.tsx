@@ -35,6 +35,7 @@ export function DebugPanel({ open }: DebugPanelProps) {
   const debugRebirthNow = useGameStore((state) => state.debugRebirthNow);
   const debugGenerateItem = useGameStore((state) => state.debugGenerateItem);
   const debugFillInventory = useGameStore((state) => state.debugFillInventory);
+  const debugUpgradeEquippedWeapon = useGameStore((state) => state.debugUpgradeEquippedWeapon);
   const debugGrantRelic = useGameStore((state) => state.debugGrantRelic);
   const debugSetRelicStars = useGameStore((state) => state.debugSetRelicStars);
   const debugFillBlood = useGameStore((state) => state.debugFillBlood);
@@ -46,6 +47,7 @@ export function DebugPanel({ open }: DebugPanelProps) {
   const logPhase3BDemo = useGameStore((state) => state.logPhase3BDemo);
   const logPhase3CDemo = useGameStore((state) => state.logPhase3CDemo);
   const logPhase3DDemo = useGameStore((state) => state.logPhase3DDemo);
+  const logRework2Demo = useGameStore((state) => state.logRework2Demo);
   const equipBestItems = useGameStore((state) => state.equipBestItems);
   const summonRelicForDebug = useGameStore((state) => state.summonRelicForDebug);
   const setClassId = useGameStore((state) => state.setClassId);
@@ -202,6 +204,9 @@ export function DebugPanel({ open }: DebugPanelProps) {
         <button type="button" onClick={equipBestItems}>
           EQUIP
         </button>
+        <button type="button" onClick={debugUpgradeEquippedWeapon}>
+          WPN+
+        </button>
         <select value={relicId} onChange={(event) => setRelicId(event.target.value as RelicId)}>
           {RELIC_IDS.map((id) => (
             <option key={id} value={id}>{id}</option>
@@ -269,6 +274,9 @@ export function DebugPanel({ open }: DebugPanelProps) {
         </button>
         <button type="button" onClick={logPhase3DDemo}>
           CP
+        </button>
+        <button type="button" onClick={logRework2Demo}>
+          R2
         </button>
         <button type="button" className="danger" onClick={() => void debugResetGame()}>
           RESET

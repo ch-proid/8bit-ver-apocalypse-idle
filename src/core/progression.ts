@@ -1,7 +1,7 @@
 import { FLOATING_TEXT, nextExperienceForLevel, PROGRESSION, REBIRTH_BALANCE, STAT_GROWTH } from "../data/balance";
 import { cloneAltarState, createDefaultAltarState, normalizeAltarState } from "./altar";
 import { getPlayerClass, normalizeClassId } from "./class";
-import { calculateCombatAffixStats } from "./equipment";
+import { calculateCombatAffixStats, cloneItem } from "./equipment";
 import { createDefaultRerollState, createDefaultShopState, normalizeRerollState, normalizeShopState } from "./gold";
 import { cloneInventory, createDefaultInventory, normalizeInventory } from "./inventory";
 import { cloneStageProgress, createDefaultStageProgress, normalizeStageProgress } from "./stageProgress";
@@ -76,10 +76,7 @@ export function cloneProgress(progress: ProgressState): ProgressState {
       refreshedAt: progress.shop.refreshedAt,
       offers: progress.shop.offers.map((offer) => ({
         ...offer,
-        item: {
-          ...offer.item,
-          options: offer.item.options.map((option) => ({ ...option })),
-        },
+        item: cloneItem(offer.item),
       })),
     },
     stageProgress: cloneStageProgress(progress.stageProgress),

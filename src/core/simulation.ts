@@ -1,5 +1,6 @@
 import { FLOATING_TEXT, MONSTER_BALANCE } from "../data/balance";
 import { STAGES } from "../data/stages";
+import { applyClassAfterHit, applyClassPassiveDamage, cloneClassCombatState } from "./class";
 import {
   applyBossKillEffects,
   bossDamageTakenMultiplier,
@@ -51,6 +52,7 @@ export function stepSimulation(input: SimulationState, dt: number): SimulationSt
       ...world,
       rng: cloneRngState(world.rng),
       relicCombat: cloneRelicCombatState(world.relicCombat),
+      classCombat: cloneClassCombatState(world.classCombat),
       boss: world.boss ? { ...world.boss } : null,
       player: {
         ...world.player,
@@ -89,9 +91,11 @@ function updatePlayerAi(state: SimulationState, dt: number): void {
 
   player.targetId = target.instanceId;
   const passiveResult = applyRelicPassiveDamage(progress, world, target, dt);
+  const classPassiveResult = applyClassPassiveDamage(progress, world, target, dt);
   if (target.hp <= 0) {
-    if (passiveResult.extraDamage > 0) {
-      addFloatingText(world, `${Math.floor(passiveResult.extraDamage)}`, target.position.x + target.width / 2, target.position.y - 2, "#d8e3c8");
+    const passiveDamage = passiveResult.extraDamage + classPassiveResult.extraDamage;
+    if (passiveDamage > 0) {
+      addFloatingText(world, `${Math.floor(passiveDamage)}`, target.position.x + target.width / 2, target.position.y - 2, "#d8e3c8");
     }
     resolveMonsterDeath(state, target);
     return;
@@ -109,7 +113,8 @@ function updatePlayerAi(state: SimulationState, dt: number): void {
       applyRelicBeforeAttack(progress, world);
       const damageResult = dealPlayerDamage(player, target, progress, world);
       const relicResult = applyRelicAfterHit(progress, world, target, damageResult.finalDamage);
-      let totalDamage = damageResult.finalDamage + relicResult.extraDamage;
+      const classResult = applyClassAfterHit(progress, world, target, damageResult.finalDamage);
+      let totalDamage = damageResult.finalDamage + relicResult.extraDamage + classResult.extraDamage;
       const bossMultiplier = bossDamageTakenMultiplier(world, target);
       if (bossMultiplier > 1 && totalDamage > 0) {
         const extraBossDamage = Math.floor(totalDamage * (bossMultiplier - 1));

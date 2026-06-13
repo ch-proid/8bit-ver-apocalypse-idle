@@ -7,6 +7,7 @@ import { STAGES } from "../data/stages";
 import { EXPERIENCE_CURVE, FIXED_DELTA, nextExperienceForLevel, PHASE_3B_DEBUG, PHASE_3C_DEBUG, PROGRESSION, STANDARD_DUMMY, STAT_GROWTH, TICK_RATE } from "../data/balance";
 import { equipRelic, grantRelic, summonRelic, summonRequirement } from "../core/altar";
 import { triggerAltarCounter } from "../core/boss";
+import { cloneClassCombatState } from "../core/class";
 import { calculateItemValue, generateEquipmentItem } from "../core/equipment";
 import { addItemToInventory, bestInventoryItemForSlot, createItemId, equipItem } from "../core/inventory";
 import { cloneProgress, gainExperience, updateRecordAt } from "../core/progression";
@@ -17,6 +18,8 @@ import { compareEquipmentCombatScore, createBuildSnapshot, simulateStandardDummy
 import { createInitialSimulation } from "../core/stage";
 import { clearBossStage, clearStage, startStage } from "../core/stageProgress";
 import { stepSimulation } from "../core/simulation";
+import { accuracyMultiplier } from "../core/combat";
+import { applyWeaponUpgrade, upgradeWeapon, weaponUpgradeCost } from "../core/upgrade";
 import {
   applyLevelStatPoints,
   applyPlayerStats,
@@ -52,6 +55,7 @@ interface GameStore {
   equipRelicForDebug: (relicId: RelicId) => void;
   logPhase3CDemo: () => void;
   logPhase3DDemo: () => void;
+  logRework2Demo: () => void;
   setDebugSpeed: (speed: DebugSpeed) => void;
   debugJumpToStage: (stageId: number, mode?: StageMode) => void;
   debugClearCurrentStage: () => void;
@@ -62,6 +66,7 @@ interface GameStore {
   debugRebirthNow: (ignoreGate: boolean) => void;
   debugGenerateItem: (slot: ItemSlot, rarity: ItemRarity) => void;
   debugFillInventory: (rarity: ItemRarity) => void;
+  debugUpgradeEquippedWeapon: () => void;
   debugGrantRelic: (relicId: RelicId) => void;
   debugSetRelicStars: (relicId: RelicId, stars: number) => void;
   debugFillBlood: () => void;
@@ -323,6 +328,54 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
   },
 
+  logRework2Demo: () => {
+    const base = cloneProgress(get().simulation.progress);
+    const stage50 = createInitialSimulation(50, base, STANDARD_DUMMY.seed);
+    const target = stage50.world.monsters[0];
+    const weapon = stage50.progress.inventory.equipped.weapon ?? generateEquipmentItem({
+      id: "rework2-demo-weapon",
+      rng: createRngState(STANDARD_DUMMY.seed),
+      stageId: 1,
+      rarity: "common",
+      slot: "weapon",
+      itemLevel: 1,
+    });
+    const beforeHit = accuracyMultiplier(weapon.accuracy, target.evasion);
+    const upgraded = { ...weapon, options: weapon.options.map((option) => ({ ...option })) };
+    for (let i = 0; i < 6; i += 1) {
+      applyWeaponUpgrade(upgraded);
+    }
+    const afterHit = accuracyMultiplier(upgraded.accuracy, target.evasion);
+    const classRows = (["assassin", "knight", "mage"] as ClassId[]).map((classId) => {
+      const progress = cloneProgress(get().simulation.progress);
+      progress.classId = classId;
+      return {
+        classId,
+        combatScore: simulateStandardDummy(createBuildSnapshot(progress), { durationSeconds: 12 }).combatScore,
+      };
+    });
+
+    console.table([
+      {
+        checkpoint: "HIGH_STAGE_WEAK_WEAPON",
+        stage: 50,
+        weaponAcc: weapon.accuracy,
+        monsterEva: target.evasion,
+        missed: beforeHit.missed,
+        hitMultiplier: beforeHit.multiplier.toFixed(2),
+      },
+      {
+        checkpoint: "AFTER_UPGRADE_PREVIEW",
+        stage: 50,
+        weaponAcc: upgraded.accuracy,
+        monsterEva: target.evasion,
+        missed: afterHit.missed,
+        hitMultiplier: afterHit.multiplier.toFixed(2),
+      },
+    ]);
+    console.table(classRows);
+  },
+
   setDebugSpeed: (speed: DebugSpeed) => {
     set({ debugSpeed: speed });
   },
@@ -442,6 +495,32 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
   },
 
+  debugUpgradeEquippedWeapon: () => {
+    set((state) => {
+      const simulation = cloneSimulation(state.simulation);
+      let weapon = simulation.progress.inventory.equipped.weapon;
+      if (!weapon) {
+        const item = generateEquipmentItem({
+          id: createItemId(simulation.progress.inventory),
+          rng: simulation.world.rng,
+          stageId: simulation.progress.currentStage,
+          slot: "weapon",
+          rarity: "rare",
+        });
+        addItemToInventory(simulation.progress, item);
+        equipItem(simulation.progress, simulation.world.player, item.id);
+        weapon = simulation.progress.inventory.equipped.weapon;
+      }
+      if (weapon) {
+        const cost = weaponUpgradeCost(weapon);
+        simulation.progress.gold = Math.max(simulation.progress.gold, cost);
+        upgradeWeapon(simulation.progress, weapon.id);
+        applyPlayerStats(simulation.world.player, simulation.progress);
+      }
+      return { simulation };
+    });
+  },
+
   debugGrantRelic: (relicId: RelicId) => {
     set((state) => {
       const simulation = cloneSimulation(state.simulation);
@@ -556,6 +635,7 @@ function cloneSimulation(simulation: SimulationState): SimulationState {
       ...simulation.world,
       rng: cloneRngState(simulation.world.rng),
       relicCombat: cloneRelicCombatState(simulation.world.relicCombat),
+      classCombat: cloneClassCombatState(simulation.world.classCombat),
       boss: simulation.world.boss ? { ...simulation.world.boss } : null,
       platforms: simulation.world.platforms.map((platform) => ({ ...platform })),
       player: {

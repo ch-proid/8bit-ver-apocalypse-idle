@@ -2,6 +2,7 @@ import { BOSS_BALANCE, MONSTER_BALANCE } from "../data/balance";
 import { BOSS_DEFINITIONS } from "../data/bosses";
 import { MONSTERS } from "../data/monsters";
 import { addBlood } from "./altar";
+import { rollPlayerEvasion } from "./combat";
 import { rollBossDrop } from "./drop";
 import { addItemToInventory } from "./inventory";
 import { addFloatingText, grantRewards } from "./progression";
@@ -51,6 +52,8 @@ export function createBossMonster(bossId: BossId, platform: Platform): Monster {
     maxHp: definition.maxHp,
     defense: definition.defense,
     damageReduction: 0,
+    accuracy: bossAccuracy(definition.chapter),
+    evasion: bossEvasion(definition.chapter),
     attack: definition.attack,
     experience: definition.experience,
     gold: definition.gold,
@@ -330,6 +333,12 @@ function updateBossAttack(
   const markedMultiplier = bossState.bossId === "azar" && bossState.playerMarked
     ? 1 + BOSS_BALANCE.azar.markDamageTakenBonus / 100
     : 1;
+  if (rollPlayerEvasion(state.world.player, boss.accuracy, state.world.rng)) {
+    bossState.nextAttackAt += BOSS_BALANCE.common.attackIntervalSeconds * cooldownMultiplier;
+    bossState.lastEvent = `${bossState.bossId.toUpperCase()}_MISS`;
+    return;
+  }
+
   const rawDamage = boss.attack * damageMultiplier * markedMultiplier;
   const mitigatedDamage = Math.max(1, Math.floor(rawDamage - state.world.player.defense * BOSS_BALANCE.common.defenseDamageReduction));
   state.world.player.hp = Math.max(0, state.world.player.hp - mitigatedDamage);
@@ -381,6 +390,8 @@ function summonLucianWraiths(state: SimulationState, count: number): void {
       maxHp: BOSS_BALANCE.lucian.wraithHp,
       defense: 0,
       damageReduction: 0,
+      accuracy: definition.accuracy,
+      evasion: definition.evasion,
       attack: BOSS_BALANCE.lucian.wraithAttack,
       experience: BOSS_BALANCE.lucian.wraithExperience,
       gold: BOSS_BALANCE.lucian.wraithGold,
@@ -453,6 +464,8 @@ function summonMarcelaSeeds(state: SimulationState, count: number): void {
       maxHp: BOSS_BALANCE.marcela.seedHp,
       defense: 0,
       damageReduction: 0,
+      accuracy: definition.accuracy,
+      evasion: definition.evasion,
       attack: BOSS_BALANCE.marcela.seedAttack,
       experience: 0,
       gold: 0,
@@ -542,4 +555,12 @@ function leonidTelegraphPeriod(state: SimulationState): number {
 
 function findAliveBoss(world: WorldState, bossId: BossId): Monster | undefined {
   return world.monsters.find((monster) => monster.role === "boss" && monster.bossId === bossId && monster.alive);
+}
+
+function bossAccuracy(chapter: number): number {
+  return BOSS_BALANCE.common.accuracyBase + Math.max(0, chapter - 1) * BOSS_BALANCE.common.accuracyPerChapter;
+}
+
+function bossEvasion(chapter: number): number {
+  return BOSS_BALANCE.common.evasionBase + Math.max(0, chapter - 1) * BOSS_BALANCE.common.evasionPerChapter;
 }

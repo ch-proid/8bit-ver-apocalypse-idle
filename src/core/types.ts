@@ -124,6 +124,10 @@ export interface EquipmentItem {
   itemLevel: number;
   baseStat: EquipmentStatKey;
   baseValue: number;
+  minDmg: number;
+  maxDmg: number;
+  accuracy: number;
+  upgradeLevel: number;
   options: ItemOption[];
 }
 
@@ -216,6 +220,11 @@ export interface RelicCombatState {
   lastTriggered: string | null;
 }
 
+export interface ClassCombatState {
+  mageDots: Record<string, { stacks: number; ttl: number }>;
+  lastTriggered: string | null;
+}
+
 export interface Player {
   position: Vec2;
   velocity: Vec2;
@@ -253,6 +262,8 @@ export interface Monster {
   maxHp: number;
   defense: number;
   damageReduction: number;
+  accuracy: number;
+  evasion: number;
   attack: number;
   experience: number;
   gold: number;
@@ -298,6 +309,7 @@ export interface WorldState {
   elapsed: number;
   rng: RngState;
   relicCombat: RelicCombatState;
+  classCombat: ClassCombatState;
   boss: BossCombatState | null;
   platforms: Platform[];
   player: Player;

@@ -49,6 +49,18 @@ describe("phase 3D standard dummy simulation", () => {
     expect(uniqueScores.size).toBe(RELIC_IDS.length);
   });
 
+  it("produces deterministic but distinct dummy scores for the three classes", () => {
+    const scores = (["assassin", "knight", "mage"] as const).map((classId) => {
+      const progress = createDefaultProgress(1);
+      progress.classId = classId;
+      progress.inventory.equipped.weapon = makeWeapon(`${classId}-weapon`, 18);
+      return calculateCombatScore(createBuildSnapshot(progress), { durationSeconds: 20 });
+    });
+
+    expect(scores.every((score) => score > 0)).toBe(true);
+    expect(new Set(scores).size).toBe(3);
+  });
+
   it("reports positive equipment comparison delta for a better candidate", () => {
     const progress = createDefaultProgress(1);
     progress.inventory.equipped.weapon = makeWeapon("current", 3);
@@ -102,6 +114,10 @@ function makeWeapon(id: string, baseValue: number, options: ItemOption[] = []): 
     itemLevel: 1,
     baseStat: "atk",
     baseValue,
+    minDmg: Math.max(1, Math.floor(baseValue * 0.8)),
+    maxDmg: Math.max(1, Math.ceil(baseValue * 1.2)),
+    accuracy: 200,
+    upgradeLevel: 0,
     options,
   };
 }

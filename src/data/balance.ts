@@ -39,6 +39,7 @@ export const CLASS_BALANCE = {
     passive: {
       critChanceCap: 100,
       baseCritChance: 15,
+      critDamageBonus: 15,
     },
   },
   knight: {
@@ -52,7 +53,8 @@ export const CLASS_BALANCE = {
       attackRange: 16,
     },
     passive: {
-      lowHpExecutionThreshold: 15,
+      lowHpExecutionThreshold: 25,
+      lowHpDamageBonusPercent: 35,
       defenseToAttackPercent: 8,
     },
   },
@@ -69,6 +71,7 @@ export const CLASS_BALANCE = {
     passive: {
       dotHpPercent: 0.4,
       dotSeconds: 3,
+      maxStacks: 5,
     },
   },
 } as const;
@@ -198,6 +201,28 @@ export const EQUIPMENT_BALANCE = {
     rarityWeight: 140,
     optionWeight: 35,
     sinOptionBonus: 220,
+    upgradeWeight: 45,
+    accuracyWeight: 1.5,
+  },
+  weaponDamage: {
+    // TODO(Rework 2): Retune range width and accuracy after Chapter 1 miss-wall playtests.
+    spreadByRarity: {
+      common: 0.55,
+      magic: 0.42,
+      rare: 0.3,
+      epic: 0.2,
+      legendary: 0.12,
+    },
+    accuracyBase: 18,
+    accuracyPerItemLevel: 2.2,
+    accuracyPerRarityRank: 6,
+  },
+  weaponUpgrade: {
+    // TODO(Rework 2): Tune gold sink against reroll/shop once weapon upgrade UI is formalized.
+    baseCost: 70,
+    costGrowth: 1.42,
+    accuracyPerLevel: 8,
+    damagePercentPerLevel: 4,
   },
 } as const;
 
@@ -246,14 +271,33 @@ export const PHASE_3B_DEBUG = {
 export const DAMAGE_FORMULA = {
   // TODO(Phase 7): Tune after 3D dummy scoring exists.
   unarmedStyleMultiplier: 0.75,
+  unarmedMinDamage: 8,
+  unarmedMaxDamage: 12,
+  unarmedAccuracy: 24,
   critChanceCap: 75,
   attackSpeedCap: 100,
   lifeStealCap: 10,
   damageReductionCap: 50,
-  defaultCritDamage: 1.5,
+  defaultCritDamage: 1.2,
   variance: 0.05,
   defenseScale: 100,
   minimumDamage: 1,
+  evasionK: 25,
+  accuracyPenaltyThresholdRatio: 0.3,
+  accuracyMaxPenalty: 0.6,
+} as const;
+
+export const MONSTER_COMBAT = {
+  // TODO(Rework 2): Tune chapter hit/evasion values after weapon upgrade pacing is playable.
+  accuracyByChapter: [9, 16, 24, 34, 46, 60],
+  evasionByChapter: [6, 18, 34, 52, 74, 98],
+  stageOneOffsets: {
+    wildDog: { accuracy: -1, evasion: -2 },
+    nobleWraith: { accuracy: 0, evasion: 1 },
+    lesserImp: { accuracy: 2, evasion: 3 },
+    lucianWraith: { accuracy: 1, evasion: 2 },
+    marcelaSeed: { accuracy: 0, evasion: 0 },
+  },
 } as const;
 
 export const ALTAR_BALANCE = {
@@ -336,6 +380,8 @@ export const STANDARD_DUMMY = {
   hp: 1_000_000_000,
   defense: 20,
   damageReduction: 0,
+  accuracy: 0,
+  evasion: 0,
   warmupKillTriggers: 1,
 } as const;
 
@@ -353,6 +399,10 @@ export const BOSS_BALANCE = {
   common: {
     attackIntervalSeconds: 2.5,
     defenseDamageReduction: 0.25,
+    accuracyBase: 14,
+    evasionBase: 8,
+    accuracyPerChapter: 8,
+    evasionPerChapter: 12,
   },
   lucian: {
     stageId: 10,

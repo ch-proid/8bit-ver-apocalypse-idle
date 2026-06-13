@@ -141,6 +141,11 @@ export function calculatePlayerStats(progress: ProgressState): PlayerStats {
   };
 }
 
+export function strengthDamageMultiplier(progress: ProgressState): number {
+  const statPoints = addAllocation(progress.statDistribution.assigned, progress.rebirth.permanentStats, 1);
+  return statMultiplier(statPoints.str, STAT_GROWTH.strAttackPercentPerPoint);
+}
+
 export function applyPlayerStats(player: Player, progress: ProgressState): void {
   const stats = calculatePlayerStats(progress);
   const previousMaxHp = player.maxHp;

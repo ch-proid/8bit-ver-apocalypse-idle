@@ -1,5 +1,6 @@
 import { FIXED_DELTA, STANDARD_DUMMY, TICK_RATE } from "../data/balance";
 import { RELIC_IDS } from "../data/relics";
+import { applyClassAfterHit, applyClassPassiveDamage } from "./class";
 import { calculateCombatAffixStats, cloneEquipped, cloneItem } from "./equipment";
 import { createDefaultProgress, updateRecord } from "./progression";
 import { createInitialSimulation } from "./stage";
@@ -13,6 +14,7 @@ import {
 } from "./relics";
 import { clampCombatAffixes, dealPlayerDamage, effectiveAttackCooldown } from "./combat";
 import type {
+  ClassId,
   EquippedItems,
   EquipmentItem,
   Monster,
@@ -25,6 +27,7 @@ import type {
 } from "./types";
 
 export interface BuildSnapshot {
+  classId: ClassId;
   statDistribution: StatDistributionState;
   permanentStats: StatAllocation;
   equipped: EquippedItems;
@@ -60,6 +63,7 @@ export function createBuildSnapshot(progress: ProgressState): BuildSnapshot {
   }, {} as Partial<Record<RelicId, number>>);
 
   return {
+    classId: progress.classId,
     statDistribution: cloneStatDistribution(progress.statDistribution),
     permanentStats: { ...progress.rebirth.permanentStats },
     equipped: cloneEquipped(progress.inventory.equipped),
@@ -134,6 +138,7 @@ function createDummySimulation(snapshot: BuildSnapshot, seed: number): Simulatio
 
 function createProgressFromSnapshot(snapshot: BuildSnapshot): ProgressState {
   const progress = createDefaultProgress(1);
+  progress.classId = snapshot.classId;
   progress.statDistribution = cloneStatDistribution(snapshot.statDistribution);
   progress.rebirth.permanentStats = { ...snapshot.permanentStats };
   progress.inventory.equipped = cloneEquipped(snapshot.equipped);
@@ -161,13 +166,15 @@ function stepDummyCombat(simulation: SimulationState, dummy: Monster, dt: number
   updateRelicCombat(progress, world, dt);
 
   const passiveResult = applyRelicPassiveDamage(progress, world, dummy, dt);
-  totalDamage += passiveResult.extraDamage;
+  const classPassiveResult = applyClassPassiveDamage(progress, world, dummy, dt);
+  totalDamage += passiveResult.extraDamage + classPassiveResult.extraDamage;
 
   if (player.attackTimer <= 0) {
     applyRelicBeforeAttack(progress, world);
     const damageResult = dealPlayerDamage(player, dummy, progress, world);
     const relicResult = applyRelicAfterHit(progress, world, dummy, damageResult.finalDamage);
-    const hitDamage = damageResult.finalDamage + relicResult.extraDamage;
+    const classResult = applyClassAfterHit(progress, world, dummy, damageResult.finalDamage);
+    const hitDamage = damageResult.finalDamage + relicResult.extraDamage + classResult.extraDamage;
     totalDamage += hitDamage;
     applyLifeSteal(progress, world, hitDamage);
     const hooks = relicDamageHooks(progress, world, player);
@@ -202,6 +209,7 @@ function warmupKillTriggeredRelics(simulation: SimulationState): void {
 
 function cloneBuildSnapshot(snapshot: BuildSnapshot): BuildSnapshot {
   return {
+    classId: snapshot.classId,
     statDistribution: cloneStatDistribution(snapshot.statDistribution),
     permanentStats: { ...snapshot.permanentStats },
     equipped: cloneEquipped(snapshot.equipped),
@@ -234,6 +242,8 @@ function createDummyMonster(): Monster {
     maxHp: STANDARD_DUMMY.hp,
     defense: STANDARD_DUMMY.defense,
     damageReduction: STANDARD_DUMMY.damageReduction,
+    accuracy: STANDARD_DUMMY.accuracy,
+    evasion: STANDARD_DUMMY.evasion,
     attack: 0,
     experience: 0,
     gold: 0,

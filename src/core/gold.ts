@@ -1,6 +1,6 @@
 import { GOLD_BALANCE } from "../data/balance";
 import { ITEM_SLOTS } from "../data/items";
-import { calculateItemValue, generateEquipmentItem, nextRarity, rollGeneralOptions } from "./equipment";
+import { calculateItemValue, cloneItem, generateEquipmentItem, nextRarity, rollGeneralOptions } from "./equipment";
 import { addItemToInventory, createItemId, findItem } from "./inventory";
 import { chance, pickOne } from "./rng";
 import type { EquipmentItem, ItemRarity, ProgressState, RerollState, RngState, ShopOffer, ShopState } from "./types";
@@ -31,10 +31,7 @@ export function normalizeShopState(input?: Partial<ShopState>): ShopState {
     refreshedAt: input?.refreshedAt ?? 0,
     offers: input?.offers?.map((offer) => ({
       ...offer,
-      item: {
-        ...offer.item,
-        options: offer.item.options.map((option) => ({ ...option })),
-      },
+      item: cloneItem(offer.item),
     })) ?? [],
   };
 }

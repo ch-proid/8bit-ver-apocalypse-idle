@@ -8,6 +8,7 @@ import { createDefaultProgress } from "./progression";
 import { createRngState } from "./rng";
 import { createInitialSimulation } from "./stage";
 import { stepSimulation } from "./simulation";
+import { upgradeWeapon, weaponUpgradeCost } from "./upgrade";
 import type { EquipmentItem, GeneralAffixKey, ItemRarity, ItemSlot, ProgressState } from "./types";
 
 describe("phase 3B equipment, drops, and gold", () => {
@@ -156,6 +157,31 @@ describe("phase 3B equipment, drops, and gold", () => {
 
     expect(equipped).toBe(true);
     expect(state.world.player.attack).toBeGreaterThan(PLAYER_BALANCE.attack);
+  });
+
+  it("upgrades the same weapon cumulatively with higher accuracy and damage range", () => {
+    const progress = createProgressWithGold(10000);
+    const weapon = generateEquipmentItem({
+      id: "upgrade",
+      rng: createRngState(90),
+      stageId: 10,
+      rarity: "rare",
+      slot: "weapon",
+      itemLevel: 10,
+    });
+    progress.inventory.items.push(weapon);
+    const beforeCost = weaponUpgradeCost(weapon);
+    const before = { min: weapon.minDmg, max: weapon.maxDmg, accuracy: weapon.accuracy };
+
+    const result = upgradeWeapon(progress, weapon.id);
+
+    expect(result.success).toBe(true);
+    expect(result.cost).toBe(beforeCost);
+    expect(weapon.upgradeLevel).toBe(1);
+    expect(weapon.minDmg).toBeGreaterThanOrEqual(before.min);
+    expect(weapon.maxDmg).toBeGreaterThan(before.max);
+    expect(weapon.accuracy).toBeGreaterThan(before.accuracy);
+    expect(progress.gold).toBe(10000 - beforeCost);
   });
 
   it("keeps inventory drops deterministic for the same seed over idle simulation", () => {

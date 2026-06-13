@@ -15,6 +15,8 @@ import {
   clampCombatAffixes,
   dealPlayerDamage,
   effectiveAttackCooldown,
+  accuracyMultiplier,
+  playerEvasionChance,
 } from "./combat";
 import {
   applyRelicAfterHit,
@@ -46,6 +48,11 @@ describe("phase 3C damage formula, altar, and relic builds", () => {
     const rng = createRngState(1);
     const result = calculateDamage({
       attack: 100,
+      minDamage: 100,
+      maxDamage: 100,
+      strengthMultiplier: 1,
+      weaponAccuracy: 40,
+      defenderEvasion: 0,
       styleMultiplier: 1.2,
       defenderDefense: 40,
       defenderDamageReduction: 25,
@@ -62,21 +69,96 @@ describe("phase 3C damage formula, altar, and relic builds", () => {
       forceVarianceRoll: 0.5,
     });
 
+    expect(result.baseDamage).toBe(100);
+    expect(result.afterStrength).toBe(100);
     expect(result.raw).toBeCloseTo(120);
+    expect(result.missed).toBe(false);
+    expect(result.afterAccuracy).toBeCloseTo(120);
     expect(result.afterDamageIncrease).toBeCloseTo(144);
     expect(result.effectiveDefense).toBeCloseTo(30);
     expect(result.afterDefense).toBeCloseTo(110.769, 3);
     expect(result.critical).toBe(true);
-    expect(result.afterCritical).toBeCloseTo(221.538, 3);
-    expect(result.afterFinalDamage).toBeCloseTo(243.692, 3);
-    expect(result.afterDamageReduction).toBeCloseTo(182.769, 3);
+    expect(result.afterCritical).toBeCloseTo(188.308, 3);
+    expect(result.afterFinalDamage).toBeCloseTo(207.138, 3);
+    expect(result.afterDamageReduction).toBeCloseTo(155.354, 3);
     expect(result.varianceMultiplier).toBeCloseTo(1);
-    expect(result.finalDamage).toBe(182);
+    expect(result.finalDamage).toBe(155);
+  });
+
+  it("rolls weapon damage range before strength and style multipliers", () => {
+    const base = {
+      attack: 0,
+      minDamage: 10,
+      maxDamage: 20,
+      strengthMultiplier: 1.5,
+      weaponAccuracy: 100,
+      defenderEvasion: 0,
+      styleMultiplier: 2,
+      defenderDefense: 0,
+      defenderDamageReduction: 0,
+      affixes: emptyCombatAffixes(),
+      rng: createRngState(10),
+      forceCritical: false,
+      forceVarianceRoll: 0.5,
+    };
+
+    const low = calculateDamage({ ...base, forceDamageRoll: 0 });
+    const high = calculateDamage({ ...base, forceDamageRoll: 1 });
+
+    expect(low.baseDamage).toBe(10);
+    expect(low.raw).toBe(30);
+    expect(high.baseDamage).toBe(20);
+    expect(high.raw).toBe(60);
+  });
+
+  it("applies outgoing hit zones and incoming evasion chance", () => {
+    expect(accuracyMultiplier(100, 100)).toEqual({ delta: 0, multiplier: 1, missed: false });
+
+    const penalty = accuracyMultiplier(85, 100);
+    expect(penalty.missed).toBe(false);
+    expect(penalty.multiplier).toBeCloseTo(0.7);
+
+    const miss = accuracyMultiplier(69, 100);
+    expect(miss.missed).toBe(true);
+    expect(miss.multiplier).toBe(0);
+    expect(playerEvasionChance(25, 50)).toBeCloseTo(0.25);
+  });
+
+  it("lets class-specific crit caps extend the formula without moving relic hooks", () => {
+    const affixes = { ...emptyCombatAffixes(), critChance: 100 };
+    const defaultCap = calculateDamage({
+      attack: 50,
+      styleMultiplier: 1,
+      defenderDefense: 0,
+      defenderDamageReduction: 0,
+      affixes,
+      rng: createRngState(1),
+      forceCriticalRoll: 0.9,
+      forceVarianceRoll: 0.5,
+    });
+    const assassinCap = calculateDamage({
+      attack: 50,
+      styleMultiplier: 1,
+      defenderDefense: 0,
+      defenderDamageReduction: 0,
+      affixes,
+      rng: createRngState(1),
+      critChanceCap: 100,
+      critDamageBonus: 15,
+      forceCriticalRoll: 0.9,
+      forceVarianceRoll: 0.5,
+    });
+
+    expect(defaultCap.critical).toBe(false);
+    expect(assassinCap.critical).toBe(true);
+    expect(assassinCap.afterCritical).toBeCloseTo(67.5);
   });
 
   it("supports critical off, penetration, final damage, damage reduction, and variance bounds", () => {
     const base = {
       attack: 80,
+      weaponAccuracy: 100,
+      defenderEvasion: 0,
       styleMultiplier: 1,
       defenderDefense: 30,
       defenderDamageReduction: 10,

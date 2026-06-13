@@ -37,6 +37,7 @@ export function generateEquipmentItem(input: GenerateEquipmentInput): EquipmentI
   if (shouldAttachSinOption(input.rng, rarity, input.forceSin)) {
     options.push(rollSinOption(input.rng, slot));
   }
+  const weaponStats = calculateWeaponCombatStats(slot, rarity, itemLevel, baseValue, 0);
 
   return {
     id: input.id,
@@ -45,6 +46,7 @@ export function generateEquipmentItem(input: GenerateEquipmentInput): EquipmentI
     itemLevel,
     baseStat,
     baseValue,
+    ...weaponStats,
     options,
   };
 }
@@ -137,20 +139,75 @@ export function calculateSinAffixStats(equipped: EquippedItems): SinAffixStats {
 }
 
 export function calculateItemValue(item: EquipmentItem): number {
+  const normalized = normalizeEquipmentItem(item);
   const sinBonus = item.options.some((option) => option.sin) ? EQUIPMENT_BALANCE.itemValue.sinOptionBonus : 0;
+  const combatValue = normalized.slot === "weapon"
+    ? normalized.upgradeLevel * EQUIPMENT_BALANCE.itemValue.upgradeWeight
+      + normalized.accuracy * EQUIPMENT_BALANCE.itemValue.accuracyWeight
+    : 0;
   return Math.floor(
-    item.itemLevel * EQUIPMENT_BALANCE.itemValue.levelWeight
-    + EQUIPMENT_BALANCE.rarityRanks[item.rarity] * EQUIPMENT_BALANCE.itemValue.rarityWeight
-    + item.options.length * EQUIPMENT_BALANCE.itemValue.optionWeight
+    normalized.itemLevel * EQUIPMENT_BALANCE.itemValue.levelWeight
+    + EQUIPMENT_BALANCE.rarityRanks[normalized.rarity] * EQUIPMENT_BALANCE.itemValue.rarityWeight
+    + normalized.options.length * EQUIPMENT_BALANCE.itemValue.optionWeight
     + sinBonus
-    + item.baseValue,
+    + normalized.baseValue
+    + combatValue,
   );
 }
 
 export function cloneItem(item: EquipmentItem): EquipmentItem {
+  const normalized = normalizeEquipmentItem(item);
+  return {
+    ...normalized,
+    options: normalized.options.map((option) => ({ ...option })),
+  };
+}
+
+export function normalizeEquipmentItem(item: EquipmentItem): EquipmentItem {
+  const upgradeLevel = Math.max(0, Math.floor((item as Partial<EquipmentItem>).upgradeLevel ?? 0));
+  const derived = calculateWeaponCombatStats(item.slot, item.rarity, item.itemLevel, item.baseValue, upgradeLevel);
+  const raw = item as Partial<EquipmentItem>;
   return {
     ...item,
-    options: item.options.map((option) => ({ ...option })),
+    minDmg: safeNumber(raw.minDmg, derived.minDmg),
+    maxDmg: Math.max(safeNumber(raw.maxDmg, derived.maxDmg), safeNumber(raw.minDmg, derived.minDmg)),
+    accuracy: safeNumber(raw.accuracy, derived.accuracy),
+    upgradeLevel,
+    options: item.options?.map((option) => ({ ...option })) ?? [],
+  };
+}
+
+export function calculateWeaponCombatStats(
+  slot: ItemSlot,
+  rarity: ItemRarity,
+  itemLevel: number,
+  baseValue: number,
+  upgradeLevel: number,
+): Pick<EquipmentItem, "minDmg" | "maxDmg" | "accuracy" | "upgradeLevel"> {
+  if (slot !== "weapon") {
+    return {
+      minDmg: 0,
+      maxDmg: 0,
+      accuracy: 0,
+      upgradeLevel,
+    };
+  }
+
+  const rank = EQUIPMENT_BALANCE.rarityRanks[rarity];
+  const spread = EQUIPMENT_BALANCE.weaponDamage.spreadByRarity[rarity];
+  const upgradeDamageMultiplier = 1 + upgradeLevel * EQUIPMENT_BALANCE.weaponUpgrade.damagePercentPerLevel / 100;
+  const midpoint = Math.max(1, baseValue) * upgradeDamageMultiplier;
+  return {
+    minDmg: Math.max(1, Math.floor(midpoint * (1 - spread))),
+    maxDmg: Math.max(1, Math.ceil(midpoint * (1 + spread))),
+    accuracy: roundTo(
+      EQUIPMENT_BALANCE.weaponDamage.accuracyBase
+        + itemLevel * EQUIPMENT_BALANCE.weaponDamage.accuracyPerItemLevel
+        + rank * EQUIPMENT_BALANCE.weaponDamage.accuracyPerRarityRank
+        + upgradeLevel * EQUIPMENT_BALANCE.weaponUpgrade.accuracyPerLevel,
+      2,
+    ),
+    upgradeLevel,
   };
 }
 
@@ -193,6 +250,10 @@ function shouldAttachSinOption(rng: RngState, rarity: ItemRarity, forceSin?: boo
 function calculateBaseValue(slot: ItemSlot, rarity: ItemRarity, itemLevel: number): number {
   const raw = EQUIPMENT_BALANCE.slotBaseValues[slot] * itemLevel * EQUIPMENT_BALANCE.rarityMultipliers[rarity];
   return slot === "accessory" ? roundTo(raw, 2) : Math.max(1, Math.floor(raw));
+}
+
+function safeNumber(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
 function generalAffixesForSlot(slot: ItemSlot): GeneralAffixKey[] {

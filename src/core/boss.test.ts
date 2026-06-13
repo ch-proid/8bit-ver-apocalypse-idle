@@ -306,6 +306,10 @@ function makeWeapon(id: string, baseValue: number): EquipmentItem {
     itemLevel: 10,
     baseStat: "atk",
     baseValue,
+    minDmg: Math.max(1, Math.floor(baseValue * 0.9)),
+    maxDmg: Math.max(1, Math.ceil(baseValue * 1.1)),
+    accuracy: 240,
+    upgradeLevel: 0,
     options: [
       { key: "damageIncrease", value: 30, sin: false },
       { key: "attackSpeed", value: 50, sin: false },

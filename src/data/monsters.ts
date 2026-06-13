@@ -1,8 +1,12 @@
+import { MONSTER_COMBAT } from "./balance";
+
 export interface MonsterDefinition {
   id: string;
   name: string;
   maxHp: number;
   attack: number;
+  accuracy: number;
+  evasion: number;
   experience: number;
   gold: number;
   moveSpeed: number;
@@ -19,6 +23,8 @@ export const MONSTERS: Record<string, MonsterDefinition> = {
     name: "RED WOLF",
     maxHp: 34,
     attack: 4,
+    accuracy: chapterAccuracy(1, "wildDog"),
+    evasion: chapterEvasion(1, "wildDog"),
     experience: 8,
     gold: 5,
     moveSpeed: 18,
@@ -33,6 +39,8 @@ export const MONSTERS: Record<string, MonsterDefinition> = {
     name: "FALLEN NOBLE",
     maxHp: 52,
     attack: 6,
+    accuracy: chapterAccuracy(1, "nobleWraith"),
+    evasion: chapterEvasion(1, "nobleWraith"),
     experience: 13,
     gold: 8,
     moveSpeed: 10,
@@ -47,6 +55,8 @@ export const MONSTERS: Record<string, MonsterDefinition> = {
     name: "LESSER IMP",
     maxHp: 76,
     attack: 8,
+    accuracy: chapterAccuracy(1, "lesserImp"),
+    evasion: chapterEvasion(1, "lesserImp"),
     experience: 18,
     gold: 12,
     moveSpeed: 16,
@@ -61,6 +71,8 @@ export const MONSTERS: Record<string, MonsterDefinition> = {
     name: "LUCIAN WRAITH",
     maxHp: 130,
     attack: 4,
+    accuracy: chapterAccuracy(1, "lucianWraith"),
+    evasion: chapterEvasion(1, "lucianWraith"),
     experience: 0,
     gold: 0,
     moveSpeed: 0,
@@ -75,6 +87,8 @@ export const MONSTERS: Record<string, MonsterDefinition> = {
     name: "MARCELA SEED",
     maxHp: 90,
     attack: 0,
+    accuracy: chapterAccuracy(3, "marcelaSeed"),
+    evasion: chapterEvasion(3, "marcelaSeed"),
     experience: 0,
     gold: 0,
     moveSpeed: 0,
@@ -85,3 +99,13 @@ export const MONSTERS: Record<string, MonsterDefinition> = {
     color: "#6fa85a",
   },
 };
+
+function chapterAccuracy(chapter: number, key: keyof typeof MONSTER_COMBAT.stageOneOffsets): number {
+  const base = MONSTER_COMBAT.accuracyByChapter[Math.max(0, Math.min(MONSTER_COMBAT.accuracyByChapter.length - 1, chapter - 1))];
+  return base + MONSTER_COMBAT.stageOneOffsets[key].accuracy;
+}
+
+function chapterEvasion(chapter: number, key: keyof typeof MONSTER_COMBAT.stageOneOffsets): number {
+  const base = MONSTER_COMBAT.evasionByChapter[Math.max(0, Math.min(MONSTER_COMBAT.evasionByChapter.length - 1, chapter - 1))];
+  return base + MONSTER_COMBAT.stageOneOffsets[key].evasion;
+}
