@@ -137,6 +137,7 @@ export default function App() {
         </div>
 
         <div className="deck">
+          <div className="dpad" aria-hidden="true"><i /><i /></div>
           <div className="tab-btns">
             <TabButton active={activePanel === "stat"} label="STAT" onClick={() => togglePanel("stat")} />
             <TabButton active={activePanel === "gear"} label="GEAR" onClick={() => togglePanel("gear")} />

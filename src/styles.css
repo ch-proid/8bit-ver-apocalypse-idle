@@ -56,6 +56,7 @@ button {
   width: 100%;
   height: 100dvh;
   display: flex;
+  align-items: center;
   justify-content: center;
   background: #0a1208;
 }
@@ -63,12 +64,12 @@ button {
 .console {
   position: relative;
   width: min(100%, 430px);
-  height: 100dvh;
-  min-height: 560px;
+  height: min(100dvh, 680px);
+  min-height: min(560px, 100dvh);
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding: 12px 12px 0;
+  padding: clamp(8px, 1.7dvh, 12px) 12px 0;
   background: var(--shell);
   border-left: 2px solid var(--shell-lo);
   border-right: 2px solid var(--shell-lo);
@@ -89,10 +90,10 @@ button {
 
 .bezel {
   min-height: 0;
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
-  padding: 8px 10px 12px;
+  padding: clamp(7px, 1.4dvh, 10px) 10px clamp(10px, 1.8dvh, 14px);
   border-radius: 9px 9px 34px 9px;
   background: #10150e;
   box-shadow: inset 0 2px 0 #000, inset 0 -1px 0 var(--shell-hi), 0 2px 0 var(--shell-lo);
@@ -161,7 +162,9 @@ button {
 .screen {
   position: relative;
   min-height: 0;
-  flex: 1 1 auto;
+  flex: 0 0 auto;
+  width: 100%;
+  height: calc((min(100vw, 430px) - 48px) * 0.9 + 22px);
   overflow: hidden;
   border: 2px solid #000;
   background: var(--ink);
@@ -199,10 +202,9 @@ button {
   top: 22px;
   left: 0;
   right: 0;
+  bottom: 0;
   z-index: 0;
   width: 100%;
-  max-height: calc(100% - 22px);
-  aspect-ratio: 160 / 144;
   overflow: hidden;
   background: #000;
   line-height: 0;
@@ -597,35 +599,78 @@ button {
 .deck {
   position: relative;
   z-index: 1;
-  flex: 0 0 124px;
+  flex: 1 1 0;
+  min-height: 190px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-rows: auto 1fr;
-  column-gap: 8px;
-  padding: 12px 4px 16px;
+  grid-template-columns: 94px minmax(0, 1fr) 94px;
+  grid-template-rows: minmax(74px, 1fr) 54px minmax(58px, 0.8fr);
+  column-gap: 10px;
+  padding: clamp(14px, 2.4dvh, 22px) 8px clamp(16px, 3dvh, 24px);
+  border-top: 1px solid rgba(44, 66, 34, 0.55);
+  box-shadow: inset 0 1px 0 rgba(141, 184, 110, 0.35);
+}
+
+.dpad {
+  position: relative;
+  grid-column: 1;
+  grid-row: 1 / 3;
+  align-self: center;
+  justify-self: center;
+  width: 82px;
+  height: 82px;
+  filter: drop-shadow(0 2px 0 #1f3318);
 }
 
 .tab-btns {
-  display: flex;
-  gap: 8px;
-  align-items: flex-start;
+  grid-column: 2 / 4;
+  grid-row: 1;
+  align-self: start;
+  justify-self: end;
+  display: grid;
+  grid-template-columns: repeat(2, 52px);
+  gap: 12px 14px;
+  padding-right: 4px;
+}
+
+.dpad i {
+  position: absolute;
+  display: block;
+  border: 1px solid #203719;
+  border-radius: 6px;
+  background: var(--shell-lo);
+  box-shadow: inset 0 -4px 0 #1f3318, inset 0 2px 0 var(--shell-hi);
+}
+
+.dpad i:first-child {
+  top: 3px;
+  left: 29px;
+  width: 24px;
+  height: 76px;
+}
+
+.dpad i:last-child {
+  top: 29px;
+  left: 3px;
+  width: 76px;
+  height: 24px;
 }
 
 .pbtn,
 .pill {
-  width: 46px;
+  width: 52px;
   display: grid;
   justify-items: center;
-  gap: 4px;
+  gap: 5px;
   color: var(--silk);
   font-size: 8px;
   font-weight: 700;
   letter-spacing: 0.08em;
+  text-shadow: 0 1px 0 rgba(141, 184, 110, 0.35);
 }
 
 .pbtn span,
 .pill span {
-  max-width: 44px;
+  max-width: 52px;
   overflow: hidden;
   text-align: center;
 }
@@ -636,13 +681,13 @@ button {
 }
 
 .pbtn button {
-  width: 36px;
-  height: 36px;
-  border: 0;
+  width: 40px;
+  height: 40px;
+  border: 1px solid #203719;
   border-radius: 50%;
   background: var(--shell-lo);
   cursor: pointer;
-  box-shadow: inset 0 -3px 0 #1f3318, inset 0 2px 0 var(--shell-hi), 0 2px 0 #1f3318;
+  box-shadow: inset 0 -4px 0 #1f3318, inset 0 2px 0 var(--shell-hi), 0 3px 0 #1f3318;
 }
 
 .pbtn.on button,
@@ -654,19 +699,24 @@ button {
 }
 
 .pills {
+  grid-column: 2;
+  grid-row: 2;
+  align-self: center;
+  justify-self: center;
   display: flex;
-  gap: 6px;
-  align-items: flex-start;
+  gap: 14px;
+  align-items: center;
+  padding-top: 6px;
 }
 
 .pill button {
-  width: 44px;
+  width: 54px;
   height: 18px;
-  border: 0;
+  border: 1px solid #203719;
   border-radius: 16px;
   background: var(--shell-lo);
   cursor: pointer;
-  box-shadow: inset 0 -2px 0 #1f3318, inset 0 1px 0 var(--shell-hi), 0 2px 0 #1f3318;
+  box-shadow: inset 0 -3px 0 #1f3318, inset 0 1px 0 var(--shell-hi), 0 2px 0 #1f3318;
   transform: rotate(-18deg);
 }
 
@@ -676,18 +726,19 @@ button {
 }
 
 .grille {
-  grid-column: 2;
+  grid-column: 3;
+  grid-row: 3;
   display: flex;
   align-items: flex-end;
   justify-content: flex-end;
   gap: 4px;
-  padding-right: 10px;
-  padding-bottom: 2px;
+  padding-right: 8px;
+  padding-bottom: 3px;
 }
 
 .grille i {
   width: 4px;
-  height: 44px;
+  height: 50px;
   display: block;
   border-radius: 4px;
   background: var(--shell-lo);
@@ -804,7 +855,93 @@ button {
 
 @media (max-height: 640px) {
   .console {
+    width: min(100%, 380px);
     min-height: 0;
+    padding: 8px 10px 0;
+  }
+
+  .bezel {
+    padding: 6px 8px 9px;
+    border-radius: 8px 8px 28px 8px;
+  }
+
+  .bezel-top {
+    flex-basis: 16px;
+    padding-bottom: 4px;
+  }
+
+  .screen {
+    height: calc((min(100vw, 380px) - 42px) * 0.9 + 22px);
+  }
+
+  .deck {
+    min-height: 160px;
+    grid-template-columns: 80px minmax(0, 1fr) 80px;
+    grid-template-rows: minmax(58px, 1fr) 46px minmax(42px, 0.6fr);
+    column-gap: 6px;
+    padding: 10px 6px 12px;
+  }
+
+  .dpad {
+    width: 70px;
+    height: 70px;
+  }
+
+  .dpad i:first-child {
+    top: 3px;
+    left: 25px;
+    width: 20px;
+    height: 64px;
+  }
+
+  .dpad i:last-child {
+    top: 25px;
+    left: 3px;
+    width: 64px;
+    height: 20px;
+  }
+
+  .tab-btns {
+    grid-template-columns: repeat(2, 46px);
+    gap: 8px 10px;
+    padding-right: 0;
+  }
+
+  .pbtn,
+  .pill {
+    width: 46px;
+    gap: 3px;
+    font-size: 7px;
+  }
+
+  .pbtn span,
+  .pill span {
+    max-width: 46px;
+  }
+
+  .pbtn button {
+    width: 34px;
+    height: 34px;
+  }
+
+  .pills {
+    gap: 10px;
+    padding-top: 2px;
+  }
+
+  .pill button {
+    width: 46px;
+    height: 16px;
+  }
+
+  .grille {
+    gap: 3px;
+    padding-right: 4px;
+  }
+
+  .grille i {
+    width: 3px;
+    height: 40px;
   }
 
   .panel {
@@ -824,5 +961,19 @@ button {
   .debug-panel {
     gap: 4px;
     padding: 6px;
+  }
+}
+
+@media (max-height: 560px) {
+  .console {
+    width: min(100%, 350px);
+  }
+
+  .screen {
+    height: calc((min(100vw, 350px) - 42px) * 0.9 + 22px);
+  }
+
+  .deck {
+    min-height: 145px;
   }
 }
