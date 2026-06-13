@@ -49,11 +49,15 @@ export const PLAYER_FALLBACK_RENDER = {
 } as const;
 
 export const MONSTER_FALLBACK_RENDER = {
-  deathMinAlpha: 0.2,
   bodyOffsetY: 2,
   eyeOffsetXRatio: 0.65,
   eyeOffsetY: 3,
   eyeSize: 1,
+} as const;
+
+export const MONSTER_TRANSITION_RENDER = {
+  deathMinAlpha: 0,
+  respawnFadeInSeconds: 0.3,
 } as const;
 
 export const HP_BAR_RENDER = {

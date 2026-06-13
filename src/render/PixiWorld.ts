@@ -21,6 +21,7 @@ import {
   GAMEBOY_SCREEN_WIDTH,
   HP_BAR_RENDER,
   MONSTER_FALLBACK_RENDER,
+  MONSTER_TRANSITION_RENDER,
   PIXI_RENDER_OPTIONS,
   PLAYER_FALLBACK_RENDER,
   PLATFORM_RENDER,
@@ -42,6 +43,11 @@ interface EntityDisplay {
 interface FloatingDisplay {
   x: number;
   y: number;
+}
+
+interface MonsterRenderState {
+  wasAlive: boolean;
+  fadeInStartedAt: number | null;
 }
 
 interface RenderProjectile {
@@ -82,6 +88,7 @@ export class PixiWorld {
   private floating = new Map<string, Text>();
   private projectiles = new Map<string, RenderProjectile>();
   private monsterDisplays = new Map<string, EntityDisplay>();
+  private monsterRenderStates = new Map<string, MonsterRenderState>();
   private floatingDisplays = new Map<string, FloatingDisplay>();
   private playerDisplay: EntityDisplay | null = null;
   private cameraDisplayX = 0;
@@ -137,6 +144,7 @@ export class PixiWorld {
     this.monsters.clear();
     this.monsterSprites.clear();
     this.monsterDisplays.clear();
+    this.monsterRenderStates.clear();
     this.monsterTextures.clear();
     this.monsterFrames.clear();
     this.loadingMonsterAssets.clear();
@@ -347,15 +355,22 @@ export class PixiWorld {
     }
 
     for (const monster of simulation.world.monsters) {
-      this.drawMonster(monster, dmgMode);
+      this.drawMonster(monster, simulation.world.elapsed, dmgMode);
     }
   }
 
-  private drawMonster(monster: Monster, dmgMode: boolean): void {
+  private drawMonster(monster: Monster, elapsed: number, dmgMode: boolean): void {
     const colors = renderColors(dmgMode);
     const asset = MONSTER_ASSETS[monster.assetKey];
     if (asset) {
       this.loadMonsterTexture(monster.assetKey, asset);
+    }
+
+    const renderState = this.updateMonsterRenderState(monster, elapsed);
+    const alpha = this.monsterAlpha(monster, renderState, elapsed);
+    if (alpha <= 0) {
+      this.removeMonsterVisuals(monster.instanceId);
+      return;
     }
 
     const graphic = getOrCreate(this.monsters, monster.instanceId, () => {
@@ -382,9 +397,6 @@ export class PixiWorld {
       return item;
     });
 
-    const alpha = monster.alive
-      ? 1
-      : Math.max(MONSTER_FALLBACK_RENDER.deathMinAlpha, monster.fadeTimer / MONSTER_BALANCE.respawnFadeSeconds);
     graphic.clear();
     graphic.alpha = alpha;
     if (sprite && asset) {
@@ -425,7 +437,7 @@ export class PixiWorld {
     }
 
     hpBar.clear();
-    hpBar.alpha = monster.alive ? 1 : 0;
+    hpBar.alpha = monster.alive ? alpha : 0;
     hpBar.rect(
       display.x + HP_BAR_RENDER.offsetX,
       display.y + HP_BAR_RENDER.offsetY,
@@ -440,6 +452,54 @@ export class PixiWorld {
     ).fill(colors.hp);
 
     this.world.addChild(hpBar);
+  }
+
+  private updateMonsterRenderState(monster: Monster, elapsed: number): MonsterRenderState {
+    const existing = this.monsterRenderStates.get(monster.instanceId);
+    if (!existing) {
+      const initialState: MonsterRenderState = {
+        wasAlive: monster.alive,
+        fadeInStartedAt: null,
+      };
+      this.monsterRenderStates.set(monster.instanceId, initialState);
+      return initialState;
+    }
+
+    if (!monster.alive) {
+      existing.wasAlive = false;
+      existing.fadeInStartedAt = null;
+      return existing;
+    }
+
+    if (!existing.wasAlive) {
+      existing.wasAlive = true;
+      existing.fadeInStartedAt = elapsed;
+    }
+
+    return existing;
+  }
+
+  private monsterAlpha(monster: Monster, renderState: MonsterRenderState, elapsed: number): number {
+    if (!monster.alive) {
+      return Math.max(
+        MONSTER_TRANSITION_RENDER.deathMinAlpha,
+        monster.fadeTimer / MONSTER_BALANCE.respawnFadeSeconds,
+      );
+    }
+
+    if (renderState.fadeInStartedAt === null) {
+      return 1;
+    }
+
+    const alpha = clamp(
+      (elapsed - renderState.fadeInStartedAt) / MONSTER_TRANSITION_RENDER.respawnFadeInSeconds,
+      0,
+      1,
+    );
+    if (alpha >= 1) {
+      renderState.fadeInStartedAt = null;
+    }
+    return alpha;
   }
 
   private drawFloatingTexts(texts: FloatingText[], dmgMode: boolean): void {
@@ -650,9 +710,14 @@ export class PixiWorld {
   }
 
   private removeMonster(id: string): void {
-    this.monsters.get(id)?.destroy();
-    this.monsterSprites.get(id)?.destroy();
-    this.hpBars.get(id)?.destroy();
+    this.removeMonsterVisuals(id);
+    this.monsterRenderStates.delete(id);
+  }
+
+  private removeMonsterVisuals(id: string): void {
+    destroyPixiItem(this.monsters.get(id));
+    destroyPixiItem(this.monsterSprites.get(id));
+    destroyPixiItem(this.hpBars.get(id));
     this.monsters.delete(id);
     this.monsterSprites.delete(id);
     this.monsterDisplays.delete(id);
@@ -668,6 +733,14 @@ function getOrCreate<T>(map: Map<string, T>, key: string, create: () => T): T {
   const item = create();
   map.set(key, item);
   return item;
+}
+
+function destroyPixiItem(item: Graphics | Sprite | undefined): void {
+  if (!item) {
+    return;
+  }
+  item.parent?.removeChild(item);
+  item.destroy();
 }
 
 function clamp(value: number, min: number, max: number): number {
