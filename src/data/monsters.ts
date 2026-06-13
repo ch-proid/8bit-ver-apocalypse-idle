@@ -1,4 +1,4 @@
-import { MONSTER_COMBAT } from "./balance";
+import { MONSTER_BALANCE, MONSTER_COMBAT } from "./balance";
 
 export interface MonsterDefinition {
   id: string;
@@ -28,7 +28,7 @@ export const MONSTERS: Record<string, MonsterDefinition> = {
     experience: 8,
     gold: 5,
     moveSpeed: 18,
-    respawnTime: 2.2,
+    respawnTime: normalRespawnSeconds(2.2),
     width: 15,
     height: 14,
     assetKey: "monster.stage1.wildDog",
@@ -44,7 +44,7 @@ export const MONSTERS: Record<string, MonsterDefinition> = {
     experience: 13,
     gold: 8,
     moveSpeed: 10,
-    respawnTime: 3.1,
+    respawnTime: normalRespawnSeconds(3.1),
     width: 9,
     height: 18,
     assetKey: "monster.stage1.nobleWraith",
@@ -60,7 +60,7 @@ export const MONSTERS: Record<string, MonsterDefinition> = {
     experience: 18,
     gold: 12,
     moveSpeed: 16,
-    respawnTime: 3.8,
+    respawnTime: normalRespawnSeconds(3.8),
     width: 11,
     height: 10,
     assetKey: "monster.stage1.lesserImp",
@@ -103,6 +103,10 @@ export const MONSTERS: Record<string, MonsterDefinition> = {
 function chapterAccuracy(chapter: number, key: keyof typeof MONSTER_COMBAT.stageOneOffsets): number {
   const base = MONSTER_COMBAT.accuracyByChapter[Math.max(0, Math.min(MONSTER_COMBAT.accuracyByChapter.length - 1, chapter - 1))];
   return base + MONSTER_COMBAT.stageOneOffsets[key].accuracy;
+}
+
+function normalRespawnSeconds(baseSeconds: number): number {
+  return Math.round(baseSeconds * MONSTER_BALANCE.normalRespawnTimeMultiplier * 100) / 100;
 }
 
 function chapterEvasion(chapter: number, key: keyof typeof MONSTER_COMBAT.stageOneOffsets): number {

@@ -77,6 +77,7 @@ export const CLASS_BALANCE = {
 } as const;
 
 export const MONSTER_BALANCE = {
+  normalRespawnTimeMultiplier: 1.8,
   respawnFadeSeconds: 0.22,
   hpBarWidth: 18,
   hpBarHeight: 3,
