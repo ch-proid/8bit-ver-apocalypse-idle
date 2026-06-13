@@ -302,9 +302,20 @@ export interface BossCombatState {
   phase: number;
   elapsed: number;
   nextMechanicAt: number;
+  nextAttackAt: number;
   summonCount: number;
   warningActive: boolean;
   altarCounterAvailable: boolean;
+  isEnraged: boolean;
+  isWeakened: boolean;
+  isTelegraphing: boolean;
+  telegraphTimer: number;
+  weakenTimer: number;
+  enrageTimer: number;
+  playerMarked: boolean;
+  markTimer: number;
+  permanentMark: boolean;
+  germinatedSummons: number;
   lastEvent: string | null;
 }
 

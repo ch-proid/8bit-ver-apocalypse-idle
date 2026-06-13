@@ -1,6 +1,15 @@
 import { FLOATING_TEXT, MONSTER_BALANCE } from "../data/balance";
 import { STAGES } from "../data/stages";
-import { isBossMonster, isBossSummon, resolveBossDefeat, updateBossMechanics } from "./boss";
+import {
+  applyBossKillEffects,
+  bossDamageTakenMultiplier,
+  bossPlayerAttackCooldownMultiplier,
+  bossPlayerRegenMultiplier,
+  isBossMonster,
+  isBossSummon,
+  resolveBossDefeat,
+  updateBossMechanics,
+} from "./boss";
 import { clampCombatAffixes, dealPlayerDamage, distanceBetween, effectiveAttackCooldown } from "./combat";
 import { rollMonsterDrop } from "./drop";
 import { calculateCombatAffixStats } from "./equipment";
@@ -27,7 +36,7 @@ export function stepSimulation(input: SimulationState, dt: number): SimulationSt
   world.elapsed += dt;
   world.player.attackTimer = Math.max(0, world.player.attackTimer - dt);
   world.player.jumpLock = Math.max(0, world.player.jumpLock - dt);
-  world.player.hp = Math.min(world.player.maxHp, world.player.hp + world.player.hpRegen * dt);
+  world.player.hp = Math.min(world.player.maxHp, world.player.hp + world.player.hpRegen * bossPlayerRegenMultiplier(world) * dt);
   updateRelicCombat(progress, world, dt);
   updateBossMechanics(input, dt);
   tickStageProgress(input, dt);
@@ -100,7 +109,13 @@ function updatePlayerAi(state: SimulationState, dt: number): void {
       applyRelicBeforeAttack(progress, world);
       const damageResult = dealPlayerDamage(player, target, progress, world);
       const relicResult = applyRelicAfterHit(progress, world, target, damageResult.finalDamage);
-      const totalDamage = damageResult.finalDamage + relicResult.extraDamage;
+      let totalDamage = damageResult.finalDamage + relicResult.extraDamage;
+      const bossMultiplier = bossDamageTakenMultiplier(world, target);
+      if (bossMultiplier > 1 && totalDamage > 0) {
+        const extraBossDamage = Math.floor(totalDamage * (bossMultiplier - 1));
+        target.hp = Math.max(0, target.hp - extraBossDamage);
+        totalDamage += extraBossDamage;
+      }
       const combatAffixes = calculateCombatAffixStats(progress.inventory.equipped);
       const lifeSteal = clampCombatAffixes(combatAffixes).lifeSteal;
       if (lifeSteal > 0 && totalDamage > 0) {
@@ -111,7 +126,7 @@ function updatePlayerAi(state: SimulationState, dt: number): void {
       player.attackTimer = effectiveAttackCooldown(
         player.attackCooldown,
         combatAffixes,
-        hooks.cooldownMultiplier,
+        hooks.cooldownMultiplier * bossPlayerAttackCooldownMultiplier(world),
       );
 
       if (target.hp <= 0) {
@@ -247,6 +262,8 @@ function killMonster(state: SimulationState, monster: Monster): void {
 }
 
 function resolveMonsterDeath(state: SimulationState, monster: Monster): void {
+  applyBossKillEffects(state, monster);
+
   if (isBossSummon(monster)) {
     killMonster(state, monster);
     return;

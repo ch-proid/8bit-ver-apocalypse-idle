@@ -4,7 +4,7 @@ import { ITEM_RARITIES, ITEM_SLOTS } from "../data/items";
 import { RELIC_IDS, RELICS } from "../data/relics";
 import { DEBUG_GRANTS } from "../data/balance";
 import { useGameStore, type DebugSpeed } from "../store/gameStore";
-import type { ItemRarity, ItemSlot, RelicId, SinId } from "../core/types";
+import type { BossCombatState, ItemRarity, ItemSlot, RelicId, SinId } from "../core/types";
 
 const BOSS_STAGE_IDS = [10, 20, 30, 40, 50, 60];
 const SPEEDS: DebugSpeed[] = [1, 4, 16];
@@ -16,6 +16,7 @@ interface DebugPanelProps {
 
 export function DebugPanel({ open }: DebugPanelProps) {
   const progress = useGameStore((state) => state.simulation.progress);
+  const bossState = useGameStore((state) => state.simulation.world.boss);
   const debugSpeed = useGameStore((state) => state.debugSpeed);
   const debugLog = useGameStore((state) => state.debugLog);
   const addGold = useGameStore((state) => state.addGold);
@@ -35,6 +36,7 @@ export function DebugPanel({ open }: DebugPanelProps) {
   const debugSetRelicStars = useGameStore((state) => state.debugSetRelicStars);
   const debugFillBlood = useGameStore((state) => state.debugFillBlood);
   const debugToggleBossGate = useGameStore((state) => state.debugToggleBossGate);
+  const debugTriggerAltarCounter = useGameStore((state) => state.debugTriggerAltarCounter);
   const debugResetGame = useGameStore((state) => state.debugResetGame);
   const debugDumpSaveJson = useGameStore((state) => state.debugDumpSaveJson);
   const logPhase3ADemo = useGameStore((state) => state.logPhase3ADemo);
@@ -74,6 +76,7 @@ export function DebugPanel({ open }: DebugPanelProps) {
         <strong>DEBUG</strong>
         <span>ST {progress.currentStage} / UNL {progress.stageProgress.unlockedStage}</span>
         <span>SPD x{debugSpeed}</span>
+        <span>{bossStatusLabel(bossState)}</span>
       </div>
 
       <DebugSection title="Progress">
@@ -199,6 +202,9 @@ export function DebugPanel({ open }: DebugPanelProps) {
         <button type="button" onClick={debugFillBlood}>
           BLOOD
         </button>
+        <button type="button" onClick={debugTriggerAltarCounter}>
+          CTR
+        </button>
       </DebugSection>
 
       <DebugSection title="Boss Gates">
@@ -265,4 +271,23 @@ function DebugSection({ title, children }: { title: string; children: ReactNode 
 function sinLabel(sinId: SinId): string {
   const relic = RELIC_IDS.find((id) => RELICS[id].sin === sinId);
   return relic ? sinId.slice(0, 3).toUpperCase() : sinId;
+}
+
+function bossStatusLabel(boss: BossCombatState | null): string {
+  if (!boss) {
+    return "BOSS NONE";
+  }
+  if (boss.isTelegraphing) {
+    return `TEL ${boss.telegraphTimer.toFixed(1)}`;
+  }
+  if (boss.isWeakened) {
+    return `WEAK ${boss.weakenTimer.toFixed(1)}`;
+  }
+  if (boss.isEnraged) {
+    return `ENR ${boss.enrageTimer.toFixed(1)}`;
+  }
+  if (boss.playerMarked) {
+    return "MARK";
+  }
+  return boss.lastEvent ?? boss.bossId.toUpperCase();
 }

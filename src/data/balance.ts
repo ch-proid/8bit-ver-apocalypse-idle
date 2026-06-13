@@ -297,7 +297,11 @@ export const STAGE_BALANCE = {
 } as const;
 
 export const BOSS_BALANCE = {
-  // TODO(Phase 7): Tune Lucian against target 40-60 minute first-boss wall.
+  // TODO(Phase 7): Tune all boss walls against the pacing table after full Chapter 1-6 playtests.
+  common: {
+    attackIntervalSeconds: 2.5,
+    defenseDamageReduction: 0.25,
+  },
   lucian: {
     stageId: 10,
     hp: 1600,
@@ -314,6 +318,50 @@ export const BOSS_BALANCE = {
     wraithHealPercentPerSecond: 0.005,
     wraithExperience: 0,
     wraithGold: 0,
+  },
+  gravemaw: {
+    healPercentPerSecond: 0.005,
+    lowHpThreshold: 0.5,
+    lowHpHealMultiplier: 2,
+    rebirthHealMultiplier: 1.3,
+  },
+  marcela: {
+    seedIntervalSeconds: 8,
+    seedCount: 3,
+    rebirthSeedCountBonus: 1,
+    maxSeeds: 12,
+    seedHp: 90,
+    seedAttack: 0,
+    seedGerminateSeconds: 4,
+    dotDamagePerSecond: 4,
+  },
+  cardion: {
+    enrageThreshold: 0.4,
+    attackCooldownMultiplier: 0.5,
+    damageMultiplier: 1.5,
+    playerRegenMultiplier: 0.5,
+  },
+  azar: {
+    markIntervalSeconds: 30,
+    markDamageTakenBonus: 25,
+    markAttackSpeedPenalty: 15,
+    markHealPercent: 0.2,
+    phaseTwoThreshold: 0.3,
+    phaseTwoDefenseMultiplier: 0.5,
+  },
+  leonid: {
+    phaseTwoThreshold: 0.5,
+    telegraphDurationSeconds: 5,
+    weakenDurationSeconds: 10,
+    enrageDurationSeconds: 15,
+    enrageDamageMultiplier: 2,
+    weakenDamageTakenMultiplier: 2,
+    altarCounterBloodCost: 30,
+    telegraphPeriods: [
+      { hpThreshold: 0.15, seconds: 20 },
+      { hpThreshold: 0.3, seconds: 30 },
+      { hpThreshold: 0.5, seconds: 45 },
+    ],
   },
   bossStub: {
     hpMultiplierPerChapter: 1.45,

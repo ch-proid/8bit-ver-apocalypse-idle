@@ -13,7 +13,7 @@ export interface BossDefinition {
   experience: number;
   gold: number;
   color: string;
-  mechanic: "lucianWraiths" | "stub";
+  mechanic: "lucianWraiths" | "gravemawRegen" | "marcelaSeeds" | "cardionEnrage" | "azarMarks" | "leonidAltarCounter";
 }
 
 export const BOSS_DEFINITIONS: Record<BossId, BossDefinition> = {
@@ -31,11 +31,11 @@ export const BOSS_DEFINITIONS: Record<BossId, BossDefinition> = {
     color: "#8f3f5d",
     mechanic: "lucianWraiths",
   },
-  gravemaw: createStubBoss("gravemaw", 20, 2, "gluttony", "GRAVEMAW", "#72513f"),
-  marcela: createStubBoss("marcela", 30, 3, "grief", "MARCELA", "#5d7f58"),
-  cardion: createStubBoss("cardion", 40, 4, "fanaticism", "CARDION", "#8d3439"),
-  azar: createStubBoss("azar", 50, 5, "abyss", "AZAR", "#4c466a"),
-  leonid: createStubBoss("leonid", 60, 6, "despair", "LEONID", "#d8e3c8"),
+  gravemaw: createBoss("gravemaw", 20, 2, "gluttony", "GRAVEMAW", "#72513f", "gravemawRegen"),
+  marcela: createBoss("marcela", 30, 3, "grief", "MARCELA", "#5d7f58", "marcelaSeeds"),
+  cardion: createBoss("cardion", 40, 4, "fanaticism", "CARDION", "#8d3439", "cardionEnrage"),
+  azar: createBoss("azar", 50, 5, "abyss", "AZAR", "#4c466a", "azarMarks"),
+  leonid: createBoss("leonid", 60, 6, "despair", "LEONID", "#d8e3c8", "leonidAltarCounter"),
 };
 
 export const BOSS_BY_STAGE: Record<number, BossDefinition> = Object.values(BOSS_DEFINITIONS).reduce(
@@ -46,13 +46,14 @@ export const BOSS_BY_STAGE: Record<number, BossDefinition> = Object.values(BOSS_
   {} as Record<number, BossDefinition>,
 );
 
-function createStubBoss(
+function createBoss(
   id: BossId,
   stageId: number,
   chapter: number,
   sin: SinId,
   name: string,
   color: string,
+  mechanic: BossDefinition["mechanic"],
 ): BossDefinition {
   return {
     id,
@@ -66,6 +67,6 @@ function createStubBoss(
     experience: BOSS_BALANCE.lucian.experience * chapter,
     gold: BOSS_BALANCE.lucian.gold * chapter,
     color,
-    mechanic: "stub",
+    mechanic,
   };
 }

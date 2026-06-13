@@ -70,4 +70,18 @@ export const MONSTERS: Record<string, MonsterDefinition> = {
     assetKey: "monster.stage1.nobleWraith",
     color: "#7d334a",
   },
+  marcelaSeed: {
+    id: "marcelaSeed",
+    name: "MARCELA SEED",
+    maxHp: 90,
+    attack: 0,
+    experience: 0,
+    gold: 0,
+    moveSpeed: 0,
+    respawnTime: 0,
+    width: 8,
+    height: 8,
+    assetKey: "monster.boss.marcelaSeed",
+    color: "#6fa85a",
+  },
 };

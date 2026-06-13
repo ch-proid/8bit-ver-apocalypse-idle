@@ -6,6 +6,7 @@ import { RELICS } from "../data/relics";
 import { STAGES } from "../data/stages";
 import { EXPERIENCE_CURVE, FIXED_DELTA, nextExperienceForLevel, PHASE_3B_DEBUG, PHASE_3C_DEBUG, PROGRESSION, STANDARD_DUMMY, STAT_GROWTH, TICK_RATE } from "../data/balance";
 import { equipRelic, grantRelic, summonRelic, summonRequirement } from "../core/altar";
+import { triggerAltarCounter } from "../core/boss";
 import { calculateItemValue, generateEquipmentItem } from "../core/equipment";
 import { addItemToInventory, bestInventoryItemForSlot, createItemId, equipItem } from "../core/inventory";
 import { cloneProgress, gainExperience, updateRecordAt } from "../core/progression";
@@ -56,6 +57,7 @@ interface GameStore {
   debugSetRelicStars: (relicId: RelicId, stars: number) => void;
   debugFillBlood: () => void;
   debugToggleBossGate: (sinId: SinId) => void;
+  debugTriggerAltarCounter: () => void;
   debugResetGame: () => Promise<void>;
   debugDumpSaveJson: () => void;
   hydrate: () => Promise<void>;
@@ -447,6 +449,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set((state) => {
       const simulation = cloneSimulation(state.simulation);
       simulation.progress.altar.bossDefeated[sinId] = !simulation.progress.altar.bossDefeated[sinId];
+      return { simulation };
+    });
+  },
+
+  debugTriggerAltarCounter: () => {
+    set((state) => {
+      const simulation = cloneSimulation(state.simulation);
+      triggerAltarCounter(simulation);
       return { simulation };
     });
   },
