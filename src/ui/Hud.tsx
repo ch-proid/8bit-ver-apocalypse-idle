@@ -31,6 +31,7 @@ const STAT_LABELS: Record<StatKey, string> = {
   grit: "GRIT",
   agi: "AGI",
 };
+const DEFAULT_NICKNAME = "SURVIVOR"; // TODO(Profile): replace when nickname storage exists.
 
 export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect }: HudProps) {
   const progress = useGameStore((state) => state.simulation.progress);
@@ -53,9 +54,17 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
   return (
     <>
       <div className="lcd-hud" aria-label="Stage summary">
-        <span>STAGE {chapter}-{stageInChapter}</span>
-        <span>LV {progress.level}</span>
+        <span className="char-status">
+          <span className="char-face"><SurvivorSprite skin={skin} scale={0.5} /></span>
+          <span className="char-level">LV {progress.level}</span>
+          <span className="char-name kr">{DEFAULT_NICKNAME}</span>
+        </span>
+        <span className="stage-label">STAGE {chapter}-{stageInChapter}</span>
         <IconValue type="gold" value={formatNumber(progress.gold)} />
+      </div>
+      <div className="lcd-exp" aria-label="Experience">
+        <GbBar value={expPercent} tone="xp" />
+        <b>{expPercent}%</b>
       </div>
 
       <Panel open={activePanel === "stat"} label="STAT">

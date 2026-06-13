@@ -161,6 +161,8 @@ button {
 
 .screen {
   position: relative;
+  --hud-strip-height: 24px;
+  --exp-strip-height: 13px;
   min-height: 0;
   flex: 0 0 auto;
   width: 100%;
@@ -183,26 +185,58 @@ button {
   position: absolute;
   z-index: 2;
   inset: 0 0 auto;
-  height: 22px;
+  height: var(--hud-strip-height);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 4px 8px;
+  gap: 6px;
+  padding: 3px 6px;
   border-bottom: 1px solid var(--line);
   background: var(--ink);
   color: var(--light);
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
   pointer-events: none;
 }
 
+.char-status {
+  min-width: 0;
+  max-width: 46%;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.char-face {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: #000;
+}
+
+.char-level,
+.stage-label {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.char-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .game {
   position: absolute;
-  top: 22px;
+  top: var(--hud-strip-height);
   left: 0;
   right: 0;
-  bottom: 0;
+  bottom: var(--exp-strip-height);
   z-index: 0;
   width: 100%;
   overflow: hidden;
@@ -217,6 +251,36 @@ button {
   image-rendering: -moz-crisp-edges;
   image-rendering: crisp-edges;
   image-rendering: pixelated;
+}
+
+.lcd-exp {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  height: var(--exp-strip-height);
+  display: flex;
+  align-items: center;
+  padding: 2px 6px 3px;
+  border-top: 1px solid var(--line);
+  background: var(--ink);
+  pointer-events: none;
+}
+
+.lcd-exp .gb-bar {
+  height: 8px;
+}
+
+.lcd-exp b {
+  position: absolute;
+  left: 50%;
+  top: 1px;
+  transform: translateX(-50%);
+  color: var(--light);
+  font-size: 8px;
+  line-height: 1;
+  text-shadow: 1px 0 0 var(--ink), -1px 0 0 var(--ink), 0 1px 0 var(--ink), 0 -1px 0 var(--ink);
 }
 
 .goldc {

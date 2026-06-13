@@ -11,12 +11,20 @@ import {
   type ColorSource,
 } from "pixi.js";
 import { MONSTER_ASSETS, PLAYER_CLASS_ASSETS, STAGE_MAP_ASSETS, type PixelSpriteAsset, type PlayerSpriteAsset } from "../data/assets";
+import {
+  DROP_ICON_FOR_EQUIPMENT_SLOT,
+  DROP_ICON_FRAMES,
+  DROP_ICON_SHEETS,
+  type DropIconId,
+  type DropIconFrame,
+  type DropIconSheetId,
+} from "../data/dropIcons";
 import { MONSTER_BALANCE, WORLD } from "../data/balance";
 import { CHAPTER_PALETTES, PLACEHOLDER_COLORS } from "../data/palettes";
-import type { ClassId, FloatingText, Monster, SimulationState } from "../core/types";
+import type { ClassId, FloatingText, ItemSlot, Monster, SimulationState } from "../core/types";
 import {
   BACKGROUND_RENDER,
-  EXPERIENCE_BAR_RENDER,
+  DROP_ICON_RENDER,
   FLOATING_TEXT_RENDER,
   GAMEBOY_SCREEN_HEIGHT,
   GAMEBOY_SCREEN_WIDTH,
@@ -70,13 +78,12 @@ export class PixiWorld {
   private world = new Container();
   private bg = new Graphics();
   private projectileLayer = new Container();
+  private dropIconLayer = new Container();
   private stageBackgroundSprite: Sprite | null = null;
   private stageTerrainSprite: Sprite | null = null;
   private platforms = new Graphics();
   private playerFallback = new Graphics();
   private playerHpBar = new Graphics();
-  private experienceBar = new Graphics();
-  private experienceText: Text | null = null;
   private playerSprite: Sprite | null = null;
   private playerClassId: ClassId | null = null;
   private loadingPlayerClassId: ClassId | null = null;
@@ -90,6 +97,9 @@ export class PixiWorld {
   private loadingMonsterAssets = new Set<string>();
   private hpBars = new Map<string, Graphics>();
   private floating = new Map<string, Text>();
+  private dropIcons = new Map<string, Sprite>();
+  private dropIconTextures = new Map<DropIconId, Texture>();
+  private loadingDropIcons = false;
   private projectiles = new Map<string, RenderProjectile>();
   private monsterDisplays = new Map<string, EntityDisplay>();
   private monsterRenderStates = new Map<string, MonsterRenderState>();
@@ -124,9 +134,10 @@ export class PixiWorld {
     this.world.addChild(this.playerFallback);
     this.world.addChild(this.projectileLayer);
     this.world.addChild(this.playerHpBar);
-    app.stage.addChild(this.experienceBar);
+    this.world.addChild(this.dropIconLayer);
 
     void this.loadStageMap(app);
+    void this.loadDropIcons(app);
   }
 
   destroy(): void {
@@ -141,7 +152,6 @@ export class PixiWorld {
     }
     this.stageBackgroundSprite = null;
     this.stageTerrainSprite = null;
-    this.experienceText = null;
     this.playerSprite = null;
     this.playerClassId = null;
     this.loadingPlayerClassId = null;
@@ -157,6 +167,9 @@ export class PixiWorld {
     this.loadingMonsterAssets.clear();
     this.hpBars.clear();
     this.floating.clear();
+    this.dropIcons.clear();
+    this.dropIconTextures.clear();
+    this.loadingDropIcons = false;
     this.projectiles.clear();
     this.floatingDisplays.clear();
     this.playerDisplay = null;
@@ -181,8 +194,8 @@ export class PixiWorld {
     this.drawMonsters(simulation, dmgMode);
     this.maybeLaunchMageProjectile(simulation);
     this.drawProjectiles(simulation, dmgMode);
+    this.drawDropIcons(simulation);
     this.drawFloatingTexts(simulation.world.floatingTexts, dmgMode);
-    this.drawExperienceBar(simulation, dmgMode);
     this.lastPlayerAttackTimer = simulation.world.player.attackTimer;
   }
 
@@ -245,6 +258,44 @@ export class PixiWorld {
     } catch {
       this.stageBackgroundSprite = null;
       this.stageTerrainSprite = null;
+    }
+  }
+
+  private async loadDropIcons(app: Application): Promise<void> {
+    if (this.loadingDropIcons || this.dropIconTextures.size > 0) {
+      return;
+    }
+
+    this.loadingDropIcons = true;
+    try {
+      const sheets = await Promise.all(
+        Object.entries(DROP_ICON_SHEETS).map(async ([id, sheet]) => {
+          const texture = await Assets.load<Texture>(sheet.path);
+          return [id as DropIconSheetId, texture] as const;
+        }),
+      );
+      if (this.app !== app) {
+        return;
+      }
+
+      const sheetTextures = new Map<DropIconSheetId, Texture>(sheets);
+      for (const [iconId, frame] of Object.entries(DROP_ICON_FRAMES) as Array<[DropIconId, DropIconFrame]>) {
+        const sheet = DROP_ICON_SHEETS[frame.sheet];
+        const sheetTexture = sheetTextures.get(frame.sheet);
+        if (!sheetTexture) {
+          continue;
+        }
+        const x = frame.frameIndex % sheet.columns * sheet.frameSize;
+        const y = Math.floor(frame.frameIndex / sheet.columns) * sheet.frameSize;
+        this.dropIconTextures.set(iconId, new Texture({
+          source: sheetTexture.source,
+          frame: new Rectangle(x, y, sheet.frameSize, sheet.frameSize),
+        }));
+      }
+    } catch {
+      this.dropIconTextures.clear();
+    } finally {
+      this.loadingDropIcons = false;
     }
   }
 
@@ -575,65 +626,62 @@ export class PixiWorld {
     }
   }
 
-  private drawExperienceBar(simulation: SimulationState, dmgMode: boolean): void {
-    const colors = renderColors(dmgMode);
-    const progress = simulation.progress;
-    const percent = clamp(progress.experience / Math.max(1, progress.nextExperience), 0, 1);
-    const fillWidth = Math.round(EXPERIENCE_BAR_RENDER.width * percent);
+  private drawDropIcons(simulation: SimulationState): void {
+    const latestSlot = simulation.progress.inventory.items[simulation.progress.inventory.items.length - 1]?.slot;
+    const ids = new Set(
+      simulation.world.floatingTexts
+        .filter((text) => dropIconForText(text.value, latestSlot))
+        .map((text) => text.id),
+    );
 
-    this.experienceBar.clear();
-    this.experienceBar.alpha = 1;
-    this.experienceBar
-      .rect(
-        EXPERIENCE_BAR_RENDER.x,
-        EXPERIENCE_BAR_RENDER.y,
-        EXPERIENCE_BAR_RENDER.width,
-        EXPERIENCE_BAR_RENDER.height,
-      )
-      .fill(colors.hpBack);
-
-    for (let x = 0; x < fillWidth; x += EXPERIENCE_BAR_RENDER.segmentWidth + 1) {
-      const width = Math.min(EXPERIENCE_BAR_RENDER.segmentWidth, fillWidth - x);
-      this.experienceBar
-        .rect(
-          EXPERIENCE_BAR_RENDER.x + x,
-          EXPERIENCE_BAR_RENDER.y,
-          width,
-          EXPERIENCE_BAR_RENDER.height,
-        )
-        .fill(colors.exp);
+    for (const id of this.dropIcons.keys()) {
+      if (!ids.has(id)) {
+        const item = this.dropIcons.get(id);
+        item?.destroy();
+        this.dropIcons.delete(id);
+      }
     }
 
-    const text = this.getExperienceText();
-    text.text = `${Math.floor(percent * 100)}%`;
-    text.style.fill = colors.expText;
-    text.x = Math.round(GAMEBOY_SCREEN_WIDTH / 2);
-    text.y = EXPERIENCE_BAR_RENDER.y + EXPERIENCE_BAR_RENDER.textOffsetY;
-    this.app?.stage.addChild(this.experienceBar);
-    this.app?.stage.addChild(text);
-  }
-
-  private getExperienceText(): Text {
-    if (this.experienceText) {
-      return this.experienceText;
+    if (this.dropIconTextures.size <= 0) {
+      return;
     }
 
-    this.experienceText = new Text({
-      text: "0%",
-      resolution: FLOATING_TEXT_RENDER.resolution,
-      roundPixels: true,
-      textureStyle: {
-        scaleMode: "nearest",
-      },
-      style: new TextStyle({
-        fontFamily: FLOATING_TEXT_RENDER.fontFamily,
-        fontSize: FLOATING_TEXT_RENDER.fontSize,
-        fill: PLACEHOLDER_COLORS.gold,
-        fontWeight: FLOATING_TEXT_RENDER.fontWeight,
-      }),
-    });
-    this.experienceText.anchor.set(0.5, 0);
-    return this.experienceText;
+    const stackedCounts = new Map<string, number>();
+    for (const text of simulation.world.floatingTexts) {
+      const iconId = dropIconForText(text.value, latestSlot);
+      if (!iconId) {
+        continue;
+      }
+
+      const texture = this.dropIconTextures.get(iconId);
+      if (!texture) {
+        continue;
+      }
+
+      const item = getOrCreate(this.dropIcons, text.id, () => {
+        const created = new Sprite(texture);
+        created.roundPixels = true;
+        created.scale.set(DROP_ICON_RENDER.scale);
+        this.dropIconLayer.addChild(created);
+        return created;
+      });
+
+      item.texture = texture;
+      item.tint = 0xffffff;
+      item.alpha = Math.max(0, 1 - text.age / text.ttl);
+      const display = this.floatingDisplays.get(text.id)
+        ?? { x: quantize(text.position.x, STEPPED_MOTION.floatingTextStepPx), y: quantize(text.position.y, STEPPED_MOTION.floatingTextStepPx) };
+      const stackKey = `${display.x}:${display.y}`;
+      const stackIndex = stackedCounts.get(stackKey) ?? 0;
+      stackedCounts.set(stackKey, stackIndex + 1);
+      item.position.set(
+        Math.round(display.x + DROP_ICON_RENDER.offsetX),
+        Math.round(display.y + DROP_ICON_RENDER.offsetY + stackIndex * DROP_ICON_RENDER.stackOffsetY),
+      );
+      item.visible = true;
+    }
+
+    this.world.addChild(this.dropIconLayer);
   }
 
   private maybeLaunchMageProjectile(simulation: SimulationState): void {
@@ -883,6 +931,25 @@ function playerSpriteX(x: number, width: number, direction: -1 | 1, asset: Playe
   const localCenterX = asset.padding.left + visibleWidth / 2;
   const worldCenterX = x + width / 2;
   return direction > 0 ? worldCenterX - localCenterX : worldCenterX + localCenterX;
+}
+
+function dropIconForText(value: string, latestSlot: ItemSlot | undefined): DropIconId | null {
+  if (/^\+\d+G$/.test(value)) {
+    return "gold";
+  }
+  if (value === "+BLOOD" || value === "AXP") {
+    return "blood";
+  }
+  if (value === "RELIC") {
+    return "ability";
+  }
+  if (value === "ITEM") {
+    return latestSlot ? DROP_ICON_FOR_EQUIPMENT_SLOT[latestSlot] : "weapon";
+  }
+  if (value === "HEAL" || value === "+HP") {
+    return "heal";
+  }
+  return null;
 }
 
 function renderColors(dmgMode: boolean) {

@@ -69,16 +69,7 @@ export const PLAYER_HP_BAR_RENDER = {
   width: 14,
   height: 2,
   offsetY: -4,
-  hideWhenFull: true,
-} as const;
-
-export const EXPERIENCE_BAR_RENDER = {
-  x: 2,
-  y: GAMEBOY_SCREEN_HEIGHT - 6,
-  width: GAMEBOY_SCREEN_WIDTH - 4,
-  height: 4,
-  segmentWidth: 4,
-  textOffsetY: -5,
+  hideWhenFull: false,
 } as const;
 
 export const FLOATING_TEXT_RENDER = {
@@ -88,6 +79,13 @@ export const FLOATING_TEXT_RENDER = {
   anchor: 0.5,
   stackOffsetY: -7,
   resolution: 3,
+} as const;
+
+export const DROP_ICON_RENDER = {
+  offsetX: -9,
+  offsetY: -3,
+  stackOffsetY: -7,
+  scale: 1,
 } as const;
 
 export const PROJECTILE_RENDER = {
