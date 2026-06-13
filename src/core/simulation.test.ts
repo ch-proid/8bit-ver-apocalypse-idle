@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { FIXED_DELTA, MAGE_AI_BALANCE, MONSTER_BALANCE, nextExperienceForLevel } from "../data/balance";
+import { ALTAR_BALANCE, FIXED_DELTA, MAGE_AI_BALANCE, MONSTER_BALANCE, nextExperienceForLevel } from "../data/balance";
 import { STAGES } from "../data/stages";
+import { altarEliteStatsForLevel, eliteSummonCost, levelUpAltar } from "./altar";
+import { startAltarEliteEncounter } from "./elites";
 import { estimateOfflineHuntRates } from "./offline";
 import { createInitialSimulation } from "./stage";
 import { startStage } from "./stageProgress";
@@ -36,6 +38,84 @@ describe("phase 2 simulation", () => {
     let runB = createInitialSimulation(1);
 
     for (let i = 0; i < 60 * 30; i += 1) {
+      runA = stepSimulation(runA, FIXED_DELTA);
+      runB = stepSimulation(runB, FIXED_DELTA);
+    }
+
+    expect(runA).toEqual(runB);
+  });
+
+  it("runs altar elite challenge combat, grants rewards on kill, and stores altar experience", () => {
+    let state = createInitialSimulation(1);
+    const startGold = state.progress.gold;
+    const startExperience = state.progress.experience;
+    state.progress.altar.blood = eliteSummonCost(state.progress.altar);
+    expect(startAltarEliteEncounter(state)).toBe(true);
+    expect(state.progress.altar.blood).toBe(0);
+    expect(state.world.altarElite?.level).toBe(1);
+
+    state.world.player.attack = 99999;
+    state.world.player.attackRange = 999;
+    state.world.player.attackCooldown = 0.01;
+    const elite = state.world.monsters.find((monster) => monster.role === "elite");
+    if (!elite) {
+      throw new Error("elite challenge did not spawn");
+    }
+    elite.spawnInvulnTimer = 0;
+    elite.evasion = 0;
+    elite.maxHp = 1;
+    elite.hp = 1;
+
+    for (let i = 0; i < 10; i += 1) {
+      state = stepSimulation(state, FIXED_DELTA);
+    }
+
+    expect(state.world.altarElite).toBeNull();
+    expect(state.world.monsters.some((monster) => monster.role === "elite")).toBe(false);
+    expect(state.progress.gold).toBeGreaterThan(startGold);
+    expect(state.progress.experience).toBeGreaterThan(startExperience);
+    expect(state.progress.altar.experience).toBeGreaterThan(0);
+  });
+
+  it("fails altar elite challenges on timeout after spending blood", () => {
+    let state = createInitialSimulation(1);
+    state.progress.altar.blood = eliteSummonCost(state.progress.altar);
+    const spent = state.progress.altar.blood;
+    expect(startAltarEliteEncounter(state)).toBe(true);
+    expect(state.progress.altar.blood).toBeLessThan(spent);
+    state.world.player.attack = 0;
+    state.world.player.attackRange = 0;
+
+    for (let i = 0; i < (ALTAR_BALANCE.eliteTimeLimitSeconds + 1) * 60; i += 1) {
+      state = stepSimulation(state, FIXED_DELTA);
+    }
+
+    expect(state.world.altarElite).toBeNull();
+    expect(state.world.monsters.some((monster) => monster.role === "elite")).toBe(false);
+    expect(state.progress.altar.experience).toBe(0);
+  });
+
+  it("manual altar level-up strengthens future elite challenges", () => {
+    const state = createInitialSimulation(1);
+    const levelOne = altarEliteStatsForLevel(state.progress.altar.level);
+    state.progress.altar.experience = 999999;
+    expect(levelUpAltar(state.progress.altar)).toBe(true);
+    const levelTwo = altarEliteStatsForLevel(state.progress.altar.level);
+
+    expect(state.progress.altar.level).toBe(2);
+    expect(levelTwo.maxHp).toBeGreaterThan(levelOne.maxHp);
+    expect(levelTwo.gold).toBeGreaterThan(levelOne.gold);
+  });
+
+  it("keeps altar elite challenge simulations deterministic for identical seeds", () => {
+    let runA = createInitialSimulation(1, undefined, 9090);
+    let runB = createInitialSimulation(1, undefined, 9090);
+    runA.progress.altar.blood = eliteSummonCost(runA.progress.altar);
+    runB.progress.altar.blood = eliteSummonCost(runB.progress.altar);
+    expect(startAltarEliteEncounter(runA)).toBe(true);
+    expect(startAltarEliteEncounter(runB)).toBe(true);
+
+    for (let i = 0; i < 60 * 20; i += 1) {
       runA = stepSimulation(runA, FIXED_DELTA);
       runB = stepSimulation(runB, FIXED_DELTA);
     }

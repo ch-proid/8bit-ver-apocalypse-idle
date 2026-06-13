@@ -5,10 +5,11 @@ import { RELIC_IDS } from "../data/relics";
 import { RELICS } from "../data/relics";
 import { STAGES } from "../data/stages";
 import { EXPERIENCE_CURVE, FIXED_DELTA, nextExperienceForLevel, PHASE_3B_DEBUG, PHASE_3C_DEBUG, PROGRESSION, STANDARD_DUMMY, STAT_GROWTH, TICK_RATE } from "../data/balance";
-import { equipRelic, grantRelic, summonRelic, summonRequirement } from "../core/altar";
+import { eliteSummonCost, equipRelic, grantRelic, levelUpAltar } from "../core/altar";
 import { triggerAltarCounter } from "../core/boss";
 import { cloneClassCombatState } from "../core/class";
 import { calculateItemValue, generateEquipmentItem } from "../core/equipment";
+import { startAltarEliteEncounter } from "../core/elites";
 import { addItemToInventory, bestInventoryItemForSlot, createItemId, equipItem } from "../core/inventory";
 import { cloneProgress, gainExperience, updateRecordAt } from "../core/progression";
 import { cloneRelicCombatState, relicDebugSnapshot } from "../core/relics";
@@ -50,8 +51,9 @@ interface GameStore {
   logPhase3ADemo: () => void;
   equipBestItems: () => void;
   logPhase3BDemo: () => void;
-  summonRelicForDebug: () => void;
-  summonRelicNow: () => void;
+  summonEliteForDebug: () => void;
+  summonEliteNow: () => void;
+  levelUpAltarNow: () => void;
   equipRelicForDebug: (relicId: RelicId) => void;
   logPhase3CDemo: () => void;
   logPhase3DDemo: () => void;
@@ -234,26 +236,34 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({ simulation: demo });
   },
 
-  summonRelicForDebug: () => {
+  summonEliteForDebug: () => {
     set((state) => {
       const simulation = cloneSimulation(state.simulation);
-      const required = summonRequirement(simulation.progress.altar.summonCount);
+      const required = eliteSummonCost(simulation.progress.altar);
       if (simulation.progress.altar.blood < required) {
         simulation.progress.altar.blood = required;
       }
-      summonRelic(simulation.progress.altar, simulation.world.rng);
+      startAltarEliteEncounter(simulation);
       return { simulation };
     });
   },
 
-  summonRelicNow: () => {
+  summonEliteNow: () => {
     set((state) => {
       const simulation = cloneSimulation(state.simulation);
-      const required = summonRequirement(simulation.progress.altar.summonCount);
+      const required = eliteSummonCost(simulation.progress.altar);
       if (simulation.progress.altar.blood < required) {
         return state;
       }
-      summonRelic(simulation.progress.altar, simulation.world.rng);
+      startAltarEliteEncounter(simulation);
+      return { simulation };
+    });
+  },
+
+  levelUpAltarNow: () => {
+    set((state) => {
+      const simulation = cloneSimulation(state.simulation);
+      levelUpAltar(simulation.progress.altar);
       return { simulation };
     });
   },
@@ -552,7 +562,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const simulation = cloneSimulation(state.simulation);
       simulation.progress.altar.blood = Math.max(
         simulation.progress.altar.blood,
-        summonRequirement(simulation.progress.altar.summonCount),
+        eliteSummonCost(simulation.progress.altar),
       );
       return { simulation };
     });
@@ -636,6 +646,7 @@ function cloneSimulation(simulation: SimulationState): SimulationState {
       rng: cloneRngState(simulation.world.rng),
       relicCombat: cloneRelicCombatState(simulation.world.relicCombat),
       classCombat: cloneClassCombatState(simulation.world.classCombat),
+      altarElite: simulation.world.altarElite ? { ...simulation.world.altarElite } : null,
       boss: simulation.world.boss ? { ...simulation.world.boss } : null,
       wave: simulation.world.wave ? { ...simulation.world.wave } : null,
       platforms: simulation.world.platforms.map((platform) => ({ ...platform })),

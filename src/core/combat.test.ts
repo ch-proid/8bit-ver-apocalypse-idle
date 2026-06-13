@@ -3,12 +3,17 @@ import { RELIC_IDS } from "../data/relics";
 import { DAMAGE_FORMULA, FIXED_DELTA, RELIC_BALANCE, TICK_RATE } from "../data/balance";
 import {
   addBlood,
+  addAltarExperience,
+  altarEliteStatsForLevel,
+  altarExperienceForLevel,
+  canLevelUpAltar,
   createDefaultAltarState,
+  eliteSummonCost,
   equipRelic,
   grantRelic,
+  levelUpAltar,
   relicStars,
-  summonRelic,
-  summonRequirement,
+  spendBloodForElite,
 } from "./altar";
 import {
   calculateDamage,
@@ -201,25 +206,27 @@ describe("phase 3C damage formula, altar, and relic builds", () => {
     expect(effectiveAttackCooldown(1, clamped, 1)).toBeCloseTo(0.5);
   });
 
-  it("accumulates blood, summons relics, grants pity targeting, and gates 3-star upgrades", () => {
+  it("accumulates blood, spends elite challenge cost, levels altar manually, and gates 3-star upgrades", () => {
     const altar = createDefaultAltarState();
-    const rng = createRngState(7);
 
     addBlood(altar, "normal", 1);
     addBlood(altar, "elite", 1);
     addBlood(altar, "boss", 1);
     expect(altar.blood).toBe(106);
 
-    for (let i = 0; i < 5; i += 1) {
-      altar.blood = summonRequirement(altar.summonCount);
-      expect(summonRelic(altar, rng)).not.toBeNull();
-    }
-    expect(altar.targetedSummons).toBe(1);
+    altar.blood = eliteSummonCost(altar);
+    expect(spendBloodForElite(altar)).toBe(true);
+    expect(altar.blood).toBe(0);
 
-    altar.blood = summonRequirement(altar.summonCount);
-    const targeted = summonRelic(altar, rng, "kingsShadow");
-    expect(targeted).toBe("kingsShadow");
-    expect(altar.targetedSummons).toBe(0);
+    const levelOneStats = altarEliteStatsForLevel(altar.level);
+    addAltarExperience(altar, altarExperienceForLevel(altar.level) - 1);
+    expect(canLevelUpAltar(altar)).toBe(false);
+    addAltarExperience(altar, 1);
+    expect(canLevelUpAltar(altar)).toBe(true);
+    expect(levelUpAltar(altar)).toBe(true);
+    expect(altar.level).toBe(2);
+    expect(altar.experience).toBe(0);
+    expect(altarEliteStatsForLevel(altar.level).maxHp).toBeGreaterThan(levelOneStats.maxHp);
 
     const gated = createDefaultAltarState();
     grantRelic(gated, "specterLord");
@@ -229,26 +236,6 @@ describe("phase 3C damage formula, altar, and relic builds", () => {
     gated.bossDefeated.pride = true;
     grantRelic(gated, "specterLord");
     expect(relicStars(gated, "specterLord")).toBe(3);
-  });
-
-  it("weights unowned relics higher during random summons", () => {
-    const rng = createRngState(99);
-    let ownedHits = 0;
-    let unownedHits = 0;
-
-    for (let i = 0; i < 500; i += 1) {
-      const altar = createDefaultAltarState();
-      grantRelic(altar, "specterLord");
-      altar.blood = summonRequirement(0);
-      const result = summonRelic(altar, rng);
-      if (result === "specterLord") {
-        ownedHits += 1;
-      } else if (result) {
-        unownedHits += 1;
-      }
-    }
-
-    expect(unownedHits).toBeGreaterThan(ownedHits * 5);
   });
 
   it("applies each of the six relic build rules through deterministic combat state", () => {

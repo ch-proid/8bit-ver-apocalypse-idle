@@ -1,14 +1,13 @@
 import { ALTAR_BALANCE } from "../data/balance";
 import { RELIC_IDS, RELICS } from "../data/relics";
-import { pickWeighted } from "./rng";
+import { chance, pickOne } from "./rng";
 import type { AltarState, KillType, RelicId, RngState, SinId } from "./types";
 
 export function createDefaultAltarState(): AltarState {
   return {
     blood: 0,
-    summonCount: 0,
-    pityProgress: 0,
-    targetedSummons: 0,
+    level: ALTAR_BALANCE.initialLevel,
+    experience: 0,
     owned: {},
     equippedRelicId: null,
     bossDefeated: createDefaultBossFlags(),
@@ -18,10 +17,9 @@ export function createDefaultAltarState(): AltarState {
 export function normalizeAltarState(input?: Partial<AltarState>): AltarState {
   const defaults = createDefaultAltarState();
   return {
-    blood: input?.blood ?? defaults.blood,
-    summonCount: input?.summonCount ?? defaults.summonCount,
-    pityProgress: input?.pityProgress ?? defaults.pityProgress,
-    targetedSummons: input?.targetedSummons ?? defaults.targetedSummons,
+    blood: Math.max(0, input?.blood ?? defaults.blood),
+    level: Math.max(1, Math.floor(input?.level ?? defaults.level)),
+    experience: Math.max(0, input?.experience ?? defaults.experience),
     owned: { ...input?.owned },
     equippedRelicId: input?.equippedRelicId ?? defaults.equippedRelicId,
     bossDefeated: {
@@ -34,9 +32,8 @@ export function normalizeAltarState(input?: Partial<AltarState>): AltarState {
 export function cloneAltarState(altar: AltarState): AltarState {
   return {
     blood: altar.blood,
-    summonCount: altar.summonCount,
-    pityProgress: altar.pityProgress,
-    targetedSummons: altar.targetedSummons,
+    level: altar.level,
+    experience: altar.experience,
     owned: Object.fromEntries(
       Object.entries(altar.owned).map(([id, relic]) => [id, relic ? { ...relic } : relic]),
     ) as AltarState["owned"],
@@ -55,42 +52,72 @@ export function addBlood(altar: AltarState, killType: KillType, stageId: number)
   return amount;
 }
 
-export function summonRequirement(summonCount: number): number {
-  return Math.floor(ALTAR_BALANCE.baseSummonBlood * Math.pow(ALTAR_BALANCE.summonGrowth, summonCount));
+export function eliteSummonCost(altar: AltarState): number {
+  return Math.floor(ALTAR_BALANCE.eliteBloodCost * Math.pow(ALTAR_BALANCE.eliteBloodCostGrowth, altar.level - 1));
 }
 
-export function canSummon(altar: AltarState): boolean {
-  return altar.blood >= summonRequirement(altar.summonCount);
+export function canSummonElite(altar: AltarState): boolean {
+  return altar.blood >= eliteSummonCost(altar);
 }
 
-export function summonRelic(altar: AltarState, rng: RngState, target?: RelicId): RelicId | null {
-  const required = summonRequirement(altar.summonCount);
+export function spendBloodForElite(altar: AltarState): boolean {
+  const required = eliteSummonCost(altar);
   if (altar.blood < required) {
-    return null;
-  }
-
-  let relicId: RelicId;
-  if (target && altar.targetedSummons > 0) {
-    relicId = target;
-    altar.targetedSummons -= 1;
-  } else {
-    relicId = rollRelicId(altar, rng);
+    return false;
   }
 
   altar.blood -= required;
-  altar.summonCount += 1;
-  altar.pityProgress += 1;
-  if (altar.pityProgress >= ALTAR_BALANCE.pityEverySummons) {
-    altar.pityProgress = 0;
-    altar.targetedSummons += 1;
+  return true;
+}
+
+export function altarExperienceForLevel(level: number): number {
+  return Math.floor(ALTAR_BALANCE.levelExperienceBase * Math.pow(Math.max(1, level), ALTAR_BALANCE.levelExperienceGrowth));
+}
+
+export function addAltarExperience(altar: AltarState, amount: number): void {
+  altar.experience += Math.max(0, Math.floor(amount));
+}
+
+export function canLevelUpAltar(altar: AltarState): boolean {
+  return altar.experience >= altarExperienceForLevel(altar.level);
+}
+
+export function levelUpAltar(altar: AltarState): boolean {
+  const required = altarExperienceForLevel(altar.level);
+  if (altar.experience < required) {
+    return false;
   }
 
-  grantRelic(altar, relicId);
-  if (!altar.equippedRelicId) {
-    altar.equippedRelicId = relicId;
+  altar.experience -= required;
+  altar.level += 1;
+  return true;
+}
+
+export function altarEliteStatsForLevel(level: number): {
+  maxHp: number;
+  attack: number;
+  gold: number;
+  experience: number;
+  altarExperience: number;
+} {
+  const safeLevel = Math.max(1, Math.floor(level));
+  const steps = safeLevel - 1;
+  const stats = ALTAR_BALANCE.eliteStats;
+  return {
+    maxHp: Math.max(1, Math.round(stats.baseHp * (1 + steps * stats.hpPerLevel))),
+    attack: Math.max(0, Math.round(stats.baseAttack * (1 + steps * stats.attackPerLevel))),
+    gold: Math.max(0, Math.round(stats.baseGold * (1 + steps * stats.goldPerLevel))),
+    experience: Math.max(0, Math.round(stats.baseExperience * (1 + steps * stats.experiencePerLevel))),
+    altarExperience: Math.max(0, Math.round(stats.baseAltarExperience * (1 + steps * stats.altarExperiencePerLevel))),
+  };
+}
+
+export function rollEliteRelicDrop(rng: RngState): RelicId | null {
+  if (!chance(rng, ALTAR_BALANCE.eliteStats.relicDropChance)) {
+    return null;
   }
 
-  return relicId;
+  return pickOne(rng, RELIC_IDS);
 }
 
 export function grantRelic(altar: AltarState, relicId: RelicId): void {
@@ -125,14 +152,6 @@ export function relicStars(altar: AltarState, relicId: RelicId | null): number {
   }
 
   return altar.owned[relicId]?.stars ?? 0;
-}
-
-function rollRelicId(altar: AltarState, rng: RngState): RelicId {
-  const weights = RELIC_IDS.reduce((acc, relicId) => {
-    acc[relicId] = altar.owned[relicId] ? 1 : ALTAR_BALANCE.unownedWeightMultiplier;
-    return acc;
-  }, {} as Record<RelicId, number>);
-  return pickWeighted(rng, weights);
 }
 
 function isBossGateOpen(altar: AltarState, relicId: RelicId): boolean {

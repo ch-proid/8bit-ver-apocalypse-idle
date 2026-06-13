@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { summonRequirement } from "../core/altar";
+import { altarExperienceForLevel, eliteSummonCost } from "../core/altar";
 import type { ClassId, EquipmentItem, EquipmentStatKey, ItemRarity, ItemSlot, RelicId, StatKey } from "../core/types";
 import { ITEM_SLOTS } from "../data/items";
 import { RELIC_IDS, RELICS } from "../data/relics";
@@ -31,11 +31,14 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
   const spendPoint = useGameStore((state) => state.spendStatPoint);
   const setPreset = useGameStore((state) => state.setStatPreset);
   const equipBestItems = useGameStore((state) => state.equipBestItems);
-  const summonRelicNow = useGameStore((state) => state.summonRelicNow);
+  const summonEliteNow = useGameStore((state) => state.summonEliteNow);
+  const levelUpAltarNow = useGameStore((state) => state.levelUpAltarNow);
   const rebirthNow = useGameStore((state) => state.rebirthNow);
   const expPercent = percent(progress.experience, progress.nextExperience);
-  const bloodRequired = summonRequirement(progress.altar.summonCount);
+  const bloodRequired = eliteSummonCost(progress.altar);
+  const altarNextExperience = altarExperienceForLevel(progress.altar.level);
   const bloodPercent = percent(progress.altar.blood, bloodRequired);
+  const altarExperiencePercent = percent(progress.altar.experience, altarNextExperience);
   const chapter = Math.ceil(progress.currentStage / 10);
   const stageInChapter = ((progress.currentStage - 1) % 10) + 1;
   const skin = SURVIVOR_SKINS.find((entry) => entry.id === currentClassId) ?? SURVIVOR_SKINS[0];
@@ -166,16 +169,27 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
       <Panel open={activePanel === "altar"} label="ALTAR">
         <div className="statbar">
           <IconValue type="blood" value={`${formatNumber(Math.floor(progress.altar.blood))}/${formatNumber(bloodRequired)}`} />
-          <span>RITE {progress.altar.summonCount}</span>
+          <span>ALV {progress.altar.level}</span>
         </div>
 
         <Win title="ALTAR">
+          <MenuItem label="LV" value={progress.altar.level} />
+          <MenuItem label="AXP" value={`${formatNumber(progress.altar.experience)}/${formatNumber(altarNextExperience)}`}>
+            <GbBar value={altarExperiencePercent} tone="xp" />
+          </MenuItem>
           <GbBar value={bloodPercent} tone="blood" tall />
           <div className="altar-actions">
-            <button type="button" className="inv-vid" onClick={summonRelicNow}>
-              <span className="cur">&#9654;</span>SUMMON
+            <button type="button" className="inv-vid" onClick={summonEliteNow}>
+              <span className="cur">&#9654;</span>ELITE
             </button>
-            <button type="button" className="inv-vid off">PICK {progress.altar.targetedSummons}</button>
+            <button
+              type="button"
+              className={progress.altar.experience >= altarNextExperience ? "inv-vid" : "inv-vid off"}
+              disabled={progress.altar.experience < altarNextExperience}
+              onClick={levelUpAltarNow}
+            >
+              LV UP
+            </button>
           </div>
         </Win>
 

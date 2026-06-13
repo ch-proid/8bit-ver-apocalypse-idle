@@ -9,7 +9,7 @@ const STORE_NAME = "save";
 const SAVE_KEY = "slot-1";
 
 export interface SaveSnapshot {
-  version: 6;
+  version: 7;
   progress: ProgressState;
   lastSavedAt: number;
 }
@@ -39,7 +39,7 @@ async function getDb() {
 export async function saveGame(progress: ProgressState): Promise<void> {
   const db = await getDb();
   await db.put(STORE_NAME, {
-    version: 6,
+    version: 7,
     progress,
     lastSavedAt: Date.now(),
   }, SAVE_KEY);
@@ -74,7 +74,7 @@ export function calculateOfflineReward(snapshot: SaveSnapshot, now = Date.now())
 
 function migrateSnapshot(snapshot: StoredSaveSnapshot): SaveSnapshot {
   return {
-    version: 6,
+    version: 7,
     progress: normalizeProgress(snapshot.progress),
     lastSavedAt: snapshot.lastSavedAt ?? Date.now(),
   };

@@ -49,7 +49,7 @@ export function DebugPanel({ open }: DebugPanelProps) {
   const logPhase3DDemo = useGameStore((state) => state.logPhase3DDemo);
   const logRework2Demo = useGameStore((state) => state.logRework2Demo);
   const equipBestItems = useGameStore((state) => state.equipBestItems);
-  const summonRelicForDebug = useGameStore((state) => state.summonRelicForDebug);
+  const summonEliteForDebug = useGameStore((state) => state.summonEliteForDebug);
   const setClassId = useGameStore((state) => state.setClassId);
   const setStatPreset = useGameStore((state) => state.setStatPreset);
   const spendStatPoint = useGameStore((state) => state.spendStatPoint);
@@ -81,6 +81,7 @@ export function DebugPanel({ open }: DebugPanelProps) {
       <div className="debug-header">
         <strong>DEBUG</strong>
         <span>ST {progress.currentStage} / UNL {progress.stageProgress.unlockedStage}</span>
+        <span>ALV {progress.altar.level}</span>
         <span>SPD x{debugSpeed}</span>
         <span>{bossStatusLabel(bossState)}</span>
         {offlineReward ? (
@@ -215,8 +216,8 @@ export function DebugPanel({ open }: DebugPanelProps) {
         <button type="button" onClick={() => debugGrantRelic(relicId)}>
           RELIC
         </button>
-        <button type="button" onClick={summonRelicForDebug}>
-          SUM
+        <button type="button" onClick={summonEliteForDebug}>
+          ELITE
         </button>
         <label>
           STAR

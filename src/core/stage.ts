@@ -59,6 +59,7 @@ export function createInitialSimulation(
       rng,
       relicCombat: createDefaultRelicCombatState(),
       classCombat: createDefaultClassCombatState(),
+      altarElite: null,
       boss: stage.bossId ? createBossCombatState(stage.bossId, stage.id) : null,
       wave,
       platforms,

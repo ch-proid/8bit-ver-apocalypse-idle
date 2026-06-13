@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { summonRequirement } from "./core/altar";
+import { eliteSummonCost } from "./core/altar";
 import type { ClassId } from "./core/types";
 import { FIXED_DELTA } from "./data/balance";
 import { SURVIVOR_SKINS } from "./data/sprites/survivors";
@@ -28,7 +28,7 @@ export default function App() {
     return Math.max(0, SURVIVOR_SKINS.findIndex((skin) => skin.id === storedClassId));
   });
 
-  const bloodRequired = summonRequirement(progress.altar.summonCount);
+  const bloodRequired = eliteSummonCost(progress.altar);
   const bloodIsFull = progress.altar.blood >= bloodRequired;
   const selectedClass = useMemo(
     () => SURVIVOR_SKINS[selectedClassIndex] ?? SURVIVOR_SKINS[0],

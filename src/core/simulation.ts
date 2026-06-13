@@ -16,6 +16,7 @@ import {
 import { clampCombatAffixes, dealPlayerDamage, distanceBetween, effectiveAttackCooldown } from "./combat";
 import { rollMonsterDrop } from "./drop";
 import { calculateCombatAffixStats } from "./equipment";
+import { resolveAltarEliteDefeat, updateAltarEliteEncounter } from "./elites";
 import { addItemToInventory } from "./inventory";
 import { applyGravity, jump, moveAndCollide } from "./physics";
 import { addFloatingText, cloneProgress, grantRewards } from "./progression";
@@ -42,6 +43,7 @@ export function stepSimulation(input: SimulationState, dt: number): SimulationSt
   world.player.hp = Math.min(world.player.maxHp, world.player.hp + world.player.hpRegen * bossPlayerRegenMultiplier(world) * dt);
   updateRelicCombat(progress, world, dt);
   updateBossMechanics(input, dt);
+  updateAltarEliteEncounter(input, dt);
   tickStageProgress(input, dt);
 
   updateMonsters(world.monsters, world.platforms, world.player, dt, Boolean(world.wave?.enabled));
@@ -56,6 +58,7 @@ export function stepSimulation(input: SimulationState, dt: number): SimulationSt
       rng: cloneRngState(world.rng),
       relicCombat: cloneRelicCombatState(world.relicCombat),
       classCombat: cloneClassCombatState(world.classCombat),
+      altarElite: world.altarElite ? { ...world.altarElite } : null,
       boss: world.boss ? { ...world.boss } : null,
       wave: world.wave ? { ...world.wave } : null,
       player: {
@@ -428,7 +431,7 @@ function findNearestMonster(
     if (routeDistance === Number.POSITIVE_INFINITY) {
       continue;
     }
-    const rolePriority = monster.role === "bossSummon" ? 0 : monster.role === "boss" ? 1 : 2;
+    const rolePriority = monster.role === "bossSummon" ? 0 : monster.role === "elite" ? 1 : monster.role === "boss" ? 2 : 3;
     const samePlatformPriority = monster.platformId === player.platformId ? 0 : 1;
     const mageAttackPriority = classId === "mage" && canAttackMonster(classId, player, monster, platforms) ? 0 : 1;
     const platformPriority = samePlatformPriority * 1000 + mageAttackPriority * 100 + routeDistance * 10;
@@ -555,6 +558,12 @@ function resolveMonsterDeath(state: SimulationState, monster: Monster): void {
     return;
   }
 
+  if (monster.role === "elite") {
+    applyRelicOnKill(state.progress, state.world, monster);
+    resolveAltarEliteDefeat(state, monster);
+    return;
+  }
+
   killMonster(state, monster);
   grantRewards(state.progress, state.world, monster.experience, monster.gold);
   addBlood(state.progress.altar, "normal", state.progress.currentStage);
@@ -598,6 +607,10 @@ function tickStageProgress(state: SimulationState, dt: number): void {
 function advanceWaveIfCleared(state: SimulationState): void {
   const wave = state.world.wave;
   if (!wave?.enabled) {
+    return;
+  }
+
+  if (state.world.altarElite) {
     return;
   }
 

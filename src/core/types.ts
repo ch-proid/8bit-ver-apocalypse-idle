@@ -50,7 +50,7 @@ export type RelicId =
 export type KillType = "normal" | "elite" | "boss";
 export type StageMode = "hunt" | "challenge" | "boss";
 export type ChallengeFailureReason = "timeout" | "death";
-export type MonsterRole = "normal" | "boss" | "bossSummon";
+export type MonsterRole = "normal" | "elite" | "boss" | "bossSummon";
 
 export interface StatAllocation {
   str: number;
@@ -204,12 +204,18 @@ export type BossDefeatedFlags = Record<SinId, boolean>;
 
 export interface AltarState {
   blood: number;
-  summonCount: number;
-  pityProgress: number;
-  targetedSummons: number;
+  level: number;
+  experience: number;
   owned: OwnedRelics;
   equippedRelicId: RelicId | null;
   bossDefeated: BossDefeatedFlags;
+}
+
+export interface AltarEliteCombatState {
+  instanceId: string;
+  level: number;
+  timer: number;
+  timeLimit: number;
 }
 
 export interface SpecterEntity {
@@ -325,6 +331,7 @@ export interface WorldState {
   rng: RngState;
   relicCombat: RelicCombatState;
   classCombat: ClassCombatState;
+  altarElite: AltarEliteCombatState | null;
   boss: BossCombatState | null;
   wave: WaveCycleState | null;
   platforms: Platform[];
