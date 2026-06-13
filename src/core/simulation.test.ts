@@ -354,7 +354,7 @@ describe("phase 2 simulation", () => {
     expect(highShot.world.monsters.find((monster) => monster.instanceId === highTarget.instanceId)?.hp).toBeLessThan(highStartHp);
   });
 
-  it("makes mage fire in range and retreat only while searching", () => {
+  it("makes mage fire in range, retreat when too close, and shoot at map edges", () => {
     let mage = createInitialSimulation(1);
     mage.progress.classId = "mage";
     const mageTarget = isolateSamePlatformTarget(mage, mage.world.player.position.x + 42);
@@ -380,8 +380,27 @@ describe("phase 2 simulation", () => {
     const closeStartX = closeFight.world.player.position.x;
     const closeStartHp = closeTarget.hp;
     closeFight = stepSimulation(closeFight, FIXED_DELTA);
-    expect(closeFight.world.player.position.x).toBe(closeStartX);
-    expect(closeFight.world.monsters[0].hp).toBeLessThan(closeStartHp);
+    expect(closeFight.world.player.position.x).toBeLessThan(closeStartX);
+    expect(closeFight.world.monsters[0].hp).toBe(closeStartHp);
+
+    let edgeFight = createInitialSimulation(1);
+    edgeFight.progress.classId = "mage";
+    const edgePlatform = edgeFight.world.platforms.find((platform) => platform.id === edgeFight.world.player.platformId);
+    if (!edgePlatform) {
+      throw new Error("test stage is missing player platform");
+    }
+    edgeFight.world.player.position.x = edgePlatform.x + MAGE_AI_BALANCE.retreatDistance - 1;
+    const edgeTarget = isolateSamePlatformTarget(edgeFight, edgeFight.world.player.position.x + MAGE_AI_BALANCE.tooCloseDistance / 2);
+    edgeTarget.evasion = 0;
+    edgeTarget.maxHp = 9999;
+    edgeTarget.hp = edgeTarget.maxHp;
+    edgeFight.world.player.attackRange = 60;
+    edgeFight.world.player.attackTimer = 0;
+    const edgeStartX = edgeFight.world.player.position.x;
+    const edgeStartHp = edgeTarget.hp;
+    edgeFight = stepSimulation(edgeFight, FIXED_DELTA);
+    expect(edgeFight.world.player.position.x).toBe(edgeStartX);
+    expect(edgeFight.world.monsters[0].hp).toBeLessThan(edgeStartHp);
 
     let retreat = createInitialSimulation(1);
     retreat.progress.classId = "mage";

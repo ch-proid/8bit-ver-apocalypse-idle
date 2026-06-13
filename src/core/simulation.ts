@@ -117,6 +117,15 @@ function updatePlayerAi(state: SimulationState, dt: number): void {
   const playerPlatform = getPlatformById(world.platforms, player.platformId);
   const distance = distanceBetween(player, target);
 
+  if (progress.classId === "mage" && shouldMageRetreat(player, target, world.platforms)) {
+    player.state = "MOVE";
+    if (retreatMage(player, target, world.platforms, dt)) {
+      applyGravity(player, dt);
+      moveAndCollide(player, world.platforms, dt);
+      return;
+    }
+  }
+
   if (distance <= player.attackRange && canAttackMonster(progress.classId, player, target, world.platforms)) {
     player.state = "ATTACK";
     player.velocity.x = 0;
@@ -376,6 +385,24 @@ function moveMageTowardRange(
 
   movePlayerToward(player, target.position.x + target.width / 2);
   return true;
+}
+
+function shouldMageRetreat(
+  player: SimulationState["world"]["player"],
+  target: Monster,
+  platforms: SimulationState["world"]["platforms"],
+): boolean {
+  if (target.platformId !== player.platformId) {
+    return false;
+  }
+
+  const platform = getPlatformById(platforms, player.platformId);
+  if (!platform) {
+    return false;
+  }
+
+  const horizontalDistance = Math.abs((target.position.x + target.width / 2) - (player.position.x + player.width / 2));
+  return horizontalDistance < MAGE_AI_BALANCE.tooCloseDistance;
 }
 
 function retreatMage(
