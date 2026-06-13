@@ -40,6 +40,7 @@ interface GameStore {
   equipBestItems: () => void;
   logPhase3BDemo: () => void;
   summonRelicForDebug: () => void;
+  summonRelicNow: () => void;
   equipRelicForDebug: (relicId: RelicId) => void;
   logPhase3CDemo: () => void;
   logPhase3DDemo: () => void;
@@ -58,6 +59,7 @@ interface GameStore {
   debugFillBlood: () => void;
   debugToggleBossGate: (sinId: SinId) => void;
   debugTriggerAltarCounter: () => void;
+  startCurrentChallenge: () => void;
   debugResetGame: () => Promise<void>;
   debugDumpSaveJson: () => void;
   hydrate: () => Promise<void>;
@@ -213,6 +215,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const required = summonRequirement(simulation.progress.altar.summonCount);
       if (simulation.progress.altar.blood < required) {
         simulation.progress.altar.blood = required;
+      }
+      summonRelic(simulation.progress.altar, simulation.world.rng);
+      return { simulation };
+    });
+  },
+
+  summonRelicNow: () => {
+    set((state) => {
+      const simulation = cloneSimulation(state.simulation);
+      const required = summonRequirement(simulation.progress.altar.summonCount);
+      if (simulation.progress.altar.blood < required) {
+        return state;
       }
       summonRelic(simulation.progress.altar, simulation.world.rng);
       return { simulation };
@@ -458,6 +472,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const simulation = cloneSimulation(state.simulation);
       triggerAltarCounter(simulation);
       return { simulation };
+    });
+  },
+
+  startCurrentChallenge: () => {
+    set((state) => {
+      const simulation = cloneSimulation(state.simulation);
+      const stageId = simulation.progress.currentStage;
+      const stage = STAGES[stageId];
+      startStage(simulation.progress, stageId, stage?.isBoss ? "boss" : "challenge");
+      return {
+        simulation: createInitialSimulation(stageId, simulation.progress, simulation.world.rng.seed),
+      };
     });
   },
 

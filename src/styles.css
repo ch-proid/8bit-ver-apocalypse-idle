@@ -60,40 +60,46 @@ button {
   background: #0a1208;
 }
 
-.console-shell {
+.console {
   position: relative;
-  width: 100%;
-  max-width: 420px;
+  width: min(100%, 430px);
   height: 100dvh;
+  min-height: 560px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  padding: 12px 12px 0;
   background: var(--shell);
   border-left: 2px solid var(--shell-lo);
   border-right: 2px solid var(--shell-lo);
+  box-shadow: inset 0 2px 0 var(--shell-hi);
 }
 
-.console-shell::before {
+.console::after {
   content: "";
   position: absolute;
-  inset: 0 0 auto;
-  height: 2px;
-  background: var(--shell-hi);
+  right: 0;
+  bottom: 0;
+  width: 88px;
+  height: 88px;
+  border-top-left-radius: 54px;
+  background: rgba(57, 86, 45, 0.45);
+  pointer-events: none;
 }
 
 .bezel {
-  margin: 10px 12px 6px;
-  padding: 7px 9px 11px;
-  display: flex;
   min-height: 0;
-  flex: 1;
+  flex: 1 1 auto;
+  display: flex;
   flex-direction: column;
-  border-radius: 8px 8px 34px 8px;
+  padding: 8px 10px 12px;
+  border-radius: 9px 9px 34px 9px;
   background: #10150e;
-  box-shadow: inset 0 2px 0 #000, inset 0 -1px 0 var(--shell-hi);
+  box-shadow: inset 0 2px 0 #000, inset 0 -1px 0 var(--shell-hi), 0 2px 0 var(--shell-lo);
 }
 
 .bezel-top {
+  flex: 0 0 18px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -101,10 +107,22 @@ button {
   color: #56714a;
   font-size: 8px;
   font-weight: 700;
-  letter-spacing: 0.3em;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
 }
 
-.save-led {
+.silk {
+  color: #56714a;
+}
+
+.led-wrap {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  letter-spacing: 0;
+}
+
+.led {
   width: 7px;
   height: 7px;
   border-radius: 50%;
@@ -112,17 +130,38 @@ button {
   box-shadow: inset 0 1px 1px #000;
 }
 
-.save-led.on {
+.led.on {
   background: var(--blood);
-  box-shadow: 0 0 6px var(--blood);
+  box-shadow: 0 0 7px var(--blood);
+  animation: ledPulse 0.8s steps(2) infinite;
+}
+
+@keyframes ledPulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.dmg-sw {
+  min-width: 32px;
+  height: 14px;
+  border: 1px solid var(--shell-lo);
+  background: var(--ink);
+  color: #56714a;
+  font-size: 7px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.dmg-sw.on {
+  border-color: var(--light);
+  color: var(--light);
 }
 
 .screen {
   position: relative;
-  flex: 1;
   min-height: 0;
-  display: flex;
-  flex-direction: column;
+  flex: 1 1 auto;
   overflow: hidden;
   border: 2px solid #000;
   background: var(--ink);
@@ -132,50 +171,41 @@ button {
   content: "";
   position: absolute;
   inset: 0;
-  z-index: 20;
+  z-index: 10;
   pointer-events: none;
   background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.16) 0 1px, transparent 1px 3px);
 }
 
-.top-hud {
-  position: relative;
+.lcd-hud {
+  position: absolute;
   z-index: 2;
+  inset: 0 0 auto;
+  height: 22px;
   display: flex;
-  flex: 0 0 auto;
   align-items: center;
   justify-content: space-between;
-  gap: 6px;
-  min-height: 24px;
-  padding: 5px 9px;
+  gap: 8px;
+  padding: 4px 8px;
   border-bottom: 1px solid var(--line);
   background: var(--ink);
   color: var(--light);
   font-size: 10px;
   font-weight: 700;
-  pointer-events: auto;
+  pointer-events: none;
 }
 
-.gold-text {
-  color: var(--gold);
-}
-
-.blood-text {
-  color: var(--blood);
-}
-
-.dim {
-  color: var(--mid);
-}
-
-.game-canvas-host {
-  position: relative;
+.game {
+  position: absolute;
+  top: 22px;
+  left: 0;
+  right: 0;
   z-index: 0;
-  flex: 0 0 auto;
-  min-height: 0;
   width: 100%;
+  max-height: calc(100% - 22px);
   aspect-ratio: 160 / 144;
-  line-height: 0;
+  overflow: hidden;
   background: #000;
+  line-height: 0;
 }
 
 .pixi-canvas {
@@ -187,37 +217,28 @@ button {
   image-rendering: pixelated;
 }
 
-.gb-bar {
-  width: 78px;
-  height: 9px;
-  padding: 1px;
-  border: 1px solid var(--light);
-  background: var(--ink);
+.goldc {
+  color: var(--gold);
 }
 
-.gb-bar.wide {
-  width: 100%;
-  flex: 1;
+.bloodc {
+  color: var(--blood);
 }
 
-.gb-bar.tall {
-  height: 12px;
+.dim {
+  color: var(--mid);
 }
 
-.gb-bar i {
-  display: block;
-  height: 100%;
-  background: repeating-linear-gradient(90deg, var(--blood) 0 4px, var(--ink) 4px 5px);
+.tiny {
+  margin: 0;
+  font-size: 9px;
+  line-height: 1.45;
 }
 
-.gb-bar.xp i {
-  background: repeating-linear-gradient(90deg, var(--accent) 0 4px, var(--ink) 4px 5px);
-}
-
-.game-panel {
+.panel {
   position: absolute;
   inset: 0;
-  z-index: 8;
+  z-index: 6;
   display: none;
   flex-direction: column;
   gap: 7px;
@@ -227,16 +248,17 @@ button {
   pointer-events: auto;
 }
 
-.game-panel.on {
+.panel.on {
   display: flex;
 }
 
 .statbar {
-  display: flex;
   flex: 0 0 auto;
+  display: flex;
   justify-content: space-between;
   gap: 8px;
-  padding-bottom: 1px;
+  min-height: 13px;
+  color: var(--light);
   font-size: 10px;
   font-weight: 700;
 }
@@ -244,13 +266,13 @@ button {
 .win {
   position: relative;
   flex: 0 0 auto;
-  padding: 10px 10px 8px;
+  padding: 10px 9px 8px;
   border: 2px solid var(--light);
   background: var(--bg);
   box-shadow: inset 0 0 0 2px var(--ink);
 }
 
-.win-title {
+.win-t {
   position: absolute;
   top: -8px;
   left: 8px;
@@ -259,23 +281,18 @@ button {
   color: var(--light);
   font-size: 9px;
   font-weight: 700;
-  letter-spacing: 0.25em;
+  letter-spacing: 0.22em;
 }
 
-.menu-row {
+.mi {
+  min-height: 17px;
   display: flex;
   align-items: center;
-  gap: 6px;
-  min-height: 18px;
-  padding: 3px 2px;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.menu-row.compact {
-  min-height: 16px;
-  padding-bottom: 0;
+  gap: 5px;
+  padding: 2px 0;
+  color: var(--light);
   font-size: 10px;
+  font-weight: 700;
 }
 
 .dots {
@@ -285,55 +302,152 @@ button {
   transform: translateY(-3px);
 }
 
-.value {
+.mi-fill {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  min-width: 34px;
+}
+
+.v {
+  white-space: nowrap;
+}
+
+.cur {
+  color: var(--light);
+  font-size: 9px;
+}
+
+.gb-bar {
+  width: 100%;
+  height: 9px;
+  display: block;
+  padding: 1px;
+  border: 1px solid var(--light);
+  background: var(--ink);
+}
+
+.gb-bar.tall {
+  height: 12px;
+}
+
+.gb-bar i {
+  display: block;
+  height: 100%;
+}
+
+.gb-bar.xp i {
+  background: repeating-linear-gradient(90deg, var(--accent) 0 4px, var(--ink) 4px 5px);
+}
+
+.gb-bar.blood i {
+  background: repeating-linear-gradient(90deg, var(--blood) 0 4px, var(--ink) 4px 5px);
+}
+
+.status-grid {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.skin-mini {
+  width: 42px;
+  height: 54px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  background: var(--ink);
+  cursor: pointer;
+}
+
+.status-lines {
+  min-width: 0;
+}
+
+.preset-row {
+  min-height: 20px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding-top: 4px;
+  font-size: 9px;
   font-weight: 700;
 }
 
-.inverse-video {
-  margin-top: 5px;
-  padding: 5px 4px;
+.pbox {
+  min-width: 22px;
+  height: 16px;
+  border: 1px solid var(--mid);
+  background: var(--ink);
+  color: var(--light);
+  font-size: 8px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pbox.on,
+.pbox:active {
+  border-color: var(--light);
   background: var(--light);
   color: var(--ink);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.15em;
-  text-align: center;
 }
 
-.inverse-video.dark,
-.inverse-video.is-muted {
+.pbox:disabled {
+  color: var(--mid);
+  cursor: default;
+  opacity: 0.5;
+}
+
+.inv-vid {
+  width: 100%;
+  min-height: 24px;
+  border: 0;
+  background: var(--light);
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-align: center;
+  cursor: pointer;
+}
+
+.inv-vid.off {
   border: 1px solid var(--line);
   background: var(--ink);
   color: var(--mid);
 }
 
-.panel-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-  margin-top: 6px;
-}
-
 .slots,
-.shop-grid {
+.shop,
+.grid6,
+.relics {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 6px;
+  gap: 5px;
 }
 
-.shop-grid {
+.slots {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.shop,
+.grid6 {
   grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.relics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .slot {
   position: relative;
-  aspect-ratio: 1.3;
+  aspect-ratio: 1.25;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--line);
+  border: 1px solid var(--r-common);
   background: var(--ink);
-  color: var(--mid);
+  color: var(--light);
   font-size: 13px;
   font-weight: 700;
 }
@@ -346,13 +460,7 @@ button {
   font-size: 6px;
 }
 
-.inventory-grid {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 4px;
-}
-
-.inventory-cell {
+.cell {
   position: relative;
   aspect-ratio: 1;
   display: flex;
@@ -365,7 +473,7 @@ button {
   font-weight: 700;
 }
 
-.inventory-cell small {
+.cell small {
   position: absolute;
   left: 0;
   right: 0;
@@ -375,46 +483,44 @@ button {
   text-align: center;
 }
 
-.inventory-cell.empty {
-  border-color: var(--line);
-  opacity: 0.5;
+.off {
+  opacity: 0.52;
 }
 
-.rarity-common {
+.r-common {
   border-color: var(--r-common);
 }
 
-.rarity-magic {
+.r-magic {
   border-color: var(--r-magic);
 }
 
-.rarity-rare {
+.r-rare {
   border-color: var(--r-rare);
 }
 
-.rarity-epic {
+.r-epic {
   border-color: var(--r-epic);
 }
 
-.rarity-legendary {
+.r-legendary {
   border-color: var(--r-legendary);
 }
 
-.relic-copy {
-  margin: 0;
-  color: var(--mid);
-  font-size: 10px;
-  line-height: 1.6;
-}
-
-.relic-grid {
+.gear-actions,
+.altar-actions {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 5px;
+  margin-top: 6px;
 }
 
-.relic-card {
-  min-height: 40px;
+.altar-actions {
+  grid-template-columns: 1fr 1fr;
+}
+
+.relic {
+  min-height: 44px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -422,52 +528,195 @@ button {
   gap: 2px;
   border: 1px solid var(--line);
   background: var(--ink);
-  font-size: 9px;
+  color: var(--light);
+  font-size: 8px;
   text-align: center;
 }
 
-.relic-card.equipped {
+.relic.on {
   border-color: var(--light);
+  box-shadow: inset 0 0 0 1px var(--light);
 }
 
-.relic-card.unknown {
-  opacity: 0.45;
-}
-
-.relic-card small {
-  color: var(--r-rare);
+.sin {
+  color: var(--blood);
   font-size: 7px;
 }
 
-.deck {
-  display: flex;
-  flex: 0 0 auto;
-  justify-content: center;
-  gap: 11px;
-  padding: 8px 16px 13px;
+.st,
+.stars {
+  color: var(--gold);
+  font-size: 7px;
 }
 
-.deck button {
-  width: 52px;
-  height: 36px;
-  border: 0;
-  border-radius: 20px;
-  background: var(--shell-lo);
-  color: var(--silk);
+.survivor-panel {
+  z-index: 7;
+  justify-content: center;
+}
+
+.survivor-win {
+  margin-top: auto;
+  margin-bottom: auto;
+}
+
+.survivor-list {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 5px;
+  margin-bottom: 8px;
+}
+
+.skin-card {
+  min-height: 66px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  background: var(--ink);
   cursor: pointer;
-  box-shadow: inset 0 -3px 0 #1f3318, inset 0 2px 0 var(--shell-hi), 0 2px 0 #1f3318;
+}
+
+.skin-card.on {
+  border-color: var(--light);
+  background: #111a21;
+}
+
+.survivor-name {
+  gap: 7px;
+}
+
+.pick-btn {
+  max-width: 72px;
+}
+
+.survivor-sprite {
+  display: grid;
+  gap: 0;
+}
+
+.survivor-sprite i {
+  width: 100%;
+  height: 100%;
+}
+
+.survivor-sprite .p0 {
+  background: transparent;
+}
+
+.survivor-sprite .p1 {
+  background: var(--ink);
+}
+
+.survivor-sprite .p2 {
+  background: var(--mid);
+}
+
+.survivor-sprite .p3 {
+  background: var(--light);
+}
+
+.survivor-sprite .p4 {
+  background: var(--accent);
+}
+
+.deck {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 124px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto 1fr;
+  column-gap: 8px;
+  padding: 12px 4px 16px;
+}
+
+.tab-btns {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.pbtn,
+.pill {
+  width: 46px;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  color: var(--silk);
   font-size: 8px;
   font-weight: 700;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.08em;
 }
 
-.deck button:active,
-.deck button.is-active {
+.pbtn span,
+.pill span {
+  max-width: 44px;
+  overflow: hidden;
+  text-align: center;
+}
+
+.pill span {
+  font-size: 7px;
+  letter-spacing: 0;
+}
+
+.pbtn button {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--shell-lo);
+  cursor: pointer;
+  box-shadow: inset 0 -3px 0 #1f3318, inset 0 2px 0 var(--shell-hi), 0 2px 0 #1f3318;
+}
+
+.pbtn.on button,
+.pbtn button:active {
   background: #2c4222;
-  color: var(--light);
   box-shadow: inset 0 3px 4px #14230f;
   outline: 2px solid var(--light);
-  outline-offset: -6px;
+  outline-offset: -7px;
+}
+
+.pills {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.pill button {
+  width: 44px;
+  height: 18px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--shell-lo);
+  cursor: pointer;
+  box-shadow: inset 0 -2px 0 #1f3318, inset 0 1px 0 var(--shell-hi), 0 2px 0 #1f3318;
+  transform: rotate(-18deg);
+}
+
+.pill button:active {
+  background: #2c4222;
+  box-shadow: inset 0 2px 3px #14230f;
+}
+
+.grille {
+  grid-column: 2;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 4px;
+  padding-right: 10px;
+  padding-bottom: 2px;
+}
+
+.grille i {
+  width: 4px;
+  height: 44px;
+  display: block;
+  border-radius: 4px;
+  background: var(--shell-lo);
+  transform: rotate(18deg);
+  box-shadow: inset 1px 0 0 rgba(0, 0, 0, 0.25);
 }
 
 .debug-panel {
@@ -522,11 +771,11 @@ button {
 }
 
 .debug-panel label {
+  min-width: 0;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 3px;
-  min-width: 0;
 }
 
 .debug-panel input,
@@ -578,19 +827,22 @@ button {
 }
 
 @media (max-height: 640px) {
-  .game-panel {
+  .console {
+    min-height: 0;
+  }
+
+  .panel {
     gap: 5px;
     padding: 7px;
   }
 
   .win {
-    padding: 8px 8px 6px;
+    padding: 8px 7px 6px;
   }
 
-  .menu-row {
+  .mi {
     min-height: 15px;
-    padding: 2px;
-    font-size: 10px;
+    font-size: 9px;
   }
 
   .debug-panel {

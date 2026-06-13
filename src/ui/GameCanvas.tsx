@@ -2,8 +2,13 @@ import { useEffect, useRef } from "react";
 import { PixiWorld } from "../render/PixiWorld";
 import { useGameStore } from "../store/gameStore";
 
-export function GameCanvas() {
+export function GameCanvas({ dmgMode }: { dmgMode: boolean }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
+  const dmgModeRef = useRef(dmgMode);
+
+  useEffect(() => {
+    dmgModeRef.current = dmgMode;
+  }, [dmgMode]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -20,7 +25,7 @@ export function GameCanvas() {
         return;
       }
 
-      pixi.render(useGameStore.getState().simulation);
+      pixi.render(useGameStore.getState().simulation, { dmgMode: dmgModeRef.current });
       frameId = window.requestAnimationFrame(renderFrame);
     };
 
@@ -39,5 +44,5 @@ export function GameCanvas() {
     };
   }, []);
 
-  return <div className="game-canvas-host" ref={hostRef} />;
+  return <div className="game" ref={hostRef} />;
 }
