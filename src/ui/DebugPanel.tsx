@@ -5,6 +5,7 @@ import { RELIC_IDS, RELICS } from "../data/relics";
 import { DEBUG_GRANTS } from "../data/balance";
 import { useGameStore, type DebugSpeed } from "../store/gameStore";
 import type { BossCombatState, ItemRarity, ItemSlot, RelicId, SinId } from "../core/types";
+import { formatDuration, formatNumber } from "./format";
 
 const BOSS_STAGE_IDS = [10, 20, 30, 40, 50, 60];
 const SPEEDS: DebugSpeed[] = [1, 4, 16];
@@ -19,6 +20,7 @@ export function DebugPanel({ open }: DebugPanelProps) {
   const bossState = useGameStore((state) => state.simulation.world.boss);
   const debugSpeed = useGameStore((state) => state.debugSpeed);
   const debugLog = useGameStore((state) => state.debugLog);
+  const offlineReward = useGameStore((state) => state.lastOfflineReward);
   const addGold = useGameStore((state) => state.addGold);
   const addExperience = useGameStore((state) => state.addExperience);
   const saveNow = useGameStore((state) => state.saveNow);
@@ -77,6 +79,9 @@ export function DebugPanel({ open }: DebugPanelProps) {
         <span>ST {progress.currentStage} / UNL {progress.stageProgress.unlockedStage}</span>
         <span>SPD x{debugSpeed}</span>
         <span>{bossStatusLabel(bossState)}</span>
+        {offlineReward ? (
+          <span>AFK {formatDuration(offlineReward.elapsedSeconds)} +{formatNumber(offlineReward.gold)}G</span>
+        ) : null}
       </div>
 
       <DebugSection title="Progress">

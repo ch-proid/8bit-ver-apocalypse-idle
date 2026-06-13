@@ -325,6 +325,8 @@ export class PixiWorld {
       }
     }
 
+    const stackedCounts = new Map<string, number>();
+
     for (const text of texts) {
       const item = getOrCreate(this.floating, text.id, () => {
         const created = new Text({
@@ -346,7 +348,10 @@ export class PixiWorld {
       item.alpha = Math.max(0, 1 - text.age / text.ttl);
       const display = this.floatingDisplays.get(text.id)
         ?? { x: quantize(text.position.x, STEPPED_MOTION.floatingTextStepPx), y: quantize(text.position.y, STEPPED_MOTION.floatingTextStepPx) };
-      item.position.set(display.x, display.y);
+      const stackKey = `${display.x}:${display.y}`;
+      const stackIndex = stackedCounts.get(stackKey) ?? 0;
+      stackedCounts.set(stackKey, stackIndex + 1);
+      item.position.set(display.x, display.y + stackIndex * FLOATING_TEXT_RENDER.stackOffsetY);
     }
   }
 

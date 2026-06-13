@@ -66,4 +66,5 @@ export const FLOATING_TEXT_RENDER = {
   fontSize: 7,
   fontWeight: "700",
   anchor: 0.5,
+  stackOffsetY: -7,
 } as const;

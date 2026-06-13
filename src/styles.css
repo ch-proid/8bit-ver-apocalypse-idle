@@ -11,6 +11,11 @@
   --shell-hi: #8db86e;
   --shell-lo: #39562d;
   --silk: #2c4222;
+  --r-common: #8d93a0;
+  --r-magic: #4a9be0;
+  --r-rare: #e0c04a;
+  --r-epic: #a45ae0;
+  --r-legendary: #e08a3a;
 }
 
 * {
@@ -32,8 +37,19 @@ body {
   font-family: "Courier New", ui-monospace, monospace;
 }
 
-button {
+button,
+input,
+select,
+textarea {
   font: inherit;
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.kr {
+  font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
 }
 
 .app-shell {
@@ -60,9 +76,7 @@ button {
 .console-shell::before {
   content: "";
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
+  inset: 0 0 auto;
   height: 2px;
   background: var(--shell-hi);
 }
@@ -86,6 +100,7 @@ button {
   padding: 0 2px 6px;
   color: #56714a;
   font-size: 8px;
+  font-weight: 700;
   letter-spacing: 0.3em;
 }
 
@@ -106,6 +121,8 @@ button {
   position: relative;
   flex: 1;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   border: 2px solid #000;
   background: var(--ink);
@@ -115,19 +132,50 @@ button {
   content: "";
   position: absolute;
   inset: 0;
-  z-index: 8;
+  z-index: 20;
   pointer-events: none;
   background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.16) 0 1px, transparent 1px 3px);
+}
+
+.top-hud {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-height: 24px;
+  padding: 5px 9px;
+  border-bottom: 1px solid var(--line);
+  background: var(--ink);
+  color: var(--light);
+  font-size: 10px;
+  font-weight: 700;
+  pointer-events: auto;
+}
+
+.gold-text {
+  color: var(--gold);
+}
+
+.blood-text {
+  color: var(--blood);
+}
+
+.dim {
+  color: var(--mid);
 }
 
 .game-canvas-host {
   position: relative;
   z-index: 0;
+  flex: 0 0 auto;
+  min-height: 0;
   width: 100%;
   aspect-ratio: 160 / 144;
   line-height: 0;
   background: #000;
-  border-bottom: 2px solid #000;
 }
 
 .pixi-canvas {
@@ -139,50 +187,21 @@ button {
   image-rendering: pixelated;
 }
 
-.ui-layer {
-  position: absolute;
-  inset: 0;
-  z-index: 6;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  pointer-events: none;
-}
-
-.top-hud,
-.bottom-panel,
-.bar-row,
-.phase3-panel,
-.offline-note {
-  pointer-events: auto;
-  background: rgba(10, 14, 19, 0.88);
-}
-
-.top-hud {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 5px 9px;
-  border-bottom: 1px solid var(--line);
-  font-size: 10px;
-  font-weight: 700;
-}
-
-.bar-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 9px;
-  border-bottom: 1px solid rgba(38, 51, 63, 0.7);
-  font-size: 9px;
-}
-
 .gb-bar {
   width: 78px;
   height: 9px;
   padding: 1px;
   border: 1px solid var(--light);
   background: var(--ink);
+}
+
+.gb-bar.wide {
+  width: 100%;
+  flex: 1;
+}
+
+.gb-bar.tall {
+  height: 12px;
 }
 
 .gb-bar i {
@@ -195,129 +214,297 @@ button {
   background: repeating-linear-gradient(90deg, var(--accent) 0 4px, var(--ink) 4px 5px);
 }
 
-.bottom-panel {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.game-panel {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  display: none;
+  flex-direction: column;
   gap: 7px;
-  padding: 7px 9px;
-  font-size: 10px;
-  border-top: 1px solid var(--line);
+  overflow: hidden;
+  padding: 9px;
+  background: var(--bg);
+  pointer-events: auto;
 }
 
-.bottom-panel button,
-.phase3-panel button,
-.deck button {
-  cursor: pointer;
-  border: 1px solid var(--light);
-  background: var(--light);
-  color: var(--ink);
+.game-panel.on {
+  display: flex;
+}
+
+.statbar {
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 1px;
+  font-size: 10px;
   font-weight: 700;
 }
 
-.bottom-panel button {
-  padding: 4px 8px;
+.win {
+  position: relative;
+  flex: 0 0 auto;
+  padding: 10px 10px 8px;
+  border: 2px solid var(--light);
+  background: var(--bg);
+  box-shadow: inset 0 0 0 2px var(--ink);
 }
 
-.bottom-panel button:disabled,
-.phase3-panel button:disabled {
-  cursor: default;
+.win-title {
+  position: absolute;
+  top: -8px;
+  left: 8px;
+  padding: 0 5px;
+  background: var(--bg);
+  color: var(--light);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.25em;
+}
+
+.menu-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 18px;
+  padding: 3px 2px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.menu-row.compact {
+  min-height: 16px;
+  padding-bottom: 0;
+  font-size: 10px;
+}
+
+.dots {
+  flex: 1;
+  min-width: 8px;
+  border-bottom: 1px dotted var(--mid);
+  transform: translateY(-3px);
+}
+
+.value {
+  font-weight: 700;
+}
+
+.inverse-video {
+  margin-top: 5px;
+  padding: 5px 4px;
+  background: var(--light);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-align: center;
+}
+
+.inverse-video.dark,
+.inverse-video.is-muted {
+  border: 1px solid var(--line);
+  background: var(--ink);
+  color: var(--mid);
+}
+
+.panel-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.slots,
+.shop-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.shop-grid {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.slot {
+  position: relative;
+  aspect-ratio: 1.3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  background: var(--ink);
+  color: var(--mid);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.slot small {
+  position: absolute;
+  right: 2px;
+  bottom: 1px;
+  color: var(--mid);
+  font-size: 6px;
+}
+
+.inventory-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.inventory-cell {
+  position: relative;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--r-common);
+  background: var(--ink);
+  color: var(--light);
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.inventory-cell small {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  color: var(--gold);
+  font-size: 6px;
+  text-align: center;
+}
+
+.inventory-cell.empty {
+  border-color: var(--line);
+  opacity: 0.5;
+}
+
+.rarity-common {
+  border-color: var(--r-common);
+}
+
+.rarity-magic {
+  border-color: var(--r-magic);
+}
+
+.rarity-rare {
+  border-color: var(--r-rare);
+}
+
+.rarity-epic {
+  border-color: var(--r-epic);
+}
+
+.rarity-legendary {
+  border-color: var(--r-legendary);
+}
+
+.relic-copy {
+  margin: 0;
+  color: var(--mid);
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.relic-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.relic-card {
+  min-height: 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border: 1px solid var(--line);
+  background: var(--ink);
+  font-size: 9px;
+  text-align: center;
+}
+
+.relic-card.equipped {
+  border-color: var(--light);
+}
+
+.relic-card.unknown {
   opacity: 0.45;
 }
 
-.phase3-panel {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 5px;
-  padding: 3px 9px;
-  border-bottom: 1px solid rgba(38, 51, 63, 0.7);
-  font-size: 8px;
-}
-
-.phase3-panel button {
-  padding: 2px 5px;
-  font-size: 8px;
-}
-
-.stat-panel {
-  border-top: 1px solid rgba(38, 51, 63, 0.7);
-}
-
-.button-panel {
-  border-top: 1px solid rgba(38, 51, 63, 0.7);
-  border-bottom: none;
-}
-
-.offline-note {
-  position: absolute;
-  left: 9px;
-  right: 9px;
-  bottom: 34px;
-  padding: 6px;
-  border: 1px solid var(--blood);
-  color: var(--blood);
-  font-size: 10px;
-  text-align: center;
+.relic-card small {
+  color: var(--r-rare);
+  font-size: 7px;
 }
 
 .deck {
   display: flex;
   flex: 0 0 auto;
   justify-content: center;
-  gap: 13px;
+  gap: 11px;
   padding: 8px 16px 13px;
 }
 
 .deck button {
   width: 52px;
   height: 36px;
+  border: 0;
   border-radius: 20px;
-  border: none;
   background: var(--shell-lo);
   color: var(--silk);
+  cursor: pointer;
   box-shadow: inset 0 -3px 0 #1f3318, inset 0 2px 0 var(--shell-hi), 0 2px 0 #1f3318;
   font-size: 8px;
+  font-weight: 700;
   letter-spacing: 0.12em;
 }
 
+.deck button:active,
 .deck button.is-active {
-  background: var(--blood);
+  background: #2c4222;
   color: var(--light);
+  box-shadow: inset 0 3px 4px #14230f;
+  outline: 2px solid var(--light);
+  outline-offset: -6px;
 }
 
 .debug-panel {
   position: absolute;
-  left: 6px;
-  right: 6px;
-  top: 28px;
-  bottom: 6px;
-  z-index: 10;
-  pointer-events: auto;
-  overflow: auto;
-  padding: 7px;
-  border: 1px solid var(--light);
-  background: rgba(10, 14, 19, 0.96);
+  inset: 0;
+  z-index: 12;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px;
+  border: 2px solid var(--light);
+  background: rgba(10, 14, 19, 0.98);
   color: var(--light);
   font-size: 8px;
-}
-
-.debug-header,
-.debug-grid {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  flex-wrap: wrap;
+  pointer-events: auto;
 }
 
 .debug-header {
-  justify-content: space-between;
-  margin-bottom: 5px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
   color: var(--gold);
+  font-weight: 700;
+}
+
+.debug-header span,
+.debug-header strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .debug-section {
-  margin: 0 0 6px;
+  margin: 0;
   padding: 5px;
   border: 1px solid rgba(216, 227, 200, 0.35);
 }
@@ -327,16 +514,27 @@ button {
   color: var(--accent);
 }
 
+.debug-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  align-items: stretch;
+}
+
 .debug-panel label {
-  display: inline-flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 3px;
+  min-width: 0;
 }
 
 .debug-panel input,
 .debug-panel select,
 .debug-panel textarea,
 .debug-panel button {
+  min-width: 0;
+  width: 100%;
   border: 1px solid var(--mid);
   background: var(--ink);
   color: var(--light);
@@ -344,16 +542,17 @@ button {
 }
 
 .debug-panel input,
-.debug-panel select {
-  min-width: 42px;
-  max-width: 74px;
-  height: 20px;
+.debug-panel select,
+.debug-panel button {
+  min-height: 20px;
 }
 
 .debug-panel button {
-  min-height: 20px;
-  padding: 2px 5px;
+  padding: 2px 4px;
   cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .debug-panel button.is-on {
@@ -367,15 +566,35 @@ button {
 }
 
 .debug-check input {
-  min-width: auto;
   width: 12px;
   height: 12px;
 }
 
 .debug-panel textarea {
-  width: 100%;
-  min-height: 72px;
+  flex: 0 0 68px;
+  min-height: 68px;
   resize: vertical;
-  margin-top: 2px;
   white-space: pre;
+}
+
+@media (max-height: 640px) {
+  .game-panel {
+    gap: 5px;
+    padding: 7px;
+  }
+
+  .win {
+    padding: 8px 8px 6px;
+  }
+
+  .menu-row {
+    min-height: 15px;
+    padding: 2px;
+    font-size: 10px;
+  }
+
+  .debug-panel {
+    gap: 4px;
+    padding: 6px;
+  }
 }
