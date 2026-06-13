@@ -16,6 +16,7 @@ import { CHAPTER_PALETTES, PLACEHOLDER_COLORS } from "../data/palettes";
 import type { ClassId, FloatingText, Monster, SimulationState } from "../core/types";
 import {
   BACKGROUND_RENDER,
+  EXPERIENCE_BAR_RENDER,
   FLOATING_TEXT_RENDER,
   GAMEBOY_SCREEN_HEIGHT,
   GAMEBOY_SCREEN_WIDTH,
@@ -23,6 +24,7 @@ import {
   MONSTER_FALLBACK_RENDER,
   MONSTER_TRANSITION_RENDER,
   PIXI_RENDER_OPTIONS,
+  PLAYER_HP_BAR_RENDER,
   PLAYER_FALLBACK_RENDER,
   PLATFORM_RENDER,
   PROJECTILE_RENDER,
@@ -72,6 +74,9 @@ export class PixiWorld {
   private stageTerrainSprite: Sprite | null = null;
   private platforms = new Graphics();
   private playerFallback = new Graphics();
+  private playerHpBar = new Graphics();
+  private experienceBar = new Graphics();
+  private experienceText: Text | null = null;
   private playerSprite: Sprite | null = null;
   private playerClassId: ClassId | null = null;
   private loadingPlayerClassId: ClassId | null = null;
@@ -118,6 +123,8 @@ export class PixiWorld {
     this.world.addChild(this.platforms);
     this.world.addChild(this.playerFallback);
     this.world.addChild(this.projectileLayer);
+    this.world.addChild(this.playerHpBar);
+    app.stage.addChild(this.experienceBar);
 
     void this.loadStageMap(app);
   }
@@ -134,6 +141,7 @@ export class PixiWorld {
     }
     this.stageBackgroundSprite = null;
     this.stageTerrainSprite = null;
+    this.experienceText = null;
     this.playerSprite = null;
     this.playerClassId = null;
     this.loadingPlayerClassId = null;
@@ -169,10 +177,12 @@ export class PixiWorld {
     this.drawStageMap(dmgMode);
     this.drawPlatforms(simulation, dmgMode);
     this.drawPlayer(simulation, dmgMode);
+    this.drawPlayerHpBar(simulation, dmgMode);
     this.drawMonsters(simulation, dmgMode);
     this.maybeLaunchMageProjectile(simulation);
     this.drawProjectiles(simulation, dmgMode);
     this.drawFloatingTexts(simulation.world.floatingTexts, dmgMode);
+    this.drawExperienceBar(simulation, dmgMode);
     this.lastPlayerAttackTimer = simulation.world.player.attackTimer;
   }
 
@@ -344,6 +354,30 @@ export class PixiWorld {
     ).fill(colors.playerAccent);
   }
 
+  private drawPlayerHpBar(simulation: SimulationState, dmgMode: boolean): void {
+    const { player } = simulation.world;
+    const colors = renderColors(dmgMode);
+    const hpPercent = clamp(player.hp / Math.max(1, player.maxHp), 0, 1);
+    this.playerHpBar.clear();
+
+    if (PLAYER_HP_BAR_RENDER.hideWhenFull && hpPercent >= 1) {
+      this.playerHpBar.alpha = 0;
+      return;
+    }
+
+    const display = this.playerDisplay ?? toEntityDisplay(player.position.x, player.position.y, player.direction, this.walkFrame);
+    const x = Math.round(display.x + player.width / 2 - PLAYER_HP_BAR_RENDER.width / 2);
+    const y = Math.round(display.y + PLAYER_HP_BAR_RENDER.offsetY);
+    this.playerHpBar.alpha = 1;
+    this.playerHpBar
+      .rect(x, y, PLAYER_HP_BAR_RENDER.width, PLAYER_HP_BAR_RENDER.height)
+      .fill(colors.hpBack);
+    this.playerHpBar
+      .rect(x, y, Math.round(PLAYER_HP_BAR_RENDER.width * hpPercent), PLAYER_HP_BAR_RENDER.height)
+      .fill(colors.hp);
+    this.world.addChild(this.playerHpBar);
+  }
+
   private drawMonsters(simulation: SimulationState, dmgMode: boolean): void {
     const aliveIds = new Set(simulation.world.monsters.map((monster) => monster.instanceId));
 
@@ -510,6 +544,11 @@ export class PixiWorld {
       const item = getOrCreate(this.floating, text.id, () => {
         const created = new Text({
           text: text.value,
+          resolution: FLOATING_TEXT_RENDER.resolution,
+          roundPixels: true,
+          textureStyle: {
+            scaleMode: "nearest",
+          },
           style: new TextStyle({
             fontFamily: FLOATING_TEXT_RENDER.fontFamily,
             fontSize: FLOATING_TEXT_RENDER.fontSize,
@@ -523,6 +562,8 @@ export class PixiWorld {
       });
 
       item.text = text.value;
+      item.roundPixels = true;
+      item.resolution = FLOATING_TEXT_RENDER.resolution;
       item.style.fill = dmgMode ? colors.floatingText : text.color;
       item.alpha = Math.max(0, 1 - text.age / text.ttl);
       const display = this.floatingDisplays.get(text.id)
@@ -532,6 +573,67 @@ export class PixiWorld {
       stackedCounts.set(stackKey, stackIndex + 1);
       item.position.set(display.x, display.y + stackIndex * FLOATING_TEXT_RENDER.stackOffsetY);
     }
+  }
+
+  private drawExperienceBar(simulation: SimulationState, dmgMode: boolean): void {
+    const colors = renderColors(dmgMode);
+    const progress = simulation.progress;
+    const percent = clamp(progress.experience / Math.max(1, progress.nextExperience), 0, 1);
+    const fillWidth = Math.round(EXPERIENCE_BAR_RENDER.width * percent);
+
+    this.experienceBar.clear();
+    this.experienceBar.alpha = 1;
+    this.experienceBar
+      .rect(
+        EXPERIENCE_BAR_RENDER.x,
+        EXPERIENCE_BAR_RENDER.y,
+        EXPERIENCE_BAR_RENDER.width,
+        EXPERIENCE_BAR_RENDER.height,
+      )
+      .fill(colors.hpBack);
+
+    for (let x = 0; x < fillWidth; x += EXPERIENCE_BAR_RENDER.segmentWidth + 1) {
+      const width = Math.min(EXPERIENCE_BAR_RENDER.segmentWidth, fillWidth - x);
+      this.experienceBar
+        .rect(
+          EXPERIENCE_BAR_RENDER.x + x,
+          EXPERIENCE_BAR_RENDER.y,
+          width,
+          EXPERIENCE_BAR_RENDER.height,
+        )
+        .fill(colors.exp);
+    }
+
+    const text = this.getExperienceText();
+    text.text = `${Math.floor(percent * 100)}%`;
+    text.style.fill = colors.expText;
+    text.x = Math.round(GAMEBOY_SCREEN_WIDTH / 2);
+    text.y = EXPERIENCE_BAR_RENDER.y + EXPERIENCE_BAR_RENDER.textOffsetY;
+    this.app?.stage.addChild(this.experienceBar);
+    this.app?.stage.addChild(text);
+  }
+
+  private getExperienceText(): Text {
+    if (this.experienceText) {
+      return this.experienceText;
+    }
+
+    this.experienceText = new Text({
+      text: "0%",
+      resolution: FLOATING_TEXT_RENDER.resolution,
+      roundPixels: true,
+      textureStyle: {
+        scaleMode: "nearest",
+      },
+      style: new TextStyle({
+        fontFamily: FLOATING_TEXT_RENDER.fontFamily,
+        fontSize: FLOATING_TEXT_RENDER.fontSize,
+        fill: PLACEHOLDER_COLORS.gold,
+        fontWeight: FLOATING_TEXT_RENDER.fontWeight,
+      }),
+    });
+    this.experienceText.anchor.set(0.5, 0);
+    return this.experienceText;
   }
 
   private maybeLaunchMageProjectile(simulation: SimulationState): void {
@@ -793,6 +895,8 @@ function renderColors(dmgMode: boolean) {
       monster: CHAPTER_PALETTES.dmg[4],
       hp: CHAPTER_PALETTES.dmg[3],
       hpBack: CHAPTER_PALETTES.dmg[0],
+      exp: CHAPTER_PALETTES.dmg[3],
+      expText: CHAPTER_PALETTES.dmg[4],
       floatingText: CHAPTER_PALETTES.dmg[4],
       spriteTint: 0xe0f8d0,
       mapTint: 0xe0f8d0,
@@ -807,6 +911,8 @@ function renderColors(dmgMode: boolean) {
     monster: PLACEHOLDER_COLORS.monster,
     hp: PLACEHOLDER_COLORS.hp,
     hpBack: PLACEHOLDER_COLORS.hpBack,
+    exp: PLACEHOLDER_COLORS.playerAccent,
+    expText: PLACEHOLDER_COLORS.gold,
     floatingText: PLACEHOLDER_COLORS.gold,
     spriteTint: 0xffffff,
     mapTint: 0xffffff,

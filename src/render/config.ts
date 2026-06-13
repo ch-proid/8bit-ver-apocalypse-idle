@@ -65,12 +65,29 @@ export const HP_BAR_RENDER = {
   offsetY: -3,
 } as const;
 
+export const PLAYER_HP_BAR_RENDER = {
+  width: 14,
+  height: 2,
+  offsetY: -4,
+  hideWhenFull: true,
+} as const;
+
+export const EXPERIENCE_BAR_RENDER = {
+  x: 2,
+  y: GAMEBOY_SCREEN_HEIGHT - 6,
+  width: GAMEBOY_SCREEN_WIDTH - 4,
+  height: 4,
+  segmentWidth: 4,
+  textOffsetY: -5,
+} as const;
+
 export const FLOATING_TEXT_RENDER = {
   fontFamily: "monospace",
   fontSize: 7,
   fontWeight: "700",
   anchor: 0.5,
   stackOffsetY: -7,
+  resolution: 3,
 } as const;
 
 export const PROJECTILE_RENDER = {

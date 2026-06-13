@@ -227,6 +227,77 @@ button {
   color: var(--blood);
 }
 
+.ico-val {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  min-width: 0;
+  white-space: nowrap;
+  color: var(--light);
+  font-weight: 700;
+}
+
+.ico-val i {
+  position: relative;
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  display: inline-block;
+  image-rendering: pixelated;
+}
+
+.ico-val i::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 1px;
+}
+
+.ico-val.gold {
+  color: var(--gold);
+}
+
+.ico-val.gold i::before {
+  background: var(--gold);
+  box-shadow:
+    3px 0 var(--gold), 4px 0 var(--gold),
+    2px 1px var(--gold), 3px 1px #f2d778, 4px 1px #f2d778, 5px 1px #8f6427,
+    1px 2px var(--gold), 2px 2px #f2d778, 3px 2px var(--gold), 4px 2px var(--gold), 5px 2px #8f6427, 6px 2px #8f6427,
+    1px 3px var(--gold), 2px 3px var(--gold), 3px 3px var(--gold), 4px 3px var(--gold), 5px 3px #8f6427, 6px 3px #8f6427,
+    1px 4px var(--gold), 2px 4px var(--gold), 3px 4px var(--gold), 4px 4px #8f6427, 5px 4px #8f6427, 6px 4px #8f6427,
+    2px 5px var(--gold), 3px 5px #8f6427, 4px 5px #8f6427, 5px 5px #8f6427,
+    3px 6px #8f6427, 4px 6px #8f6427;
+}
+
+.ico-val.blood {
+  color: var(--blood);
+}
+
+.ico-val.blood i::before {
+  background: var(--blood);
+  box-shadow:
+    3px 0 #e0707a,
+    2px 1px var(--blood), 3px 1px #e0707a, 4px 1px var(--blood),
+    2px 2px var(--blood), 3px 2px var(--blood), 4px 2px var(--blood),
+    1px 3px var(--blood), 2px 3px var(--blood), 3px 3px var(--blood), 4px 3px #93303a, 5px 3px #93303a,
+    1px 4px var(--blood), 2px 4px var(--blood), 3px 4px #93303a, 4px 4px #93303a, 5px 4px #93303a,
+    2px 5px var(--blood), 3px 5px #93303a, 4px 5px #93303a,
+    3px 6px #93303a;
+}
+
+.ico-val.compact {
+  justify-content: center;
+  gap: 2px;
+}
+
+.ico-val.compact i {
+  width: 7px;
+  height: 7px;
+}
+
 .dim {
   color: var(--mid);
 }

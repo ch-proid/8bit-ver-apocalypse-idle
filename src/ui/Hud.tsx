@@ -45,14 +45,14 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
       <div className="lcd-hud" aria-label="Stage summary">
         <span>STAGE {chapter}-{stageInChapter}</span>
         <span>LV {progress.level}</span>
-        <span className="goldc">G {formatNumber(progress.gold)}</span>
+        <IconValue type="gold" value={formatNumber(progress.gold)} />
       </div>
 
       <Panel open={activePanel === "stat"} label="STAT">
         <div className="statbar">
           <span>LV {progress.level}</span>
           <span>CP {formatNumber(progress.records.dummyScore.value)}</span>
-          <span className="goldc">G {formatNumber(progress.gold)}</span>
+          <IconValue type="gold" value={formatNumber(progress.gold)} />
         </div>
 
         <Win title="STATUS">
@@ -127,7 +127,7 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
       <Panel open={activePanel === "gear"} label="GEAR">
         <div className="statbar">
           <span>BAG {progress.inventory.items.length}/{progress.inventory.capacity}</span>
-          <span className="goldc">G {formatNumber(progress.gold)}</span>
+          <IconValue type="gold" value={formatNumber(progress.gold)} />
         </div>
 
         <Win title="EQUIP">
@@ -157,7 +157,7 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
         <Win title="SHOP">
           <div className="shop">
             {progress.shop.offers.slice(0, 6).map((offer) => (
-              <ItemCell key={offer.id} item={offer.item} label={`${formatCompact(offer.price)}G`} />
+              <ItemCell key={offer.id} item={offer.item} label={<IconValue type="gold" value={formatCompact(offer.price)} compact />} />
             ))}
           </div>
         </Win>
@@ -165,8 +165,7 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
 
       <Panel open={activePanel === "altar"} label="ALTAR">
         <div className="statbar">
-          <span className="bloodc">BLOOD</span>
-          <span>{formatNumber(Math.floor(progress.altar.blood))}/{formatNumber(bloodRequired)}</span>
+          <IconValue type="blood" value={`${formatNumber(Math.floor(progress.altar.blood))}/${formatNumber(bloodRequired)}`} />
           <span>RITE {progress.altar.summonCount}</span>
         </div>
 
@@ -255,6 +254,15 @@ function GbBar({ value, tone, tall = false }: { value: number; tone: "xp" | "blo
   );
 }
 
+function IconValue({ type, value, compact = false }: { type: "gold" | "blood"; value: ReactNode; compact?: boolean }) {
+  return (
+    <span className={compact ? `ico-val ${type} compact` : `ico-val ${type}`}>
+      <i aria-hidden="true" />
+      <span>{value}</span>
+    </span>
+  );
+}
+
 function EquipmentSlot({ slot, item }: { slot: ItemSlot; item: EquipmentItem | null }) {
   return (
     <div className={item ? `slot ${rarityClass(item.rarity)}` : "slot off"}>
@@ -264,7 +272,7 @@ function EquipmentSlot({ slot, item }: { slot: ItemSlot; item: EquipmentItem | n
   );
 }
 
-function ItemCell({ item, label }: { item: EquipmentItem; label?: string }) {
+function ItemCell({ item, label }: { item: EquipmentItem; label?: ReactNode }) {
   return (
     <span className={`cell ${rarityClass(item.rarity)}`} title={`${item.rarity} ${item.slot}`}>
       <b>{statShort(item.baseStat)}</b>
