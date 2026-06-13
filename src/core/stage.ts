@@ -1,6 +1,8 @@
 import { PLAYER_BALANCE, PROGRESSION, RNG_BALANCE } from "../data/balance";
+import { BOSS_BY_STAGE } from "../data/bosses";
 import { MONSTERS } from "../data/monsters";
 import { STAGE_1, STAGES, type StageDefinition } from "../data/stages";
+import { createBossCombatState, createBossMonster } from "./boss";
 import { createDefaultProgress } from "./progression";
 import { createDefaultRelicCombatState } from "./relics";
 import { createRngState } from "./rng";
@@ -16,6 +18,7 @@ export function createInitialSimulation(
   const platforms = stage.platforms.map((platform) => ({ ...platform }));
   const floor = getPlatformById(platforms, "floor") ?? platforms[0];
   const progress = progressOverride ?? createDefaultProgress(stage.id);
+  progress.currentStage = stage.id;
   const player = {
     position: {
       x: 28,
@@ -47,6 +50,7 @@ export function createInitialSimulation(
       elapsed: 0,
       rng: createRngState(seed),
       relicCombat: createDefaultRelicCombatState(),
+      boss: stage.bossId ? createBossCombatState(stage.bossId, stage.id) : null,
       platforms,
       player,
       monsters: createStageMonsters(stage, platforms),
@@ -57,6 +61,12 @@ export function createInitialSimulation(
 }
 
 function createStageMonsters(stage: StageDefinition, platforms: Platform[]): Monster[] {
+  const boss = BOSS_BY_STAGE[stage.id];
+  if (boss) {
+    const floor = getPlatformById(platforms, "floor") ?? platforms[0];
+    return [createBossMonster(boss.id, floor)];
+  }
+
   const monsters: Monster[] = [];
   let index = 0;
 
@@ -96,6 +106,7 @@ function createStageMonsters(stage: StageDefinition, platforms: Platform[]): Mon
         direction: index % 2 === 0 ? 1 : -1,
         fadeTimer: 0,
         color: definition.color,
+        role: "normal",
       });
       index += 1;
     }

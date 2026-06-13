@@ -25,7 +25,8 @@ export function Hud() {
   return (
     <div className="ui-layer">
       <div className="top-hud">
-        <span>STAGE {progress.currentStage}-1</span>
+        <span>STAGE {progress.currentStage}</span>
+        <span>UNL {progress.stageProgress.unlockedStage}</span>
         <span>LV {progress.level}</span>
         <span>G {progress.gold}</span>
       </div>

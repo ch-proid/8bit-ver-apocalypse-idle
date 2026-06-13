@@ -3,6 +3,7 @@ import { cloneAltarState, createDefaultAltarState, normalizeAltarState } from ".
 import { calculateCombatAffixStats } from "./equipment";
 import { createDefaultRerollState, createDefaultShopState, normalizeRerollState, normalizeShopState } from "./gold";
 import { cloneInventory, createDefaultInventory, normalizeInventory } from "./inventory";
+import { cloneStageProgress, createDefaultStageProgress, normalizeStageProgress } from "./stageProgress";
 import { applyLevelStatPoints, applyPlayerStats, createDefaultStatDistribution, emptyAllocation } from "./stats";
 import type { ProgressRecords, ProgressState, RebirthState, RecordEntry, WorldState } from "./types";
 
@@ -17,6 +18,7 @@ export function createDefaultProgress(stageId: number = PROGRESSION.initialStage
     inventory: createDefaultInventory(),
     reroll: createDefaultRerollState(),
     shop: createDefaultShopState(),
+    stageProgress: createDefaultStageProgress(stageId),
     altar: createDefaultAltarState(),
     rebirth: createDefaultRebirthState(),
     rebirthRecords: [],
@@ -42,6 +44,7 @@ export function normalizeProgress(input?: Partial<ProgressState>): ProgressState
     inventory: normalizeInventory(input?.inventory),
     reroll: normalizeRerollState(input?.reroll),
     shop: normalizeShopState(input?.shop),
+    stageProgress: normalizeStageProgress(input?.stageProgress, input?.currentStage ?? defaults.currentStage),
     altar: normalizeAltarState(input?.altar),
     rebirth,
     rebirthRecords: input?.rebirthRecords?.map((record) => ({ ...record })) ?? defaults.rebirthRecords,
@@ -75,6 +78,7 @@ export function cloneProgress(progress: ProgressState): ProgressState {
         },
       })),
     },
+    stageProgress: cloneStageProgress(progress.stageProgress),
     altar: cloneAltarState(progress.altar),
     rebirth: {
       ...progress.rebirth,

@@ -287,6 +287,39 @@ export const STANDARD_DUMMY = {
   warmupKillTriggers: 1,
 } as const;
 
+export const STAGE_BALANCE = {
+  // TODO(Phase 7): Tune challenge limits and unlock pacing after Chapter 1 vertical slice playtests.
+  chapters: 6,
+  stagesPerChapter: 10,
+  totalStages: 60,
+  challengeTimeLimitSeconds: 45,
+  recommendedHuntStageOffset: 1,
+} as const;
+
+export const BOSS_BALANCE = {
+  // TODO(Phase 7): Tune Lucian against target 40-60 minute first-boss wall.
+  lucian: {
+    stageId: 10,
+    hp: 1600,
+    attack: 12,
+    defense: 12,
+    experience: 220,
+    gold: 180,
+    summonIntervalSeconds: 15,
+    summonCount: 2,
+    rebirthSummonCountBonus: 1,
+    maxSummons: 8,
+    wraithHp: 130,
+    wraithAttack: 4,
+    wraithHealPercentPerSecond: 0.005,
+    wraithExperience: 0,
+    wraithGold: 0,
+  },
+  bossStub: {
+    hpMultiplierPerChapter: 1.45,
+  },
+} as const;
+
 export function nextExperienceForLevel(level: number): number {
   const normalizedLevel = Math.max(1, Math.floor(level));
   const firstKneeCost = EXPERIENCE_CURVE.baseNextExperience

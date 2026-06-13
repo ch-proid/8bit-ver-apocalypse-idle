@@ -35,6 +35,7 @@ export type SinAffixKey =
   | "despairBurst";
 export type ItemAffixKey = GeneralAffixKey | SinAffixKey;
 export type SinId = "pride" | "gluttony" | "grief" | "fanaticism" | "abyss" | "despair";
+export type BossId = "lucian" | "gravemaw" | "marcela" | "cardion" | "azar" | "leonid";
 export type RelicId =
   | "specterLord"
   | "bloodBerserker"
@@ -43,6 +44,9 @@ export type RelicId =
   | "executioner"
   | "kingsShadow";
 export type KillType = "normal" | "elite" | "boss";
+export type StageMode = "hunt" | "challenge" | "boss";
+export type ChallengeFailureReason = "timeout" | "death";
+export type MonsterRole = "normal" | "boss" | "bossSummon";
 
 export interface StatAllocation {
   atk: number;
@@ -66,6 +70,23 @@ export interface ProgressRecords {
   highestLevel: RecordEntry;
   dummyScore: RecordEntry;
   highestRebirthStage: RecordEntry;
+}
+
+export interface StageFailureReport {
+  stageId: number;
+  reason: ChallengeFailureReason;
+  recommendedStage: number;
+}
+
+export interface StageProgressState {
+  unlockedStage: number;
+  currentHuntingStage: number;
+  clearedStages: Record<number, true>;
+  defeatedBossStages: Record<number, true>;
+  mode: StageMode;
+  autoChallenge: boolean;
+  challengeTimer: number;
+  lastFailure: StageFailureReport | null;
 }
 
 export interface RebirthRecord {
@@ -233,6 +254,8 @@ export interface Monster {
   direction: -1 | 1;
   fadeTimer: number;
   color: string;
+  role: MonsterRole;
+  bossId?: BossId;
 }
 
 export interface FloatingText {
@@ -254,6 +277,7 @@ export interface ProgressState {
   inventory: InventoryState;
   reroll: RerollState;
   shop: ShopState;
+  stageProgress: StageProgressState;
   altar: AltarState;
   rebirth: RebirthState;
   rebirthRecords: RebirthRecord[];
@@ -264,11 +288,24 @@ export interface WorldState {
   elapsed: number;
   rng: RngState;
   relicCombat: RelicCombatState;
+  boss: BossCombatState | null;
   platforms: Platform[];
   player: Player;
   monsters: Monster[];
   floatingTexts: FloatingText[];
   nextEntityId: number;
+}
+
+export interface BossCombatState {
+  bossId: BossId;
+  stageId: number;
+  phase: number;
+  elapsed: number;
+  nextMechanicAt: number;
+  summonCount: number;
+  warningActive: boolean;
+  altarCounterAvailable: boolean;
+  lastEvent: string | null;
 }
 
 export interface SimulationState {

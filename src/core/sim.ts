@@ -244,5 +244,6 @@ function createDummyMonster(): Monster {
     direction: 1,
     fadeTimer: 0,
     color: "#d8e3c8",
+    role: "normal",
   };
 }

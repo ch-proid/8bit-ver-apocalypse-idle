@@ -56,4 +56,18 @@ export const MONSTERS: Record<string, MonsterDefinition> = {
     assetKey: "monster.stage1.lesserImp",
     color: "#9e1f37",
   },
+  lucianWraith: {
+    id: "lucianWraith",
+    name: "LUCIAN WRAITH",
+    maxHp: 130,
+    attack: 4,
+    experience: 0,
+    gold: 0,
+    moveSpeed: 0,
+    respawnTime: 0,
+    width: 10,
+    height: 12,
+    assetKey: "monster.stage1.nobleWraith",
+    color: "#7d334a",
+  },
 };

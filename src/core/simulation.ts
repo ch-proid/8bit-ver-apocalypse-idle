@@ -1,5 +1,6 @@
 import { FLOATING_TEXT, MONSTER_BALANCE } from "../data/balance";
 import { STAGES } from "../data/stages";
+import { isBossMonster, isBossSummon, resolveBossDefeat, updateBossMechanics } from "./boss";
 import { clampCombatAffixes, dealPlayerDamage, distanceBetween, effectiveAttackCooldown } from "./combat";
 import { rollMonsterDrop } from "./drop";
 import { calculateCombatAffixStats } from "./equipment";
@@ -18,6 +19,7 @@ import {
 import { cloneRngState } from "./rng";
 import { addBlood } from "./altar";
 import { getPlatformById, platformCenterX } from "./stage";
+import { clearStage, continueAutoChallenge, failStageChallenge, tickStageChallenge } from "./stageProgress";
 import type { Monster, SimulationState } from "./types";
 
 export function stepSimulation(input: SimulationState, dt: number): SimulationState {
@@ -27,6 +29,8 @@ export function stepSimulation(input: SimulationState, dt: number): SimulationSt
   world.player.jumpLock = Math.max(0, world.player.jumpLock - dt);
   world.player.hp = Math.min(world.player.maxHp, world.player.hp + world.player.hpRegen * dt);
   updateRelicCombat(progress, world, dt);
+  updateBossMechanics(input, dt);
+  tickStageProgress(input, dt);
 
   updateMonsters(world.monsters, world.platforms, dt);
   updatePlayerAi(input, dt);
@@ -38,6 +42,7 @@ export function stepSimulation(input: SimulationState, dt: number): SimulationSt
       ...world,
       rng: cloneRngState(world.rng),
       relicCombat: cloneRelicCombatState(world.relicCombat),
+      boss: world.boss ? { ...world.boss } : null,
       player: {
         ...world.player,
         position: { ...world.player.position },
@@ -61,7 +66,10 @@ function updatePlayerAi(state: SimulationState, dt: number): void {
   const { world, progress } = state;
   const player = world.player;
   const aliveMonsters = world.monsters.filter((monster) => monster.alive);
-  const currentTarget = aliveMonsters.find((monster) => monster.instanceId === player.targetId);
+  const hasPrioritySummon = aliveMonsters.some((monster) => monster.role === "bossSummon");
+  const currentTarget = hasPrioritySummon
+    ? null
+    : aliveMonsters.find((monster) => monster.instanceId === player.targetId);
   const target = currentTarget ?? findNearestMonster(world.monsters, player.position.x, player.position.y);
 
   if (!target) {
@@ -188,7 +196,8 @@ function findNearestMonster(monsters: Monster[], x: number, y: number): Monster 
     if (!monster.alive) {
       continue;
     }
-    const score = Math.abs(monster.position.x - x) + Math.abs(monster.position.y - y) * 1.8;
+    const rolePriority = monster.role === "bossSummon" ? 0 : monster.role === "boss" ? 1 : 2;
+    const score = rolePriority * 100000 + Math.abs(monster.position.x - x) + Math.abs(monster.position.y - y) * 1.8;
     if (score < bestScore) {
       best = monster;
       bestScore = score;
@@ -203,7 +212,7 @@ function updateMonsters(monsters: Monster[], platforms: SimulationState["world"]
     if (!monster.alive) {
       monster.respawnTimer -= dt;
       monster.fadeTimer = Math.max(0, monster.fadeTimer - dt);
-      if (monster.respawnTimer <= 0) {
+      if (monster.role === "normal" && monster.respawnTimer <= 0) {
         respawnMonster(monster);
       }
       continue;
@@ -232,17 +241,28 @@ function killMonster(state: SimulationState, monster: Monster): void {
   monster.respawnTimer = monster.respawnTime;
   monster.fadeTimer = MONSTER_BALANCE.respawnFadeSeconds;
   const stage = STAGES[state.progress.currentStage];
-  if (stage) {
+  if (stage && monster.role === "normal") {
     addFloatingText(state.world, "+BLOOD", monster.position.x, monster.position.y - 12, "#c0303a");
   }
 }
 
 function resolveMonsterDeath(state: SimulationState, monster: Monster): void {
+  if (isBossSummon(monster)) {
+    killMonster(state, monster);
+    return;
+  }
+
+  if (isBossMonster(monster)) {
+    resolveBossDefeat(state, monster);
+    return;
+  }
+
   killMonster(state, monster);
   grantRewards(state.progress, state.world, monster.experience, monster.gold);
   addBlood(state.progress.altar, "normal", state.progress.currentStage);
   applyRelicOnKill(state.progress, state.world, monster);
   grantDrop(state);
+  maybeClearChallenge(state);
 }
 
 function grantDrop(state: SimulationState): void {
@@ -259,6 +279,33 @@ function grantDrop(state: SimulationState): void {
     state.world.player.position.y - 18,
     "#e0c04a",
   );
+}
+
+function tickStageProgress(state: SimulationState, dt: number): void {
+  if (state.progress.stageProgress.mode !== "challenge" && state.progress.stageProgress.mode !== "boss") {
+    return;
+  }
+
+  if (state.world.player.hp <= 0) {
+    failStageChallenge(state.progress, state.progress.currentStage, "death");
+    return;
+  }
+
+  tickStageChallenge(state.progress, dt);
+}
+
+function maybeClearChallenge(state: SimulationState): void {
+  if (state.progress.stageProgress.mode !== "challenge") {
+    return;
+  }
+
+  const hasAliveNormalMonster = state.world.monsters.some((item) => item.role === "normal" && item.alive);
+  if (hasAliveNormalMonster) {
+    return;
+  }
+
+  clearStage(state.progress, state.progress.currentStage);
+  continueAutoChallenge(state.progress);
 }
 
 function respawnMonster(monster: Monster): void {
