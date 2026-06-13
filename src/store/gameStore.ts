@@ -17,8 +17,15 @@ import { compareEquipmentCombatScore, createBuildSnapshot, simulateStandardDummy
 import { createInitialSimulation } from "../core/stage";
 import { clearBossStage, clearStage, startStage } from "../core/stageProgress";
 import { stepSimulation } from "../core/simulation";
-import { applyLevelStatPoints, applyPlayerStats, combatPowerEstimate, setStatPreset as setStatDistributionPreset, spendStatPoint } from "../core/stats";
-import type { ItemRarity, ItemSlot, RelicId, SimulationState, SinId, StageMode, StatKey, StatPreset } from "../core/types";
+import {
+  applyLevelStatPoints,
+  applyPlayerStats,
+  combatPowerEstimate,
+  createRecommendedStatDistribution,
+  setStatPreset as setStatDistributionPreset,
+  spendStatPoint,
+} from "../core/stats";
+import type { ClassId, ItemRarity, ItemSlot, RelicId, SimulationState, SinId, StageMode, StatKey, StatPreset } from "../core/types";
 import { calculateOfflineReward, deleteSaveGame, loadGame, saveGame } from "../save/saveGame";
 
 export type DebugSpeed = 1 | 4 | 16;
@@ -32,6 +39,7 @@ interface GameStore {
   tick: (dt: number) => void;
   addGold: (amount: number) => void;
   addExperience: (amount: number) => void;
+  setClassId: (classId: ClassId) => void;
   setStatPreset: (preset: StatPreset) => void;
   spendStatPoint: (stat: StatKey) => void;
   unlockRebirthForDebug: () => void;
@@ -108,6 +116,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
   },
 
+  setClassId: (classId: ClassId) => {
+    set((state) => {
+      const simulation = cloneSimulation(state.simulation);
+      simulation.progress.classId = classId;
+      simulation.progress.statDistribution = createRecommendedStatDistribution(classId);
+      applyPlayerStats(simulation.world.player, simulation.progress);
+      return { simulation };
+    });
+  },
+
   setStatPreset: (preset: StatPreset) => {
     set((state) => {
       const simulation = cloneSimulation(state.simulation);
@@ -177,6 +195,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       def: demo.world.player.defense,
       hp: demo.world.player.maxHp,
       reg: demo.world.player.hpRegen,
+      eva: demo.world.player.evasion,
       items: demo.progress.inventory.items.length,
     };
 
@@ -190,6 +209,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       def: demo.world.player.defense,
       hp: demo.world.player.maxHp,
       reg: demo.world.player.hpRegen,
+      eva: demo.world.player.evasion,
       items: demo.progress.inventory.items.length,
     };
 

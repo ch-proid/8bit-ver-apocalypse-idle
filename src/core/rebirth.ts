@@ -3,7 +3,7 @@ import { cloneAltarState } from "./altar";
 import { cloneInventory } from "./inventory";
 import { createDefaultProgress, updateRecordAt } from "./progression";
 import { createInitialSimulation } from "./stage";
-import { combatPowerEstimate, emptyAllocation } from "./stats";
+import { combatPowerEstimate, createRecommendedStatDistribution, emptyAllocation } from "./stats";
 import type { ProgressState, RebirthRecord, SimulationState, StatAllocation } from "./types";
 
 export function rebirthSimulation(input: SimulationState, occurredAt: number): SimulationState {
@@ -18,6 +18,8 @@ export function rebirthSimulation(input: SimulationState, occurredAt: number): S
   const combatPower = combatPowerEstimate(previousProgress);
   const nextProgress = createDefaultProgress(REBIRTH_BALANCE.resetStageId);
 
+  nextProgress.classId = previousProgress.classId;
+  nextProgress.statDistribution = createRecommendedStatDistribution(previousProgress.classId);
   nextProgress.gold = previousProgress.gold;
   nextProgress.inventory = cloneInventory(previousProgress.inventory);
   nextProgress.reroll = {
@@ -86,10 +88,9 @@ export function calculatePermanentStats(rebirthCount: number): StatAllocation {
   }
 
   return {
-    atk: rebirthCount * REBIRTH_BALANCE.permanentAttackPerRebirth,
-    def: rebirthCount * REBIRTH_BALANCE.permanentDefensePerRebirth,
-    hp: rebirthCount * REBIRTH_BALANCE.permanentHpPerRebirth,
-    reg: rebirthCount * REBIRTH_BALANCE.permanentRegenPerRebirth,
+    str: rebirthCount * REBIRTH_BALANCE.permanentStrPerRebirth,
+    grit: rebirthCount * REBIRTH_BALANCE.permanentGritPerRebirth,
+    agi: rebirthCount * REBIRTH_BALANCE.permanentAgiPerRebirth,
   };
 }
 

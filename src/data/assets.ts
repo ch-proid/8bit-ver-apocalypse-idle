@@ -17,6 +17,9 @@ export interface PixelSpriteAsset {
   path: string;
   width: number;
   height: number;
+  frameWidth?: number;
+  frameHeight?: number;
+  frameCount?: number;
   padding: {
     left: number;
     right: number;
@@ -27,36 +30,45 @@ export interface PixelSpriteAsset {
 
 export const MONSTER_ASSETS: Record<string, PixelSpriteAsset> = {
   "monster.stage1.wildDog": {
-    path: "/assets/monsters/st1_monster01.png",
-    width: 12,
-    height: 12,
+    path: "/assets/monsters/st1_helldog.png",
+    width: 64,
+    height: 32,
+    frameWidth: 32,
+    frameHeight: 32,
+    frameCount: 2,
     padding: {
-      left: 3,
-      right: 1,
-      top: 4,
-      bottom: 1,
+      left: 6,
+      right: 11,
+      top: 9,
+      bottom: 9,
     },
   },
   "monster.stage1.nobleWraith": {
-    path: "/assets/monsters/st1_monster03.png",
-    width: 12,
-    height: 12,
+    path: "/assets/monsters/st1_fallen_human01.png",
+    width: 64,
+    height: 32,
+    frameWidth: 32,
+    frameHeight: 32,
+    frameCount: 2,
     padding: {
-      left: 1,
-      right: 1,
-      top: 0,
-      bottom: 0,
+      left: 12,
+      right: 11,
+      top: 7,
+      bottom: 7,
     },
   },
   "monster.stage1.lesserImp": {
-    path: "/assets/monsters/st1_monster02.png",
-    width: 12,
-    height: 12,
+    path: "/assets/monsters/st1_imp01.png",
+    width: 64,
+    height: 32,
+    frameWidth: 32,
+    frameHeight: 32,
+    frameCount: 2,
     padding: {
-      left: 3,
-      right: 2,
-      top: 2,
-      bottom: 1,
+      left: 11,
+      right: 10,
+      top: 12,
+      bottom: 10,
     },
   },
 } as const;

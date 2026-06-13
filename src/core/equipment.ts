@@ -13,7 +13,7 @@ import type {
   SinAffixKey,
   CombatAffixStats,
   SinAffixStats,
-  StatAllocation,
+  EquipmentStatAllocation,
 } from "./types";
 
 export interface GenerateEquipmentInput {
@@ -87,8 +87,8 @@ export function rollSinOption(rng: RngState, slot: ItemSlot): ItemOption {
   };
 }
 
-export function calculateEquipmentStats(equipped: EquippedItems): StatAllocation {
-  const stats: StatAllocation = { atk: 0, def: 0, hp: 0, reg: 0 };
+export function calculateEquipmentStats(equipped: EquippedItems): EquipmentStatAllocation {
+  const stats: EquipmentStatAllocation = { atk: 0, def: 0, hp: 0, reg: 0 };
 
   for (const item of Object.values(equipped)) {
     if (!item) {

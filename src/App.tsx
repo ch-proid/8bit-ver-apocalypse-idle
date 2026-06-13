@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { summonRequirement } from "./core/altar";
+import type { ClassId } from "./core/types";
 import { FIXED_DELTA } from "./data/balance";
 import { SURVIVOR_SKINS } from "./data/sprites/survivors";
 import { FixedStepLoop } from "./runtime/gameLoop";
@@ -9,31 +10,32 @@ import { Hud, type HudPanelId } from "./ui/Hud";
 import { SurvivorSprite } from "./ui/SurvivorSprite";
 
 const DEBUG_PANEL_ENABLED = import.meta.env.DEV;
-const SKIN_STORAGE_KEY = "skinId";
+const CLASS_STORAGE_KEY = "classId";
 
 export default function App() {
   const hydrate = useGameStore((state) => state.hydrate);
   const saveNow = useGameStore((state) => state.saveNow);
   const hydrated = useGameStore((state) => state.hydrated);
   const progress = useGameStore((state) => state.simulation.progress);
+  const setClassId = useGameStore((state) => state.setClassId);
   const startCurrentChallenge = useGameStore((state) => state.startCurrentChallenge);
   const [activePanel, setActivePanel] = useState<HudPanelId | null>(null);
   const [debugOpen, setDebugOpen] = useState(false);
   const [dmgMode, setDmgMode] = useState(false);
-  const [skinSelectOpen, setSkinSelectOpen] = useState(false);
-  const [skinId, setSkinId] = useState<string | null>(() => loadSavedSkinId());
-  const [selectedSkinIndex, setSelectedSkinIndex] = useState(() => {
-    const savedSkinId = loadSavedSkinId();
-    return Math.max(0, SURVIVOR_SKINS.findIndex((skin) => skin.id === savedSkinId));
+  const [classSelectOpen, setClassSelectOpen] = useState(false);
+  const [savedClassId, setSavedClassId] = useState<ClassId | null>(() => loadSavedClassId());
+  const [selectedClassIndex, setSelectedClassIndex] = useState(() => {
+    const storedClassId = loadSavedClassId();
+    return Math.max(0, SURVIVOR_SKINS.findIndex((skin) => skin.id === storedClassId));
   });
 
   const bloodRequired = summonRequirement(progress.altar.summonCount);
   const bloodIsFull = progress.altar.blood >= bloodRequired;
-  const selectedSkin = useMemo(
-    () => SURVIVOR_SKINS[selectedSkinIndex] ?? SURVIVOR_SKINS[0],
-    [selectedSkinIndex],
+  const selectedClass = useMemo(
+    () => SURVIVOR_SKINS[selectedClassIndex] ?? SURVIVOR_SKINS[0],
+    [selectedClassIndex],
   );
-  const currentSkinId = skinId ?? selectedSkin.id;
+  const currentClassId = progress.classId;
 
   useEffect(() => {
     void hydrate();
@@ -57,33 +59,40 @@ export default function App() {
   }, [saveNow]);
 
   useEffect(() => {
-    if (hydrated && !skinId) {
-      setSkinSelectOpen(true);
+    if (hydrated && savedClassId) {
+      setClassId(savedClassId);
     }
-  }, [hydrated, skinId]);
+  }, [hydrated, savedClassId, setClassId]);
+
+  useEffect(() => {
+    if (hydrated && !savedClassId) {
+      setClassSelectOpen(true);
+    }
+  }, [hydrated, savedClassId]);
 
   const togglePanel = (panel: HudPanelId) => {
     setDebugOpen(false);
-    setSkinSelectOpen(false);
+    setClassSelectOpen(false);
     setActivePanel((current) => (current === panel ? null : panel));
   };
 
   const openAltarPanel = () => {
     setDebugOpen(false);
-    setSkinSelectOpen(false);
+    setClassSelectOpen(false);
     setActivePanel((current) => (current === "altar" ? current : "altar"));
   };
 
   const toggleDebug = () => {
     setActivePanel(null);
-    setSkinSelectOpen(false);
+    setClassSelectOpen(false);
     setDebugOpen((value) => !value);
   };
 
-  const pickSkin = () => {
-    window.localStorage.setItem(SKIN_STORAGE_KEY, selectedSkin.id);
-    setSkinId(selectedSkin.id);
-    setSkinSelectOpen(false);
+  const pickClass = () => {
+    window.localStorage.setItem(CLASS_STORAGE_KEY, selectedClass.id);
+    setSavedClassId(selectedClass.id);
+    setClassId(selectedClass.id);
+    setClassSelectOpen(false);
     setActivePanel(null);
   };
 
@@ -109,19 +118,19 @@ export default function App() {
             <GameCanvas dmgMode={dmgMode} />
             <Hud
               activePanel={activePanel}
-              currentSkinId={currentSkinId}
+              currentClassId={currentClassId}
               debugOpen={DEBUG_PANEL_ENABLED && debugOpen}
-              onOpenSkinSelect={() => {
+              onOpenClassSelect={() => {
                 setActivePanel(null);
                 setDebugOpen(false);
-                setSkinSelectOpen(true);
+                setClassSelectOpen(true);
               }}
             />
-            {skinSelectOpen ? (
-              <SurvivorSelectPanel
-                selectedSkinIndex={selectedSkinIndex}
-                onSelect={setSelectedSkinIndex}
-                onPick={pickSkin}
+            {classSelectOpen ? (
+              <ClassSelectPanel
+                selectedClassIndex={selectedClassIndex}
+                onSelect={setSelectedClassIndex}
+                onPick={pickClass}
               />
             ) : null}
           </div>
@@ -165,27 +174,27 @@ function PillButton({ label, onClick }: { label: string; onClick: () => void }) 
   );
 }
 
-function SurvivorSelectPanel({
-  selectedSkinIndex,
+function ClassSelectPanel({
+  selectedClassIndex,
   onSelect,
   onPick,
 }: {
-  selectedSkinIndex: number;
+  selectedClassIndex: number;
   onSelect: (index: number) => void;
   onPick: () => void;
 }) {
-  const selectedSkin = SURVIVOR_SKINS[selectedSkinIndex] ?? SURVIVOR_SKINS[0];
+  const selectedClass = SURVIVOR_SKINS[selectedClassIndex] ?? SURVIVOR_SKINS[0];
 
   return (
-    <section className="panel on survivor-panel" aria-label="Survivor select">
+    <section className="panel on survivor-panel" aria-label="Class select">
       <div className="win survivor-win">
-        <span className="win-t">SURVIVOR</span>
+        <span className="win-t">CLASS</span>
         <div className="survivor-list">
           {SURVIVOR_SKINS.map((skin, index) => (
             <button
               key={skin.id}
               type="button"
-              className={index === selectedSkinIndex ? "skin-card on" : "skin-card"}
+              className={index === selectedClassIndex ? "skin-card on" : "skin-card"}
               onClick={() => onSelect(index)}
             >
               <SurvivorSprite rows={skin.idle} scale={3} />
@@ -194,7 +203,7 @@ function SurvivorSelectPanel({
         </div>
         <div className="mi survivor-name">
           <span className="cur">&#9654;</span>
-          <span className="kr">{selectedSkin.name}</span>
+          <span>{selectedClass.name}</span>
           <span className="dots" />
           <button type="button" className="inv-vid pick-btn" onClick={onPick}>PICK</button>
         </div>
@@ -203,11 +212,11 @@ function SurvivorSelectPanel({
   );
 }
 
-function loadSavedSkinId(): string | null {
+function loadSavedClassId(): ClassId | null {
   if (typeof window === "undefined") {
     return null;
   }
 
-  const value = window.localStorage.getItem(SKIN_STORAGE_KEY);
-  return SURVIVOR_SKINS.some((skin) => skin.id === value) ? value : null;
+  const value = window.localStorage.getItem(CLASS_STORAGE_KEY);
+  return SURVIVOR_SKINS.some((skin) => skin.id === value) ? value as ClassId : null;
 }

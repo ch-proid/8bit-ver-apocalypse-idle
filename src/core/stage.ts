@@ -34,6 +34,7 @@ export function createInitialSimulation(
     maxHp: PLAYER_BALANCE.maxHp,
     attack: PLAYER_BALANCE.attack,
     defense: PLAYER_BALANCE.defense,
+    evasion: PLAYER_BALANCE.evasion,
     hpRegen: PLAYER_BALANCE.hpRegen,
     attackRange: PLAYER_BALANCE.attackRange,
     attackCooldown: PLAYER_BALANCE.attackCooldown,

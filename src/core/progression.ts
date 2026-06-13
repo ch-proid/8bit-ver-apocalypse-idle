@@ -1,20 +1,29 @@
 import { FLOATING_TEXT, nextExperienceForLevel, PROGRESSION, REBIRTH_BALANCE, STAT_GROWTH } from "../data/balance";
 import { cloneAltarState, createDefaultAltarState, normalizeAltarState } from "./altar";
+import { getPlayerClass, normalizeClassId } from "./class";
 import { calculateCombatAffixStats } from "./equipment";
 import { createDefaultRerollState, createDefaultShopState, normalizeRerollState, normalizeShopState } from "./gold";
 import { cloneInventory, createDefaultInventory, normalizeInventory } from "./inventory";
 import { cloneStageProgress, createDefaultStageProgress, normalizeStageProgress } from "./stageProgress";
-import { applyLevelStatPoints, applyPlayerStats, createDefaultStatDistribution, emptyAllocation } from "./stats";
+import {
+  applyLevelStatPoints,
+  applyPlayerStats,
+  createRecommendedStatDistribution,
+  emptyAllocation,
+  normalizeStatDistribution,
+} from "./stats";
 import type { ProgressRecords, ProgressState, RebirthState, RecordEntry, WorldState } from "./types";
 
 export function createDefaultProgress(stageId: number = PROGRESSION.initialStageId): ProgressState {
+  const classId = normalizeClassId(undefined);
   return {
     gold: 0,
     experience: 0,
     level: 1,
+    classId,
     currentStage: stageId,
     nextExperience: nextExperienceForLevel(1),
-    statDistribution: createDefaultStatDistribution(),
+    statDistribution: createRecommendedStatDistribution(classId),
     inventory: createDefaultInventory(),
     reroll: createDefaultRerollState(),
     shop: createDefaultShopState(),
@@ -29,18 +38,13 @@ export function createDefaultProgress(stageId: number = PROGRESSION.initialStage
 export function normalizeProgress(input?: Partial<ProgressState>): ProgressState {
   const defaults = createDefaultProgress(input?.currentStage ?? PROGRESSION.initialStageId);
   const rebirth = normalizeRebirth(input?.rebirth);
+  const classId = normalizeClassId(input?.classId);
   const progress: ProgressState = {
     ...defaults,
     ...input,
+    classId,
     nextExperience: nextExperienceForLevel(input?.level ?? defaults.level),
-    statDistribution: {
-      ...defaults.statDistribution,
-      ...input?.statDistribution,
-      assigned: {
-        ...defaults.statDistribution.assigned,
-        ...input?.statDistribution?.assigned,
-      },
-    },
+    statDistribution: normalizeStatDistribution(input?.statDistribution, getPlayerClass(classId).recommendedPreset),
     inventory: normalizeInventory(input?.inventory),
     reroll: normalizeRerollState(input?.reroll),
     shop: normalizeShopState(input?.shop),
@@ -192,10 +196,7 @@ function normalizeRebirth(input?: Partial<RebirthState>): RebirthState {
   return {
     ...defaults,
     ...input,
-    permanentStats: {
-      ...defaults.permanentStats,
-      ...input?.permanentStats,
-    },
+    permanentStats: normalizePermanentStats(input?.permanentStats, defaults.permanentStats),
   };
 }
 
@@ -205,5 +206,16 @@ function normalizeRecords(input?: Partial<ProgressRecords>): ProgressRecords {
     highestLevel: { ...defaults.highestLevel, ...input?.highestLevel },
     dummyScore: { ...defaults.dummyScore, ...input?.dummyScore },
     highestRebirthStage: { ...defaults.highestRebirthStage, ...input?.highestRebirthStage },
+  };
+}
+
+function normalizePermanentStats(
+  input: Partial<ReturnType<typeof emptyAllocation>> | undefined,
+  defaults: ReturnType<typeof emptyAllocation>,
+) {
+  return {
+    str: Math.max(0, input?.str ?? defaults.str),
+    grit: Math.max(0, input?.grit ?? defaults.grit),
+    agi: Math.max(0, input?.agi ?? defaults.agi),
   };
 }

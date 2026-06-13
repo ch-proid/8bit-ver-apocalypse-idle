@@ -17,9 +17,60 @@ export const PLAYER_BALANCE = {
   maxHp: 120,
   attack: 16,
   defense: 0,
+  evasion: 1,
   hpRegen: 0,
   attackRange: 18,
   attackCooldown: 0.55,
+} as const;
+
+export const CLASS_BALANCE = {
+  // TODO(Rework 2): Tune class passives once hit/evasion and damage-range combat work lands.
+  defaultClassId: "knight",
+  assassin: {
+    growth: {
+      attackPerLevel: 0.34,
+      defensePerLevel: 0.08,
+      hpPerLevel: 4,
+      evasionPerLevel: 0.42,
+      moveSpeedMultiplier: 1.14,
+      attackCooldownMultiplier: 0.9,
+      attackRange: 18,
+    },
+    passive: {
+      critChanceCap: 100,
+      baseCritChance: 15,
+    },
+  },
+  knight: {
+    growth: {
+      attackPerLevel: 0.24,
+      defensePerLevel: 0.3,
+      hpPerLevel: 12,
+      evasionPerLevel: 0.08,
+      moveSpeedMultiplier: 0.92,
+      attackCooldownMultiplier: 1.12,
+      attackRange: 16,
+    },
+    passive: {
+      lowHpExecutionThreshold: 15,
+      defenseToAttackPercent: 8,
+    },
+  },
+  mage: {
+    growth: {
+      attackPerLevel: 0.3,
+      defensePerLevel: 0.05,
+      hpPerLevel: 5,
+      evasionPerLevel: 0.18,
+      moveSpeedMultiplier: 1,
+      attackCooldownMultiplier: 1.05,
+      attackRange: 48,
+    },
+    passive: {
+      dotHpPercent: 0.4,
+      dotSeconds: 3,
+    },
+  },
 } as const;
 
 export const MONSTER_BALANCE = {
@@ -52,16 +103,17 @@ export const EXPERIENCE_CURVE = {
 } as const;
 
 export const STAT_GROWTH = {
-  // TODO(Phase 7): Tune point values after equipment and relic systems land.
-  pointsPerLevel: 3,
-  attackPerPoint: 1,
-  defensePerPoint: 1,
-  hpPerPoint: 8,
-  regenPerPoint: 0.15,
+  // TODO(Rework 2): Tune multiplicative point values after dodge and class passives enter combat.
+  pointsPerLevel: 5,
+  strAttackPercentPerPoint: 2,
+  gritDefensePercentPerPoint: 2,
+  gritHpPercentPerPoint: 1,
+  agiEvasionPercentPerPoint: 2.5,
   autoPresets: {
-    ATK: { atk: 3, def: 0, hp: 0, reg: 0 },
-    BAL: { atk: 1, def: 1, hp: 1, reg: 0 },
-    VIT: { atk: 0, def: 1, hp: 2, reg: 0 },
+    STR: { str: 5, grit: 0, agi: 0 },
+    BAL: { str: 3, grit: 1, agi: 1 },
+    GRIT: { str: 3, grit: 2, agi: 0 },
+    AGI: { str: 3, grit: 0, agi: 2 },
   },
 } as const;
 
@@ -73,10 +125,9 @@ export const REBIRTH_BALANCE = {
   levelMultiplierDivisor: 220,
   combatPowerMultiplierDivisor: 2400,
   countMultiplierBonus: 0.04,
-  permanentAttackPerRebirth: 1,
-  permanentDefensePerRebirth: 1,
-  permanentHpPerRebirth: 6,
-  permanentRegenPerRebirth: 0.05,
+  permanentStrPerRebirth: 1,
+  permanentGritPerRebirth: 1,
+  permanentAgiPerRebirth: 1,
 } as const;
 
 export const COMBAT_POWER = {
@@ -85,6 +136,7 @@ export const COMBAT_POWER = {
   defenseWeight: 4,
   hpWeight: 0.5,
   regenWeight: 20,
+  evasionWeight: 2,
 } as const;
 
 export const DEBUG_GRANTS = {

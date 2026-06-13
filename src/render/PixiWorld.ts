@@ -58,6 +58,7 @@ export class PixiWorld {
   private monsters = new Map<string, Graphics>();
   private monsterSprites = new Map<string, Sprite>();
   private monsterTextures = new Map<string, Texture>();
+  private monsterFrames = new Map<string, Texture[]>();
   private loadingMonsterAssets = new Set<string>();
   private hpBars = new Map<string, Graphics>();
   private floating = new Map<string, Text>();
@@ -109,6 +110,7 @@ export class PixiWorld {
     this.monsterSprites.clear();
     this.monsterDisplays.clear();
     this.monsterTextures.clear();
+    this.monsterFrames.clear();
     this.loadingMonsterAssets.clear();
     this.hpBars.clear();
     this.floating.clear();
@@ -254,9 +256,13 @@ export class PixiWorld {
       return item;
     });
     const texture = asset ? this.monsterTextures.get(monster.assetKey) : undefined;
-    const sprite = asset && texture
+    const frames = asset ? this.monsterFrames.get(monster.assetKey) : undefined;
+    const display = this.monsterDisplays.get(monster.instanceId)
+      ?? toEntityDisplay(monster.position.x, monster.position.y, monster.direction, this.walkFrame);
+    const currentTexture = frames?.[display.walkFrame] ?? texture;
+    const sprite = asset && currentTexture
       ? getOrCreate(this.monsterSprites, monster.instanceId, () => {
-        const item = new Sprite(texture);
+        const item = new Sprite(currentTexture);
         item.roundPixels = true;
         this.world.addChild(item);
         return item;
@@ -271,13 +277,12 @@ export class PixiWorld {
     const alpha = monster.alive
       ? 1
       : Math.max(MONSTER_FALLBACK_RENDER.deathMinAlpha, monster.fadeTimer / MONSTER_BALANCE.respawnFadeSeconds);
-    const display = this.monsterDisplays.get(monster.instanceId)
-      ?? toEntityDisplay(monster.position.x, monster.position.y, monster.direction, this.walkFrame);
     graphic.clear();
     graphic.alpha = alpha;
     if (sprite && asset) {
       graphic.visible = false;
       sprite.visible = true;
+      sprite.texture = currentTexture ?? sprite.texture;
       sprite.alpha = alpha;
       sprite.tint = colors.spriteTint;
       sprite.scale.x = display.direction > 0 ? 1 : -1;
@@ -287,7 +292,7 @@ export class PixiWorld {
           ? display.x - asset.padding.left
           : display.x + monster.width + asset.padding.right,
       );
-      sprite.y = Math.round(display.y - asset.padding.top);
+      sprite.y = Math.round(display.y + monster.height + asset.padding.bottom - spriteFrameHeight(asset));
     } else {
       this.monsterSprites.get(monster.instanceId)?.destroy();
       this.monsterSprites.delete(monster.instanceId);
@@ -458,10 +463,13 @@ export class PixiWorld {
     this.loadingMonsterAssets.add(assetKey);
     void Assets.load(asset.path)
       .then((texture) => {
-        this.monsterTextures.set(assetKey, texture as Texture);
+        const loadedTexture = texture as Texture;
+        this.monsterTextures.set(assetKey, loadedTexture);
+        this.monsterFrames.set(assetKey, createSpriteFrames(loadedTexture, asset));
       })
       .catch(() => {
         this.monsterTextures.delete(assetKey);
+        this.monsterFrames.delete(assetKey);
       })
       .finally(() => {
         this.loadingMonsterAssets.delete(assetKey);
@@ -516,6 +524,24 @@ function createPlayerFrames(texture: Texture): Texture[] {
       PLAYER_CHARACTER.frameHeight,
     ),
   }));
+}
+
+function createSpriteFrames(texture: Texture, asset: PixelSpriteAsset): Texture[] {
+  const frameCount = asset.frameCount ?? 1;
+  const frameWidth = asset.frameWidth ?? asset.width;
+  const frameHeight = asset.frameHeight ?? asset.height;
+  if (frameCount <= 1) {
+    return [texture];
+  }
+
+  return Array.from({ length: frameCount }, (_, index) => new Texture({
+    source: texture.source,
+    frame: new Rectangle(index * frameWidth, 0, frameWidth, frameHeight),
+  }));
+}
+
+function spriteFrameHeight(asset: PixelSpriteAsset): number {
+  return asset.frameHeight ?? asset.height;
 }
 
 function playerSpriteX(x: number, width: number, direction: -1 | 1): number {

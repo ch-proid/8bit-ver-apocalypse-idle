@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { summonRequirement } from "../core/altar";
-import type { EquipmentItem, ItemRarity, ItemSlot, RelicId, StatKey } from "../core/types";
+import type { ClassId, EquipmentItem, EquipmentStatKey, ItemRarity, ItemSlot, RelicId, StatKey } from "../core/types";
 import { ITEM_SLOTS } from "../data/items";
 import { RELIC_IDS, RELICS } from "../data/relics";
 import { SURVIVOR_SKINS } from "../data/sprites/survivors";
@@ -13,20 +13,19 @@ export type HudPanelId = "stat" | "gear" | "altar";
 
 interface HudProps {
   activePanel: HudPanelId | null;
-  currentSkinId: string;
+  currentClassId: ClassId;
   debugOpen: boolean;
-  onOpenSkinSelect: () => void;
+  onOpenClassSelect: () => void;
 }
 
-const STAT_KEYS: StatKey[] = ["atk", "def", "hp", "reg"];
+const STAT_KEYS: StatKey[] = ["str", "grit", "agi"];
 const STAT_LABELS: Record<StatKey, string> = {
-  atk: "ATK",
-  def: "DEF",
-  hp: "HP",
-  reg: "REG",
+  str: "STR",
+  grit: "GRIT",
+  agi: "AGI",
 };
 
-export function Hud({ activePanel, currentSkinId, debugOpen, onOpenSkinSelect }: HudProps) {
+export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect }: HudProps) {
   const progress = useGameStore((state) => state.simulation.progress);
   const player = useGameStore((state) => state.simulation.world.player);
   const spendPoint = useGameStore((state) => state.spendStatPoint);
@@ -39,7 +38,7 @@ export function Hud({ activePanel, currentSkinId, debugOpen, onOpenSkinSelect }:
   const bloodPercent = percent(progress.altar.blood, bloodRequired);
   const chapter = Math.ceil(progress.currentStage / 10);
   const stageInChapter = ((progress.currentStage - 1) % 10) + 1;
-  const skin = SURVIVOR_SKINS.find((entry) => entry.id === currentSkinId) ?? SURVIVOR_SKINS[0];
+  const skin = SURVIVOR_SKINS.find((entry) => entry.id === currentClassId) ?? SURVIVOR_SKINS[0];
 
   return (
     <>
@@ -58,7 +57,7 @@ export function Hud({ activePanel, currentSkinId, debugOpen, onOpenSkinSelect }:
 
         <Win title="STATUS">
           <div className="status-grid">
-            <button type="button" className="skin-mini" onClick={onOpenSkinSelect} aria-label="SURVIVOR">
+            <button type="button" className="skin-mini" onClick={onOpenClassSelect} aria-label="CLASS">
               <SurvivorSprite rows={skin.idle} scale={2} />
             </button>
             <div className="status-lines">
@@ -69,7 +68,7 @@ export function Hud({ activePanel, currentSkinId, debugOpen, onOpenSkinSelect }:
                 <MenuItem
                   key={key}
                   label={STAT_LABELS[key]}
-                  value={formatStatValue(key, player)}
+                  value={formatNumber(progress.statDistribution.assigned[key])}
                   action={(
                     <button
                       type="button"
@@ -82,18 +81,22 @@ export function Hud({ activePanel, currentSkinId, debugOpen, onOpenSkinSelect }:
                   )}
                 />
               ))}
+              <MenuItem label="ATK" value={formatNumber(player.attack)} />
+              <MenuItem label="DEF" value={formatNumber(player.defense)} />
+              <MenuItem label="HP" value={formatNumber(player.maxHp)} />
+              <MenuItem label="EVA" value={formatNumber(player.evasion)} />
             </div>
           </div>
           <div className="preset-row">
             <span className="cur">&#9654;</span>
-            {(["ATK", "BAL", "VIT", "MANUAL"] as const).map((preset) => (
+            {(["STR", "BAL", "GRIT", "AGI", "MANUAL"] as const).map((preset) => (
               <button
                 key={preset}
                 type="button"
                 className={progress.statDistribution.preset === preset ? "pbox on" : "pbox"}
                 onClick={() => setPreset(preset)}
               >
-                {preset === "MANUAL" ? "MAN" : preset}
+                {preset === "MANUAL" ? "MAN" : preset === "GRIT" ? "GRT" : preset}
               </button>
             ))}
             <span className="dots" />
@@ -275,7 +278,7 @@ function RelicSummary({ relicId, stars }: { relicId: RelicId | null; stars: numb
     return (
       <>
         <MenuItem label="NAME" value="NONE" />
-        <p className="tiny dim">★3 ? / ★5 ?</p>
+        <p className="tiny dim">NO RELIC / PICK ONE</p>
       </>
     );
   }
@@ -299,19 +302,6 @@ function RelicCard({ relicId, stars, equipped }: { relicId: RelicId; stars: numb
       <small className="st">{stars > 0 ? starText(stars) : "?????"}</small>
     </div>
   );
-}
-
-function formatStatValue(key: StatKey, player: { attack: number; defense: number; maxHp: number; hpRegen: number }): string {
-  if (key === "atk") {
-    return formatNumber(player.attack);
-  }
-  if (key === "def") {
-    return formatNumber(player.defense);
-  }
-  if (key === "hp") {
-    return formatNumber(player.maxHp);
-  }
-  return player.hpRegen.toFixed(1);
 }
 
 function percent(value: number, max: number): number {
@@ -350,7 +340,7 @@ function slotShort(slot: ItemSlot): string {
   }[slot];
 }
 
-function statShort(stat: StatKey): string {
+function statShort(stat: EquipmentStatKey): string {
   return stat.toUpperCase();
 }
 
@@ -359,5 +349,5 @@ function sinShort(sin: string): string {
 }
 
 function starText(stars: number): string {
-  return `${"★".repeat(stars)}${"?".repeat(Math.max(0, 5 - stars))}`;
+  return `${"*".repeat(stars)}${"?".repeat(Math.max(0, 5 - stars))}`;
 }

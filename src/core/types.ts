@@ -12,8 +12,10 @@ export interface Platform {
 }
 
 export type PlayerAiState = "IDLE" | "MOVE" | "ATTACK";
-export type StatKey = "atk" | "def" | "hp" | "reg";
-export type StatPreset = "ATK" | "BAL" | "VIT" | "MANUAL";
+export type ClassId = "assassin" | "knight" | "mage";
+export type StatKey = "str" | "grit" | "agi";
+export type EquipmentStatKey = "atk" | "def" | "hp" | "reg";
+export type StatPreset = "STR" | "BAL" | "GRIT" | "AGI" | "MANUAL";
 export type ItemSlot = "weapon" | "helmet" | "armor" | "accessory";
 export type ItemRarity = "common" | "magic" | "rare" | "epic" | "legendary";
 export type GeneralAffixKey =
@@ -49,6 +51,12 @@ export type ChallengeFailureReason = "timeout" | "death";
 export type MonsterRole = "normal" | "boss" | "bossSummon";
 
 export interface StatAllocation {
+  str: number;
+  grit: number;
+  agi: number;
+}
+
+export interface EquipmentStatAllocation {
   atk: number;
   def: number;
   hp: number;
@@ -114,7 +122,7 @@ export interface EquipmentItem {
   slot: ItemSlot;
   rarity: ItemRarity;
   itemLevel: number;
-  baseStat: StatKey;
+  baseStat: EquipmentStatKey;
   baseValue: number;
   options: ItemOption[];
 }
@@ -220,6 +228,7 @@ export interface Player {
   maxHp: number;
   attack: number;
   defense: number;
+  evasion: number;
   hpRegen: number;
   attackRange: number;
   attackCooldown: number;
@@ -271,6 +280,7 @@ export interface ProgressState {
   gold: number;
   experience: number;
   level: number;
+  classId: ClassId;
   currentStage: number;
   nextExperience: number;
   statDistribution: StatDistributionState;

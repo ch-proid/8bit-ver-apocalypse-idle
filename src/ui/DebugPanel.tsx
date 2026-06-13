@@ -3,8 +3,9 @@ import type { ReactNode } from "react";
 import { ITEM_RARITIES, ITEM_SLOTS } from "../data/items";
 import { RELIC_IDS, RELICS } from "../data/relics";
 import { DEBUG_GRANTS } from "../data/balance";
+import { CLASS_IDS, PLAYER_CLASSES } from "../data/classes";
 import { useGameStore, type DebugSpeed } from "../store/gameStore";
-import type { BossCombatState, ItemRarity, ItemSlot, RelicId, SinId } from "../core/types";
+import type { BossCombatState, ClassId, ItemRarity, ItemSlot, RelicId, SinId } from "../core/types";
 import { formatDuration, formatNumber } from "./format";
 
 const BOSS_STAGE_IDS = [10, 20, 30, 40, 50, 60];
@@ -47,6 +48,7 @@ export function DebugPanel({ open }: DebugPanelProps) {
   const logPhase3DDemo = useGameStore((state) => state.logPhase3DDemo);
   const equipBestItems = useGameStore((state) => state.equipBestItems);
   const summonRelicForDebug = useGameStore((state) => state.summonRelicForDebug);
+  const setClassId = useGameStore((state) => state.setClassId);
   const setStatPreset = useGameStore((state) => state.setStatPreset);
   const spendStatPoint = useGameStore((state) => state.spendStatPoint);
 
@@ -142,20 +144,34 @@ export function DebugPanel({ open }: DebugPanelProps) {
         <button type="button" onClick={() => debugGrantStatPoints(amount)}>
           +PT
         </button>
-        <button type="button" onClick={() => setStatPreset("ATK")}>
-          ATK
+        <select value={progress.classId} onChange={(event) => setClassId(event.target.value as ClassId)}>
+          {CLASS_IDS.map((classId) => (
+            <option key={classId} value={classId}>{PLAYER_CLASSES[classId].label}</option>
+          ))}
+        </select>
+        <button type="button" onClick={() => setStatPreset("STR")}>
+          STR
         </button>
         <button type="button" onClick={() => setStatPreset("BAL")}>
           BAL
         </button>
-        <button type="button" onClick={() => setStatPreset("VIT")}>
-          VIT
+        <button type="button" onClick={() => setStatPreset("GRIT")}>
+          GRT
+        </button>
+        <button type="button" onClick={() => setStatPreset("AGI")}>
+          AGI
         </button>
         <button type="button" onClick={() => setStatPreset("MANUAL")}>
           MAN
         </button>
-        <button type="button" onClick={() => spendStatPoint("atk")}>
-          +A
+        <button type="button" onClick={() => spendStatPoint("str")}>
+          +S
+        </button>
+        <button type="button" onClick={() => spendStatPoint("grit")}>
+          +GRT
+        </button>
+        <button type="button" onClick={() => spendStatPoint("agi")}>
+          +AGI
         </button>
         <label className="debug-check">
           <input type="checkbox" checked={ignoreGate} onChange={(event) => setIgnoreGate(event.target.checked)} />
