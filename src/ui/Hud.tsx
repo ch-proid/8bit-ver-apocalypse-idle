@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   altarExperienceForLevel,
   bestRelicInstance,
@@ -9,7 +9,8 @@ import {
   relicStars,
 } from "../core/altar";
 import { altarElitePreview } from "../core/elites";
-import type { ClassId, EquipmentItem, EquipmentStatKey, ItemRarity, ItemSlot, RelicGrade, RelicId, StatKey } from "../core/types";
+import { compareEquipmentCombatScore, createBuildSnapshot, type EquipmentScoreComparison } from "../core/sim";
+import type { ClassId, EquipmentItem, EquipmentStatKey, ItemRarity, ItemSlot, ProgressState, RelicGrade, RelicId, StageFailureReport, StatKey } from "../core/types";
 import { ALTAR_BALANCE } from "../data/balance";
 import { ITEM_SLOTS } from "../data/items";
 import { PLAYER_CLASSES } from "../data/classes";
@@ -17,7 +18,7 @@ import { RELIC_GRADES, RELIC_IDS, RELICS } from "../data/relics";
 import { SURVIVOR_SKINS } from "../data/sprites/survivors";
 import { useGameStore } from "../store/gameStore";
 import { DebugPanel } from "./DebugPanel";
-import { formatNumber } from "./format";
+import { formatDuration, formatNumber } from "./format";
 import { SurvivorSprite } from "./SurvivorSprite";
 
 export type HudPanelId = "stat" | "gear" | "altar";
@@ -58,9 +59,17 @@ const SIN_KR_LABELS: Record<string, string> = {
   despair: "절망",
 };
 
+interface EquipmentPopupState {
+  candidate: EquipmentItem;
+  current: EquipmentItem | null;
+  comparison: EquipmentScoreComparison;
+}
+
 export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect }: HudProps) {
   const progress = useGameStore((state) => state.simulation.progress);
   const player = useGameStore((state) => state.simulation.world.player);
+  const world = useGameStore((state) => state.simulation.world);
+  const offlineReward = useGameStore((state) => state.lastOfflineReward);
   const spendPoint = useGameStore((state) => state.spendStatPoint);
   const setPreset = useGameStore((state) => state.setStatPreset);
   const equipBestItems = useGameStore((state) => state.equipBestItems);
@@ -86,6 +95,85 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
   const nextElitePreview = altarElitePreview(progress.altar.level + 1);
   const relicOwnedStats = calculateRelicOwnedStats(progress.altar);
   const equippedRelic = bestRelicInstance(progress.altar, progress.altar.equippedRelicId);
+  const [equipmentPopup, setEquipmentPopup] = useState<EquipmentPopupState | null>(null);
+  const [dismissedFailureKey, setDismissedFailureKey] = useState<string | null>(null);
+  const [claimedOfflineKey, setClaimedOfflineKey] = useState<string | null>(null);
+  const [voiceLine, setVoiceLine] = useState<string | null>(null);
+  const [flashKind, setFlashKind] = useState<string | null>(null);
+  const previousFx = useRef({
+    initialized: false,
+    altarEliteActive: false,
+    legendaryItems: 0,
+    highRelics: 0,
+  });
+  const failure = progress.stageProgress.lastFailure;
+  const failureKey = failure ? `${failure.stageId}:${failure.reason}:${failure.recommendedStage}` : null;
+  const offlineKey = offlineReward
+    ? `${Math.floor(offlineReward.elapsedSeconds)}:${offlineReward.gold}:${offlineReward.experience}`
+    : null;
+  const showFailurePopup = Boolean(failure && failureKey !== dismissedFailureKey);
+  const showOfflinePopup = Boolean(offlineReward && offlineKey !== claimedOfflineKey);
+  const isOverdrive = world.relicCombat.isOverdrive;
+  const isTelegraphing = Boolean(world.boss?.isTelegraphing);
+
+  useEffect(() => {
+    if (!flashKind) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => setFlashKind(null), 620);
+    return () => window.clearTimeout(timeoutId);
+  }, [flashKind]);
+
+  useEffect(() => {
+    if (!voiceLine) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => setVoiceLine(null), 2200);
+    return () => window.clearTimeout(timeoutId);
+  }, [voiceLine]);
+
+  useEffect(() => {
+    const altarEliteActive = Boolean(world.altarElite);
+    const legendaryItems = countLegendaryItems(progress);
+    const highRelics = countHighGradeRelics(progress);
+    const previous = previousFx.current;
+
+    if (!previous.initialized) {
+      previousFx.current = { initialized: true, altarEliteActive, legendaryItems, highRelics };
+      return;
+    }
+
+    if (!previous.altarEliteActive && altarEliteActive) {
+      triggerFlash("altar", "제단이 깨어났다.");
+    } else if (previous.altarEliteActive && !altarEliteActive) {
+      triggerFlash("reward", "엘리트가 쓰러졌다.");
+    }
+
+    if (legendaryItems > previous.legendaryItems) {
+      triggerFlash("legendary", "전리품이 빛난다.");
+    }
+
+    if (highRelics > previous.highRelics) {
+      triggerFlash("relic", "유물이 응답했다.");
+    }
+
+    previousFx.current = { initialized: true, altarEliteActive, legendaryItems, highRelics };
+  }, [progress, world.altarElite]);
+
+  function triggerFlash(kind: string, line: string): void {
+    setFlashKind(kind);
+    setVoiceLine(line);
+  }
+
+  function openEquipmentPopup(item: EquipmentItem): void {
+    setEquipmentPopup({
+      candidate: item,
+      current: progress.inventory.equipped[item.slot],
+      comparison: compareEquipmentCombatScore(createBuildSnapshot(progress), item),
+    });
+  }
 
   return (
     <>
@@ -210,7 +298,12 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
         <Win title="EQUIP">
           <div className="slots">
             {ITEM_SLOTS.map((slot) => (
-              <EquipmentSlot key={slot} slot={slot} item={progress.inventory.equipped[slot]} />
+              <EquipmentSlot
+                key={slot}
+                slot={slot}
+                item={progress.inventory.equipped[slot]}
+                onCompare={openEquipmentPopup}
+              />
             ))}
           </div>
         </Win>
@@ -226,7 +319,7 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
         <Win title="BAG">
           <div className="grid6">
             {progress.inventory.items.slice(0, 24).map((item) => (
-              <ItemCell key={item.id} item={item} />
+              <ItemCell key={item.id} item={item} onCompare={openEquipmentPopup} />
             ))}
             {Array.from({ length: Math.max(0, 24 - Math.min(24, progress.inventory.items.length)) }).map((_, index) => (
               <span key={`empty-${index}`} className="cell off" />
@@ -242,7 +335,12 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
         <Win title="SHOP">
           <div className="shop">
             {progress.shop.offers.slice(0, 6).map((offer) => (
-              <ItemCell key={offer.id} item={offer.item} label={<IconValue type="gold" value={formatCompact(offer.price)} compact />} />
+              <ItemCell
+                key={offer.id}
+                item={offer.item}
+                label={<IconValue type="gold" value={formatCompact(offer.price)} compact />}
+                onCompare={openEquipmentPopup}
+              />
             ))}
           </div>
         </Win>
@@ -310,6 +408,34 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
         </Win>
       </Panel>
 
+      <VisualEffects
+        flashKind={flashKind}
+        voiceLine={voiceLine}
+        overdrive={isOverdrive}
+        telegraph={isTelegraphing}
+      />
+
+      {showOfflinePopup && offlineReward && offlineKey ? (
+        <OfflineRewardPopup
+          reward={offlineReward}
+          onClaim={() => setClaimedOfflineKey(offlineKey)}
+        />
+      ) : null}
+
+      {showFailurePopup && failure && failureKey ? (
+        <ChallengeFailurePopup
+          failure={failure}
+          onClose={() => setDismissedFailureKey(failureKey)}
+        />
+      ) : null}
+
+      {equipmentPopup ? (
+        <EquipmentComparePopup
+          popup={equipmentPopup}
+          onClose={() => setEquipmentPopup(null)}
+        />
+      ) : null}
+
       <DebugPanel open={debugOpen} />
     </>
   );
@@ -372,18 +498,38 @@ function IconValue({ type, value, compact = false }: { type: "gold" | "blood"; v
   );
 }
 
-function EquipmentSlot({ slot, item }: { slot: ItemSlot; item: EquipmentItem | null }) {
+function EquipmentSlot({
+  slot,
+  item,
+  onCompare,
+}: {
+  slot: ItemSlot;
+  item: EquipmentItem | null;
+  onCompare: (item: EquipmentItem) => void;
+}) {
   return (
-    <button type="button" className={item ? `slot ${rarityClass(item.rarity)}` : "slot off"} aria-label={`${slotShort(slot)} COMPARE`}>
+    <button
+      type="button"
+      className={item ? `slot ${rarityClass(item.rarity)}` : "slot off"}
+      aria-label={`${slotShort(slot)} COMPARE`}
+      disabled={!item}
+      onClick={() => item ? onCompare(item) : undefined}
+    >
       <span>{slotIcon(slot)}</span>
       <small>{item ? `+${item.upgradeLevel}` : slotShort(slot)}</small>
     </button>
   );
 }
 
-function ItemCell({ item, label }: { item: EquipmentItem; label?: ReactNode }) {
+function ItemCell({ item, label, onCompare }: { item: EquipmentItem; label?: ReactNode; onCompare: (item: EquipmentItem) => void }) {
   return (
-    <button type="button" className={`cell ${rarityClass(item.rarity)}`} title={`${item.rarity} ${item.slot}`} aria-label={`${item.rarity} ${item.slot} COMPARE`}>
+    <button
+      type="button"
+      className={`cell ${rarityClass(item.rarity)}`}
+      title={`${item.rarity} ${item.slot}`}
+      aria-label={`${item.rarity} ${item.slot} COMPARE`}
+      onClick={() => onCompare(item)}
+    >
       <b>{statShort(item.baseStat)}</b>
       {label ? <small>{label}</small> : null}
     </button>
@@ -417,6 +563,154 @@ function ItemDetail({ item }: { item: EquipmentItem | null }) {
           />
         )) : <MenuItem label="OP" value="NONE" />}
       </div>
+    </div>
+  );
+}
+
+function VisualEffects({
+  flashKind,
+  voiceLine,
+  overdrive,
+  telegraph,
+}: {
+  flashKind: string | null;
+  voiceLine: string | null;
+  overdrive: boolean;
+  telegraph: boolean;
+}) {
+  if (!flashKind && !voiceLine && !overdrive && !telegraph) {
+    return null;
+  }
+
+  return (
+    <div className="visual-fx" aria-hidden="true">
+      {overdrive ? <i className="state-fx overdrive" /> : null}
+      {telegraph ? <i className="state-fx telegraph" /> : null}
+      {flashKind ? <i className={`flash-fx ${flashKind}`} /> : null}
+      {voiceLine ? <div className="voice-line kr">{voiceLine}</div> : null}
+    </div>
+  );
+}
+
+function OfflineRewardPopup({
+  reward,
+  onClaim,
+}: {
+  reward: { elapsedSeconds: number; gold: number; experience: number };
+  onClaim: () => void;
+}) {
+  return (
+    <PopupFrame title="RETURN">
+      <div className="return-seq">
+        <MenuItem label="TIME" value={formatDuration(reward.elapsedSeconds)} />
+        <MenuItem label="G" value={formatNumber(reward.gold)} valueClassName="goldc" />
+        <MenuItem label="EXP" value={formatNumber(reward.experience)} />
+        <MenuItem label="LOOT" value="0" />
+        <MenuItem label="BLOOD" value="0" valueClassName="bloodc" />
+      </div>
+      <p className="popup-voice kr">제단이 깨어났다.</p>
+      <div className="popup-menu">
+        <button type="button" className="inv-vid" onClick={onClaim}>
+          <span className="cur">&#9654;</span>CLAIM
+        </button>
+      </div>
+    </PopupFrame>
+  );
+}
+
+function ChallengeFailurePopup({ failure, onClose }: { failure: StageFailureReport; onClose: () => void }) {
+  const line = failure.reason === "death" ? "버티지 못했다" : "화력이 부족하다";
+  return (
+    <PopupFrame title="FAILED">
+      <p className="popup-voice kr">{line}</p>
+      <MenuItem label="STAGE" value={failure.stageId} />
+      <MenuItem label="CAUSE" value={failure.reason.toUpperCase()} valueClassName="bloodc" />
+      <div className="popup-menu two">
+        <button type="button" className="inv-vid" onClick={onClose}>
+          <span className="cur">&#9654;</span>HUNT {failure.recommendedStage}
+        </button>
+        <button type="button" className="inv-vid off" onClick={onClose}>
+          STAY
+        </button>
+      </div>
+    </PopupFrame>
+  );
+}
+
+function EquipmentComparePopup({ popup, onClose }: { popup: EquipmentPopupState; onClose: () => void }) {
+  const { candidate, current, comparison } = popup;
+  const deltaClass = comparison.delta >= 0 ? "goldc" : "bloodc";
+  return (
+    <PopupFrame title="COMPARE">
+      <div className="compare-head">
+        <MenuItem label="CUR" value={current ? `${current.rarity.toUpperCase()} ${slotShort(current.slot)}` : "NONE"} />
+        <MenuItem label="NEW" value={`${candidate.rarity.toUpperCase()} ${slotShort(candidate.slot)}`} valueClassName={rarityClass(candidate.rarity)} />
+        <MenuItem label="CP" value={`${signedNumber(comparison.delta)} / ${signedPercent(comparison.deltaPercent)}`} valueClassName={deltaClass} />
+      </div>
+
+      <div className="compare-lines">
+        <CompareLine label="BASE" current={current?.baseValue ?? 0} candidate={candidate.baseValue} />
+        <CompareLine label="DMG" current={current ? Math.round((current.minDmg + current.maxDmg) / 2) : 0} candidate={Math.round((candidate.minDmg + candidate.maxDmg) / 2)} />
+        <CompareLine label="ACC" current={current?.accuracy ?? 0} candidate={candidate.accuracy} />
+        {candidate.options.length > 0 ? candidate.options.map((option, index) => {
+          const currentValue = current?.options.find((entry) => entry.key === option.key && entry.sin === option.sin)?.value ?? 0;
+          return (
+            <CompareLine
+              key={`${option.key}-${index}`}
+              label={option.sin ? "SIN" : `OP${index + 1}`}
+              name={affixShort(option.key)}
+              current={currentValue}
+              candidate={option.value}
+              sin={option.sin}
+            />
+          );
+        }) : <MenuItem label="OP" value="NONE" />}
+      </div>
+
+      <div className="popup-menu three">
+        <button type="button" className="inv-vid" onClick={onClose}>
+          <span className="cur">&#9654;</span>EQUIP
+        </button>
+        <button type="button" className="inv-vid off" onClick={onClose}>REROLL</button>
+        <button type="button" className="inv-vid off" onClick={onClose}>SELL</button>
+      </div>
+    </PopupFrame>
+  );
+}
+
+function CompareLine({
+  label,
+  name,
+  current,
+  candidate,
+  sin = false,
+}: {
+  label: string;
+  name?: string;
+  current: number;
+  candidate: number;
+  sin?: boolean;
+}) {
+  const direction = candidate > current ? "▲" : candidate < current ? "▼" : "=";
+  const valueClassName = sin ? "bloodc" : candidate >= current ? "goldc" : "bloodc";
+  return (
+    <div className={sin ? "mi compare-line sin-line" : "mi compare-line"}>
+      <span>{label}</span>
+      <span className="dots" />
+      <span className="compare-name">{name ?? ""}</span>
+      <span className={valueClassName}>{direction}</span>
+      <span className="v">{formatNumber(current)}→{formatNumber(candidate)}</span>
+    </div>
+  );
+}
+
+function PopupFrame({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="popup-layer" role="dialog" aria-label={title}>
+      <section className="gb-popup win">
+        <span className="win-t">{title}</span>
+        {children}
+      </section>
     </div>
   );
 }
@@ -529,6 +823,40 @@ function affixShort(key: string): string {
     .replace("martyr", "MTR")
     .replace("execution", "EXE")
     .replace("despair", "DSP");
+}
+
+function countLegendaryItems(progress: ProgressState): number {
+  return [
+    ...progress.inventory.items,
+    ...Object.values(progress.inventory.equipped).filter((item): item is EquipmentItem => Boolean(item)),
+  ].filter((item) => item.rarity === "legendary").length;
+}
+
+function countHighGradeRelics(progress: ProgressState): number {
+  let count = 0;
+  for (const styleRelics of Object.values(progress.altar.owned)) {
+    if (!styleRelics) {
+      continue;
+    }
+    for (const instance of Object.values(styleRelics)) {
+      if (!instance) {
+        continue;
+      }
+      if (ALTAR_BALANCE.relicGrades[instance.grade].rank >= ALTAR_BALANCE.relicGrades.epic.rank) {
+        count += 1;
+      }
+    }
+  }
+  return count;
+}
+
+function signedNumber(value: number): string {
+  return `${value >= 0 ? "+" : ""}${formatNumber(value)}`;
+}
+
+function signedPercent(value: number): string {
+  const rounded = Math.round(value * 10) / 10;
+  return `${rounded >= 0 ? "+" : ""}${rounded.toFixed(1)}%`;
 }
 
 function starText(stars: number): string {

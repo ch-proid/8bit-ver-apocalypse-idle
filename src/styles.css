@@ -840,14 +840,33 @@ button {
   min-height: 66px;
   display: grid;
   place-items: center;
+  gap: 2px;
+  padding: 5px 2px;
   border: 1px solid var(--line);
   background: var(--ink);
+  color: var(--light);
   cursor: pointer;
 }
 
 .skin-card.on {
   border-color: var(--light);
   background: #111a21;
+}
+
+.skin-card b {
+  font-size: 8px;
+}
+
+.skin-card small {
+  color: var(--mid);
+  font-size: 7px;
+  line-height: 1.15;
+}
+
+.class-brief {
+  margin-bottom: 7px;
+  padding-top: 2px;
+  border-top: 1px dotted var(--mid);
 }
 
 .survivor-name {
@@ -862,6 +881,178 @@ button {
   display: inline-block;
   background-repeat: no-repeat;
   image-rendering: pixelated;
+}
+
+.visual-fx {
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.state-fx,
+.flash-fx {
+  position: absolute;
+  inset: 0;
+  display: block;
+  pointer-events: none;
+}
+
+.state-fx.overdrive {
+  background: rgba(216, 227, 200, 0.09);
+  mix-blend-mode: difference;
+  animation: fxPulse 0.28s steps(2) infinite;
+}
+
+.state-fx.telegraph {
+  border: 3px solid var(--blood);
+  box-shadow: inset 0 0 0 2px var(--ink);
+  animation: fxTelegraph 0.38s steps(2) infinite;
+}
+
+.flash-fx {
+  animation: fxFlash 0.62s steps(3) both;
+}
+
+.flash-fx.altar {
+  background: rgba(192, 48, 58, 0.22);
+}
+
+.flash-fx.reward,
+.flash-fx.relic {
+  background: rgba(224, 192, 74, 0.24);
+}
+
+.flash-fx.legendary {
+  background: rgba(224, 138, 58, 0.32);
+}
+
+.voice-line {
+  position: absolute;
+  left: 9px;
+  right: 9px;
+  bottom: 16px;
+  min-height: 21px;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--light);
+  background: rgba(10, 14, 19, 0.94);
+  box-shadow: inset 0 0 0 2px var(--ink);
+  color: var(--light);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.popup-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  background: rgba(10, 14, 19, 0.58);
+  pointer-events: auto;
+}
+
+.gb-popup {
+  width: min(100%, 286px);
+  max-height: calc(100% - 18px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.popup-voice {
+  margin: 0 0 8px;
+  padding: 5px 6px;
+  border: 1px solid var(--line);
+  background: var(--ink);
+  color: var(--light);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.popup-menu {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 5px;
+  margin-top: 8px;
+}
+
+.popup-menu.two {
+  grid-template-columns: 1fr 1fr;
+}
+
+.popup-menu.three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.compare-head {
+  margin-bottom: 5px;
+}
+
+.compare-lines {
+  padding-top: 3px;
+  border-top: 1px dotted var(--mid);
+}
+
+.compare-line {
+  min-height: 16px;
+}
+
+.compare-name {
+  max-width: 48px;
+  overflow: hidden;
+  color: var(--mid);
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sin-line {
+  color: var(--blood);
+}
+
+.return-seq .mi {
+  opacity: 0;
+  animation: rowReveal 0.28s steps(2) forwards;
+}
+
+.return-seq .mi:nth-child(1) { animation-delay: 0s; }
+.return-seq .mi:nth-child(2) { animation-delay: 0.12s; }
+.return-seq .mi:nth-child(3) { animation-delay: 0.24s; }
+.return-seq .mi:nth-child(4) { animation-delay: 0.36s; }
+.return-seq .mi:nth-child(5) { animation-delay: 0.48s; }
+
+@keyframes rowReveal {
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fxFlash {
+  0% {
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes fxPulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@keyframes fxTelegraph {
+  50% {
+    opacity: 0.25;
+  }
 }
 
 .deck {

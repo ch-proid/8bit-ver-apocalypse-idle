@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { eliteSummonCost } from "./core/altar";
 import type { ClassId } from "./core/types";
 import { FIXED_DELTA } from "./data/balance";
+import { PLAYER_CLASSES } from "./data/classes";
 import { SURVIVOR_SKINS } from "./data/sprites/survivors";
 import { FixedStepLoop } from "./runtime/gameLoop";
 import { useGameStore } from "./store/gameStore";
@@ -11,6 +12,16 @@ import { SurvivorSprite } from "./ui/SurvivorSprite";
 
 const DEBUG_PANEL_ENABLED = import.meta.env.DEV;
 const CLASS_STORAGE_KEY = "classId";
+const CLASS_KR_LABELS: Record<ClassId, string> = {
+  assassin: "암살자",
+  knight: "기사",
+  mage: "마법사",
+};
+const CLASS_STYLE_LINES: Record<ClassId, string> = {
+  assassin: "치명·회피 성장",
+  knight: "방어·체력 성장",
+  mage: "원거리·도트 성장",
+};
 
 export default function App() {
   const hydrate = useGameStore((state) => state.hydrate);
@@ -164,6 +175,7 @@ function ClassSelectPanel({
   onPick: () => void;
 }) {
   const selectedClass = SURVIVOR_SKINS[selectedClassIndex] ?? SURVIVOR_SKINS[0];
+  const selectedClassDef = PLAYER_CLASSES[selectedClass.id];
 
   return (
     <section className="panel on survivor-panel" aria-label="Class select">
@@ -178,8 +190,27 @@ function ClassSelectPanel({
               onClick={() => onSelect(index)}
             >
               <SurvivorSprite skin={skin} scale={2} />
+              <b>{skin.name}</b>
+              <small className="kr">{CLASS_STYLE_LINES[skin.id]}</small>
             </button>
           ))}
+        </div>
+        <div className="class-brief">
+          <div className="mi">
+            <span>JOB</span>
+            <span className="dots" />
+            <span className="v kr">{CLASS_KR_LABELS[selectedClass.id]}</span>
+          </div>
+          <div className="mi">
+            <span>PASS</span>
+            <span className="dots" />
+            <span className="v thin">{selectedClassDef.passive.description}</span>
+          </div>
+          <div className="mi">
+            <span>REC</span>
+            <span className="dots" />
+            <span className="v">{selectedClassDef.recommendedPreset}</span>
+          </div>
         </div>
         <div className="mi survivor-name">
           <span className="cur">&#9654;</span>
