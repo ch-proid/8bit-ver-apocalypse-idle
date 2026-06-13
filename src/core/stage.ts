@@ -6,9 +6,9 @@ import { createBossCombatState, createBossMonster } from "./boss";
 import { createDefaultClassCombatState } from "./class";
 import { createDefaultProgress } from "./progression";
 import { createDefaultRelicCombatState } from "./relics";
-import { createRngState } from "./rng";
+import { createRngState, nextRandom } from "./rng";
 import { applyPlayerStats } from "./stats";
-import type { Monster, Platform, ProgressState, SimulationState, WaveCycleState } from "./types";
+import type { Monster, Platform, ProgressState, RngState, SimulationState, WaveCycleState } from "./types";
 
 export function createInitialSimulation(
   stageId: number = PROGRESSION.initialStageId,
@@ -21,10 +21,11 @@ export function createInitialSimulation(
   const progress = progressOverride ?? createDefaultProgress(stage.id);
   progress.currentStage = stage.id;
   const wave = createInitialWaveState(stage);
+  const rng = createRngState(seed);
   let nextEntityId = 1;
   const monsters = stage.isBoss
     ? createStageBossMonsters(stage, platforms)
-    : createStageWaveMonsters(stage, platforms, wave, () => nextEntityId++);
+    : createStageWaveMonsters(stage, platforms, wave, () => nextEntityId++, rng);
   const player = {
     position: {
       x: 28,
@@ -55,7 +56,7 @@ export function createInitialSimulation(
     progress,
     world: {
       elapsed: 0,
-      rng: createRngState(seed),
+      rng,
       relicCombat: createDefaultRelicCombatState(),
       classCombat: createDefaultClassCombatState(),
       boss: stage.bossId ? createBossCombatState(stage.bossId, stage.id) : null,
@@ -99,6 +100,7 @@ export function createStageWaveMonsters(
   platforms: Platform[],
   wave: WaveCycleState | null,
   nextId: () => number,
+  rng: RngState,
 ): Monster[] {
   if (!wave?.enabled || stage.isBoss) {
     return [];
@@ -110,7 +112,7 @@ export function createStageWaveMonsters(
   }
 
   const monsters: Monster[] = [];
-  let index = 0;
+  let spawnIndex = 0;
 
   for (const spawn of waveDefinition.spawns) {
     const definition = MONSTERS[spawn.monsterId];
@@ -120,8 +122,7 @@ export function createStageWaveMonsters(
     }
 
     for (let i = 0; i < spawn.count; i += 1) {
-      const gap = platform.width / (spawn.count + 1);
-      const x = platform.x + gap * (i + 1) - definition.width / 2;
+      const x = spawnXOnPlatform(platform, definition, rng);
       const y = platform.y - definition.height;
       const stats = normalMonsterStatsForStage(stage.id, definition);
       monsters.push({
@@ -148,14 +149,15 @@ export function createStageWaveMonsters(
         respawnTime: definition.respawnTime,
         respawnTimer: 0,
         alive: true,
-        direction: index % 2 === 0 ? 1 : -1,
+        direction: spawnIndex % 2 === 0 ? 1 : -1,
         fadeTimer: 0,
         spawnInvulnTimer: MONSTER_BALANCE.spawnIntroSeconds,
         aggro: false,
+        aggroDelayTimer: MONSTER_BALANCE.autoAggroSeconds,
         color: definition.color,
         role: "normal",
       });
-      index += 1;
+      spawnIndex += 1;
     }
   }
 
@@ -164,6 +166,16 @@ export function createStageWaveMonsters(
 
 function normalMonsterMoveSpeed(definition: MonsterDefinition): number {
   return Math.round(definition.moveSpeed * MONSTER_BALANCE.moveSpeedMultiplier * 100) / 100;
+}
+
+function spawnXOnPlatform(platform: Platform, definition: MonsterDefinition, rng: RngState): number {
+  const minX = platform.x + MONSTER_BALANCE.spawnInsetX;
+  const maxX = platform.x + platform.width - definition.width - MONSTER_BALANCE.spawnInsetX;
+  if (maxX <= minX) {
+    return platform.x + platform.width / 2 - definition.width / 2;
+  }
+
+  return Math.round((minX + nextRandom(rng) * (maxX - minX)) * 100) / 100;
 }
 
 export function normalMonsterStatsForStage(stageId: number, definition: MonsterDefinition): Pick<Monster, "maxHp" | "attack" | "experience" | "gold"> {

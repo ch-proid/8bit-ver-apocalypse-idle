@@ -32,7 +32,7 @@ import { cloneRngState } from "./rng";
 import { addBlood } from "./altar";
 import { createInitialWaveState, createStageWaveMonsters, getPlatformById, platformCenterX } from "./stage";
 import { clearStage, continueAutoChallenge, failStageChallenge, tickStageChallenge } from "./stageProgress";
-import type { Monster, SimulationState } from "./types";
+import type { ClassId, Monster, SimulationState } from "./types";
 
 export function stepSimulation(input: SimulationState, dt: number): SimulationState {
   const { world, progress } = input;
@@ -85,7 +85,9 @@ function updatePlayerAi(state: SimulationState, dt: number): void {
   const currentTarget = hasPrioritySummon
     ? null
     : aliveMonsters.find((monster) => monster.instanceId === player.targetId);
-  const target = currentTarget ?? findNearestMonster(world.monsters, player.position.x, player.position.y);
+  const target = currentTarget && canTargetMonster(progress.classId, player, currentTarget)
+    ? currentTarget
+    : findNearestMonster(world.monsters, player, progress.classId);
 
   if (!target) {
     player.state = "IDLE";
@@ -98,6 +100,7 @@ function updatePlayerAi(state: SimulationState, dt: number): void {
   const classPassiveResult = applyClassPassiveDamage(progress, world, target, dt);
   if (passiveResult.extraDamage + classPassiveResult.extraDamage > 0) {
     target.aggro = true;
+    target.aggroDelayTimer = 0;
   }
   if (target.hp <= 0) {
     const passiveDamage = passiveResult.extraDamage + classPassiveResult.extraDamage;
@@ -112,7 +115,7 @@ function updatePlayerAi(state: SimulationState, dt: number): void {
   const playerPlatform = getPlatformById(world.platforms, player.platformId);
   const distance = distanceBetween(player, target);
 
-  if (distance <= player.attackRange && player.platformId === target.platformId) {
+  if (distance <= player.attackRange && (player.platformId === target.platformId || progress.classId === "mage")) {
     player.state = "ATTACK";
     player.velocity.x = 0;
 
@@ -141,6 +144,7 @@ function updatePlayerAi(state: SimulationState, dt: number): void {
       }
       if (totalDamage > 0) {
         target.aggro = true;
+        target.aggroDelayTimer = 0;
       }
       addFloatingText(world, `${totalDamage}`, target.position.x + target.width / 2, target.position.y - 2, "#d8e3c8");
       const hooks = relicDamageHooks(progress, world, player);
@@ -224,12 +228,18 @@ function getPlatformExitTarget(
   return platform.x - player.width - 8;
 }
 
-function findNearestMonster(monsters: Monster[], x: number, y: number): Monster | null {
+function findNearestMonster(
+  monsters: Monster[],
+  player: SimulationState["world"]["player"],
+  classId: ClassId,
+): Monster | null {
   let best: Monster | null = null;
   let bestScore = Number.POSITIVE_INFINITY;
+  const x = player.position.x;
+  const y = player.position.y;
 
   for (const monster of monsters) {
-    if (!monster.alive) {
+    if (!monster.alive || !canTargetMonster(classId, player, monster)) {
       continue;
     }
     const rolePriority = monster.role === "bossSummon" ? 0 : monster.role === "boss" ? 1 : 2;
@@ -241,6 +251,14 @@ function findNearestMonster(monsters: Monster[], x: number, y: number): Monster 
   }
 
   return best;
+}
+
+function canTargetMonster(classId: ClassId, player: SimulationState["world"]["player"], monster: Monster): boolean {
+  if (monster.platformId === player.platformId) {
+    return true;
+  }
+
+  return classId === "mage" && distanceBetween(player, monster) <= player.attackRange;
 }
 
 function updateMonsters(
@@ -270,12 +288,29 @@ function updateMonsters(
       continue;
     }
 
+    if (!monster.aggro && monster.aggroDelayTimer > 0) {
+      monster.aggroDelayTimer = Math.max(0, monster.aggroDelayTimer - dt);
+      monster.aggro = monster.aggroDelayTimer <= 0;
+    }
+
     if (monster.aggro) {
-      const playerCenter = player.position.x + player.width / 2;
-      const monsterCenter = monster.position.x + monster.width / 2;
-      const delta = playerCenter - monsterCenter;
-      if (Math.abs(delta) > 1) {
+      const playerPlatform = getPlatformById(platforms, player.platformId);
+      if (playerPlatform && monster.platformId !== player.platformId) {
+        const exitX = platformExitX(platform, player);
+        const monsterCenter = monster.position.x + monster.width / 2;
+        const delta = exitX - monsterCenter;
+        if (Math.abs(delta) <= MONSTER_BALANCE.platformTransferEdgeThreshold) {
+          transferMonsterToPlatform(monster, playerPlatform, player);
+          continue;
+        }
         monster.direction = delta > 0 ? 1 : -1;
+      } else {
+        const playerCenter = player.position.x + player.width / 2;
+        const monsterCenter = monster.position.x + monster.width / 2;
+        const delta = playerCenter - monsterCenter;
+        if (Math.abs(delta) > 1) {
+          monster.direction = delta > 0 ? 1 : -1;
+        }
       }
     }
 
@@ -284,12 +319,53 @@ function updateMonsters(
     const maxX = platform.x + platform.width - monster.width - 3;
     if (monster.position.x <= minX) {
       monster.position.x = minX;
-      monster.direction = 1;
+      if (monster.aggro && monster.platformId !== player.platformId) {
+        const playerPlatform = getPlatformById(platforms, player.platformId);
+        if (playerPlatform) {
+          transferMonsterToPlatform(monster, playerPlatform, player);
+        }
+      } else {
+        monster.direction = 1;
+      }
     } else if (monster.position.x >= maxX) {
       monster.position.x = maxX;
-      monster.direction = -1;
+      if (monster.aggro && monster.platformId !== player.platformId) {
+        const playerPlatform = getPlatformById(platforms, player.platformId);
+        if (playerPlatform) {
+          transferMonsterToPlatform(monster, playerPlatform, player);
+        }
+      } else {
+        monster.direction = -1;
+      }
     }
   }
+}
+
+function platformExitX(platform: NonNullable<ReturnType<typeof getPlatformById>>, player: SimulationState["world"]["player"]): number {
+  const playerCenter = player.position.x + player.width / 2;
+  return clamp(playerCenter, platform.x, platform.x + platform.width);
+}
+
+function transferMonsterToPlatform(
+  monster: Monster,
+  platform: NonNullable<ReturnType<typeof getPlatformById>>,
+  player: SimulationState["world"]["player"],
+): void {
+  const minX = platform.x + 3;
+  const maxX = platform.x + platform.width - monster.width - 3;
+  monster.platformId = platform.id;
+  monster.position.x = clamp(monster.position.x, minX, maxX);
+  monster.position.y = platform.y - monster.height;
+  const playerCenter = player.position.x + player.width / 2;
+  const monsterCenter = monster.position.x + monster.width / 2;
+  const delta = playerCenter - monsterCenter;
+  if (Math.abs(delta) > 1) {
+    monster.direction = delta > 0 ? 1 : -1;
+  }
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
 }
 
 function killMonster(state: SimulationState, monster: Monster): void {
@@ -297,6 +373,8 @@ function killMonster(state: SimulationState, monster: Monster): void {
   monster.respawnTimer = monster.respawnTime;
   monster.fadeTimer = MONSTER_BALANCE.respawnFadeSeconds;
   monster.spawnInvulnTimer = 0;
+  monster.aggro = false;
+  monster.aggroDelayTimer = 0;
   const stage = STAGES[state.progress.currentStage];
   if (stage && monster.role === "normal") {
     addFloatingText(state.world, "+BLOOD", monster.position.x, monster.position.y - 12, "#c0303a");
@@ -413,6 +491,7 @@ function advanceWaveIfCleared(state: SimulationState): void {
     state.world.platforms,
     state.world.wave,
     () => state.world.nextEntityId++,
+    state.world.rng,
   );
   state.world.player.targetId = null;
 }
@@ -426,6 +505,7 @@ function respawnMonster(monster: Monster): void {
   monster.fadeTimer = 0;
   monster.spawnInvulnTimer = MONSTER_BALANCE.spawnIntroSeconds;
   monster.aggro = false;
+  monster.aggroDelayTimer = MONSTER_BALANCE.autoAggroSeconds;
 }
 
 function updateFloatingTexts(state: SimulationState, dt: number): void {

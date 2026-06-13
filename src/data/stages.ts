@@ -21,6 +21,13 @@ export interface MonsterWaveDefinition {
   spawns: MonsterSpawnDefinition[];
 }
 
+export interface StageSpawnLayerDefinition {
+  id: "lower" | "middle" | "upper";
+  y: number;
+  xRange: [number, number];
+  platformIds: string[];
+}
+
 export interface StageDefinition {
   id: number;
   label: string;
@@ -29,6 +36,7 @@ export interface StageDefinition {
   isBoss: boolean;
   bossId?: BossId;
   platforms: PlatformDefinition[];
+  spawnLayers: StageSpawnLayerDefinition[];
   spawns: MonsterSpawnDefinition[];
   waves: MonsterWaveDefinition[];
   goldPerMinute: number;
@@ -43,6 +51,12 @@ const BASE_PLATFORMS: PlatformDefinition[] = [
   { id: "high-mid", x: 136, y: 71, width: 63, height: 7 },
   { id: "high-left", x: 48, y: 43, width: 62, height: 7 },
   { id: "high-right", x: 188, y: 44, width: 94, height: 7 },
+];
+
+const BASE_SPAWN_LAYERS: StageSpawnLayerDefinition[] = [
+  { id: "lower", y: 137, xRange: [0, 320], platformIds: ["floor"] },
+  { id: "middle", y: 99, xRange: [31, 292], platformIds: ["low-left", "mid-right"] },
+  { id: "upper", y: 44, xRange: [48, 282], platformIds: ["high-left", "high-mid", "high-right"] },
 ];
 
 const BASE_WAVES: MonsterWaveDefinition[] = [
@@ -85,6 +99,11 @@ function createStage(id: number): StageDefinition {
     goldPerMinute: 180 + id * 30,
     experiencePerMinute: 150 + id * 25,
     platforms: BASE_PLATFORMS.map((platform) => ({ ...platform })),
+    spawnLayers: BASE_SPAWN_LAYERS.map((layer) => ({
+      ...layer,
+      xRange: [...layer.xRange],
+      platformIds: [...layer.platformIds],
+    })),
     spawns: waves.flatMap((wave) => wave.spawns.map((spawn) => ({ ...spawn }))),
     waves,
     dropBias: DROP_BIASES[biasSlot],
@@ -106,11 +125,24 @@ function biasSlotForStage(indexInChapter: number): ItemSlot {
 
 function scaleWaves(chapter: number): MonsterWaveDefinition[] {
   return BASE_WAVES.slice(0, WAVE_BALANCE.wavesPerStage).map((wave, waveIndex) => ({
-    spawns: wave.spawns.map((spawn) => ({
-      ...spawn,
-      count: waveMonsterCount(spawn.count, chapter, waveIndex),
-    })),
+    spawns: wave.spawns.flatMap((spawn) => distributeWaveSpawn(spawn, waveMonsterCount(spawn.count, chapter, waveIndex), waveIndex)),
   }));
+}
+
+function distributeWaveSpawn(
+  spawn: MonsterSpawnDefinition,
+  count: number,
+  waveIndex: number,
+): MonsterSpawnDefinition[] {
+  return Array.from({ length: count }, (_, index) => {
+    const layer = BASE_SPAWN_LAYERS[(waveIndex + index) % BASE_SPAWN_LAYERS.length];
+    const platformId = layer.platformIds[(waveIndex + index) % layer.platformIds.length];
+    return {
+      monsterId: spawn.monsterId,
+      platformId,
+      count: 1,
+    };
+  });
 }
 
 function waveMonsterCount(baseCount: number, chapter: number, waveIndex: number): number {

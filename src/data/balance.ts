@@ -79,6 +79,9 @@ export const CLASS_BALANCE = {
 export const MONSTER_BALANCE = {
   normalRespawnTimeMultiplier: 1.8,
   moveSpeedMultiplier: 0.55,
+  autoAggroSeconds: 2.5,
+  platformTransferEdgeThreshold: 1.5,
+  spawnInsetX: 4,
   spawnIntroSeconds: 0.4,
   respawnFadeSeconds: 0.22,
   hpBarWidth: 10,
@@ -87,8 +90,8 @@ export const MONSTER_BALANCE = {
 
 export const WAVE_BALANCE = {
   wavesPerStage: 3,
-  minMonstersPerWave: 2,
-  maxMonstersPerWave: 3,
+  minMonstersPerWave: 3,
+  maxMonstersPerWave: 4,
   chapterHpMultiplier: 0.18,
   chapterAttackMultiplier: 0.12,
   chapterRewardMultiplier: 0.1,
