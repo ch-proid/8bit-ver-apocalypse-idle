@@ -158,6 +158,9 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
   const altarCharges = altarStoredCharges(progress.altar);
   const altarMaxCharges = altarMaxStoredCharges(progress.altar);
   const altarChargePercent = altarChargeProgress(progress.altar);
+  const altarNextChargeValue = altarCharges >= altarMaxCharges
+    ? bloodRequired
+    : Math.floor(progress.altar.blood % bloodRequired);
   const nextAltarMaxCharges = altarMaxStoredCharges({ level: progress.altar.level + 1 });
   const altarExperiencePercent = percent(progress.altar.experience, altarNextExperience);
   const chapter = Math.ceil(progress.currentStage / 10);
@@ -359,6 +362,8 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
         charges={altarCharges}
         maxCharges={altarMaxCharges}
         fill={altarChargePercent}
+        nextChargeValue={altarNextChargeValue}
+        nextChargeRequired={bloodRequired}
         disabled={altarCharges <= 0 || Boolean(world.altarElite)}
         onClick={summonEliteNow}
       />
@@ -764,12 +769,16 @@ function AltarBall({
   charges,
   maxCharges,
   fill,
+  nextChargeValue,
+  nextChargeRequired,
   disabled,
   onClick,
 }: {
   charges: number;
   maxCharges: number;
   fill: number;
+  nextChargeValue: number;
+  nextChargeRequired: number;
   disabled: boolean;
   onClick: () => void;
 }) {
@@ -787,7 +796,7 @@ function AltarBall({
         <span>{charges}</span>
         <small>{maxCharges}</small>
       </button>
-      <IconValue type="blood" value={`${charges}/${maxCharges}`} compact />
+      <IconValue type="blood" value={`${formatCompact(nextChargeValue)}/${formatCompact(nextChargeRequired)}`} compact />
     </div>
   );
 }
@@ -1138,8 +1147,15 @@ function RelicCard({
   const required = instance && stars < ALTAR_BALANCE.maxStars ? relicDuplicateRequirementForNextStar(stars) : 0;
   return (
     <button type="button" className={`relic ${rarityClass(grade)}${equipped ? " on" : ""}${instance ? "" : " off"}`} onClick={onOpen}>
-      <span className="kr">{instance ? RELIC_KR_LABELS[relicId] : "?"}</span>
-      <small className="sin">{rarityLabel(grade)} / <span className="kr">{SIN_KR_LABELS[relic.sin]}</span></small>
+      <span className="relic-card-name kr">
+        {instance ? (
+          <>
+            <span className="sin-prefix">{SIN_KR_LABELS[relic.sin]}의</span>
+            <span>{RELIC_KR_LABELS[relicId]}</span>
+          </>
+        ) : "?"}
+      </span>
+      <small className="sin">{rarityLabel(grade)}</small>
       <StarIcons stars={stars} dim={!instance} />
       <small className="st">{instance && required > 0 ? `${instance.duplicateProgress}/${required}` : instance ? "MAX" : "0/?"}</small>
     </button>
@@ -1167,13 +1183,16 @@ function RelicInfoPopup({
 
   return (
     <PopupFrame title="유물 정보">
-      <MenuItem label="이름" value={<span className="kr">{RELIC_KR_LABELS[relicId]}</span>} />
-      <MenuItem label="죄" value={<span className="kr">{SIN_KR_LABELS[relic.sin]}</span>} />
+      <div className="relic-name-line kr">
+        <span className="sin-prefix">{SIN_KR_LABELS[relic.sin]}의</span>
+        <span>{RELIC_KR_LABELS[relicId]}</span>
+      </div>
       <MenuItem label="등급" value={rarityLabel(grade)} valueClassName={rarityClass(grade)} />
       <MenuItem label="별" value={<StarIcons stars={stars} dim={!instance} />} />
-      <MenuItem label="공격" value={instance ? formatNumber(instance.ownedStats.atk) : "?"} />
+      <span className="section-label kr">보유 효과</span>
+      <MenuItem label="공격력" value={instance ? formatNumber(instance.ownedStats.atk) : "?"} />
       <MenuItem label="체력" value={instance ? formatNumber(instance.ownedStats.hp) : "?"} />
-      <MenuItem label="방어" value={instance ? formatNumber(instance.ownedStats.def) : "?"} />
+      <MenuItem label="방어력" value={instance ? formatNumber(instance.ownedStats.def) : "?"} />
       <p className="popup-voice kr">{RELIC_DESC_KR[relicId]}</p>
       <div className="popup-menu two">
         <button

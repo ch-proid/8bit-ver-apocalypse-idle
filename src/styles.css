@@ -1006,6 +1006,16 @@ button {
   font-size: 7px;
 }
 
+.relic-card-name {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  max-width: 100%;
+  line-height: 1.1;
+  flex-wrap: wrap;
+}
+
 .st,
 .stars {
   color: var(--gold);
