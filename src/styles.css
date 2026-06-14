@@ -348,6 +348,30 @@ button {
   color: var(--blood);
 }
 
+.rebirth-conditions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.condition-ok {
+  color: var(--gold);
+}
+
+.condition-no {
+  color: var(--blood);
+}
+
+.condition-sep {
+  color: var(--mid);
+}
+
+.rebirth-records {
+  margin-top: 8px;
+}
+
 .ico-val {
   display: inline-flex;
   align-items: center;

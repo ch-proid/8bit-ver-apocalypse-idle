@@ -196,9 +196,7 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
     progress.stageProgress.clearedStages[REBIRTH_BALANCE.requiredStageId]
       || progress.stageProgress.defeatedBossStages[REBIRTH_BALANCE.requiredStageId],
   );
-  const rebirthConditionLabel = rebirthUnlocked
-    ? "달성"
-    : `6-10 ${rebirthStageCleared ? "완료" : "미완"} / LV ${progress.level}/${REBIRTH_BALANCE.requiredLevel}`;
+  const rebirthLevelReached = progress.level >= REBIRTH_BALANCE.requiredLevel;
   const autoDistributionEnabled = progress.statDistribution.preset !== "MANUAL";
   const critChanceBase = Math.min(classCrit.critChanceCap, classCrit.critChanceBonus);
   const critChanceTotal = Math.min(classCrit.critChanceCap, combatAffixes.critChance + classCrit.critChanceBonus);
@@ -457,16 +455,21 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
       <Panel open={activePanel === "rebirth"} label="환생">
         <div className="statbar rich">
           <span>환생 {progress.rebirth.count}회</span>
-          <span className="bloodc">x{progress.rebirth.multiplier.toFixed(2)}</span>
+          <span>x{progress.rebirth.multiplier.toFixed(2)}</span>
         </div>
 
         <Win title="환생">
           <MenuItem label="환생 횟수" value={`${progress.rebirth.count}회`} />
-          <MenuItem label="현재 배율" value={`x${progress.rebirth.multiplier.toFixed(2)}`} valueClassName="bloodc" />
+          <MenuItem label="현재 배율" value={`x${progress.rebirth.multiplier.toFixed(2)}`} />
           <MenuItem
             label="해금 조건"
-            value={rebirthConditionLabel}
-            valueClassName={rebirthUnlocked ? "goldc kr" : "bloodc kr"}
+            value={(
+              <span className="rebirth-conditions kr">
+                <span className={rebirthStageCleared ? "condition-ok" : "condition-no"}>6-10 클리어</span>
+                <span className="condition-sep">/</span>
+                <span className={rebirthLevelReached ? "condition-ok" : "condition-no"}>레벨 {REBIRTH_BALANCE.requiredLevel} 달성</span>
+              </span>
+            )}
           />
           <button
             type="button"
@@ -478,7 +481,7 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
           </button>
         </Win>
 
-        <Win title="개인 기록">
+        <Win title="개인 기록" className="rebirth-records">
           <MenuItem label="최고 레벨" value={progress.records.highestLevel.value} />
           <MenuItem label="최고 전투력" value={formatNumber(combatPower)} />
           <MenuItem label="환생 횟수" value={`${progress.rebirth.count}회`} />
@@ -740,9 +743,9 @@ function Panel({ open, label, children }: { open: boolean; label: string; childr
   );
 }
 
-function Win({ title, children }: { title: string; children: ReactNode }) {
+function Win({ title, children, className }: { title: string; children: ReactNode; className?: string }) {
   return (
-    <section className="win">
+    <section className={className ? `win ${className}` : "win"}>
       <span className="win-t">{title}</span>
       {children}
     </section>
