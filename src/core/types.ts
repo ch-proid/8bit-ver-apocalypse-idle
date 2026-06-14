@@ -37,6 +37,7 @@ export type GeneralAffixKey =
   | "attackSpeed"
   | "damageIncrease"
   | "finalDamage"
+  | "additionalDamage"
   | "defPenetration"
   | "lifeSteal"
   | "goldGain"
@@ -200,6 +201,7 @@ export interface CombatAffixStats {
   attackSpeed: number;
   damageIncrease: number;
   finalDamage: number;
+  additionalDamage: number;
   defPenetration: number;
   lifeSteal: number;
   goldGain: number;

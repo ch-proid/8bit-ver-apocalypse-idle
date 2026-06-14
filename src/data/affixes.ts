@@ -23,6 +23,7 @@ export const GENERAL_AFFIXES: Record<GeneralAffixKey, GeneralAffixDefinition> = 
   attackSpeed: { key: "attackSpeed", allowedSlots: ["weapon", "accessory"] },
   damageIncrease: { key: "damageIncrease", allowedSlots: ["weapon", "helmet", "armor", "accessory"] },
   finalDamage: { key: "finalDamage", allowedSlots: ["weapon", "accessory"] },
+  additionalDamage: { key: "additionalDamage", allowedSlots: ["weapon", "helmet", "armor", "accessory"] },
   defPenetration: { key: "defPenetration", allowedSlots: ["weapon"] },
   lifeSteal: { key: "lifeSteal", allowedSlots: ["weapon", "armor", "accessory"] },
   goldGain: { key: "goldGain", allowedSlots: ["helmet", "armor", "accessory"] },

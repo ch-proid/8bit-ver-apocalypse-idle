@@ -45,6 +45,8 @@ export interface DamageResult {
   afterFinalDamage: number;
   afterDamageReduction: number;
   varianceMultiplier: number;
+  afterVariance: number;
+  afterAdditionalDamage: number;
   finalDamage: number;
 }
 
@@ -121,6 +123,8 @@ export function calculateDamage(input: DamageInput): DamageResult {
       afterFinalDamage: 0,
       afterDamageReduction: 0,
       varianceMultiplier: 1,
+      afterVariance: 0,
+      afterAdditionalDamage: 0,
       finalDamage: 0,
     };
   }
@@ -142,9 +146,11 @@ export function calculateDamage(input: DamageInput): DamageResult {
   const defenderReduction = Math.min(DAMAGE_FORMULA.damageReductionCap, Math.max(0, input.defenderDamageReduction));
   const afterDamageReduction = afterFinalDamage * (1 - defenderReduction / 100);
   const varianceMultiplier = varianceFromRoll(input.forceVarianceRoll ?? nextRandom(input.rng));
+  const afterVariance = Math.floor(afterDamageReduction * varianceMultiplier);
+  const afterAdditionalDamage = afterVariance + affixes.additionalDamage;
   const finalDamage = Math.max(
     DAMAGE_FORMULA.minimumDamage,
-    Math.floor(afterDamageReduction * varianceMultiplier),
+    Math.floor(afterAdditionalDamage),
   );
 
   return {
@@ -163,6 +169,8 @@ export function calculateDamage(input: DamageInput): DamageResult {
     afterFinalDamage,
     afterDamageReduction,
     varianceMultiplier,
+    afterVariance,
+    afterAdditionalDamage,
     finalDamage,
   };
 }
@@ -177,6 +185,7 @@ export function clampCombatAffixes(
     attackSpeed: clamp(affixes.attackSpeed, 0, DAMAGE_FORMULA.attackSpeedCap),
     damageIncrease: Math.max(0, affixes.damageIncrease),
     finalDamage: Math.max(0, affixes.finalDamage),
+    additionalDamage: Math.max(0, affixes.additionalDamage),
     defPenetration: Math.max(0, affixes.defPenetration),
     lifeSteal: clamp(affixes.lifeSteal, 0, DAMAGE_FORMULA.lifeStealCap),
     goldGain: Math.max(0, affixes.goldGain),
@@ -284,6 +293,8 @@ function zeroDamageResult(monster: Monster): DamageResult {
     afterFinalDamage: 0,
     afterDamageReduction: 0,
     varianceMultiplier: 1,
+    afterVariance: 0,
+    afterAdditionalDamage: 0,
     finalDamage: 0,
   };
 }

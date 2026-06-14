@@ -89,10 +89,22 @@ export function rarityWeightsForStage(stageId: number, rebirthCount = 0): Record
   const baseWeights = EQUIPMENT_BALANCE.rarityWeightsByChapter[chapterIndex] as Record<ItemRarity, number>;
   const rebirthMultipliers = EQUIPMENT_BALANCE.rarityRebirthWeightMultiplierPerCount as Record<ItemRarity, number>;
   return ITEM_RARITIES.reduce((weights, rarity) => {
+    if (!isEquipmentRarityUnlocked(rarity, rebirthCount)) {
+      weights[rarity] = 0;
+      return weights;
+    }
     const multiplier = Math.max(0.25, 1 + Math.max(0, rebirthCount) * rebirthMultipliers[rarity]);
     weights[rarity] = baseWeights[rarity] * multiplier;
     return weights;
   }, {} as Record<ItemRarity, number>);
+}
+
+export function unlockedEquipmentRarities(rebirthCount = 0): ItemRarity[] {
+  return ITEM_RARITIES.filter((rarity) => isEquipmentRarityUnlocked(rarity, rebirthCount));
+}
+
+export function isEquipmentRarityUnlocked(rarity: ItemRarity, rebirthCount = 0): boolean {
+  return Math.max(0, rebirthCount) >= EQUIPMENT_BALANCE.rarityRebirthGate[rarity];
 }
 
 export function itemLevelForStage(stageId: number): number {
@@ -260,7 +272,6 @@ export function enhancedBaseValue(item: EquipmentItem): number {
 
 export function enhancedBaseStats(item: EquipmentItem): EquipmentBaseStats {
   const normalized = normalizeEquipmentItem(item);
-  const multiplier = 1 + normalized.upgradeLevel * EQUIPMENT_BALANCE.enhancement.baseStatPercentPerLevel / 100;
   const stats = normalizeBaseStats(normalized, normalized.accuracy);
   const enhanced: EquipmentBaseStats = {};
 
@@ -269,7 +280,11 @@ export function enhancedBaseStats(item: EquipmentItem): EquipmentBaseStats {
       enhanced.accuracy = normalized.accuracy;
       continue;
     }
-    const scaled = value * multiplier;
+    const scaled = value + enhancementFlatBonus(normalized, key);
+    if (normalized.upgradeLevel > 0) {
+      enhanced[key] = Math.max(key === "reg" ? 0 : 1, Math.round(scaled));
+      continue;
+    }
     enhanced[key] = key === "reg" || key === "critChance"
       ? roundTo(scaled, 2)
       : Math.max(1, roundTo(scaled, 2));
@@ -316,17 +331,16 @@ export function calculateWeaponCombatStats(
 
   const rank = EQUIPMENT_BALANCE.rarityRanks[rarity];
   const spread = EQUIPMENT_BALANCE.weaponDamage.spreadByRarity[rarity];
-  const upgradeDamageMultiplier = 1 + upgradeLevel * EQUIPMENT_BALANCE.weaponUpgrade.damagePercentPerLevel / 100;
-  const midpoint = Math.max(1, baseValue) * upgradeDamageMultiplier;
+  const upgradeDamageBonus = upgradeLevel * EQUIPMENT_BALANCE.weaponUpgrade.damageFlatPerLevelByRarity[rarity];
+  const midpoint = Math.max(1, baseValue + upgradeDamageBonus);
   return {
     minDmg: Math.max(1, Math.floor(midpoint * (1 - spread))),
     maxDmg: Math.max(1, Math.ceil(midpoint * (1 + spread))),
-    accuracy: roundTo(
+    accuracy: Math.round(
       EQUIPMENT_BALANCE.weaponDamage.accuracyBase
         + itemLevel * EQUIPMENT_BALANCE.weaponDamage.accuracyPerItemLevel
         + rank * EQUIPMENT_BALANCE.weaponDamage.accuracyPerRarityRank
         + upgradeLevel * EQUIPMENT_BALANCE.weaponUpgrade.accuracyPerLevel,
-      2,
     ),
     upgradeLevel,
   };
@@ -425,6 +439,15 @@ function normalizeBaseStats(item: EquipmentItem, fallbackAccuracy: number): Equi
   return stats;
 }
 
+function enhancementFlatBonus(item: EquipmentItem, key: EquipmentBaseStatKey): number {
+  if (item.upgradeLevel <= 0) {
+    return 0;
+  }
+  const byRarity = EQUIPMENT_BALANCE.enhancement.baseStatFlatPerLevel[item.rarity];
+  const bySlot = byRarity[item.slot] as Partial<Record<EquipmentBaseStatKey, number>>;
+  return Math.max(0, item.upgradeLevel) * (bySlot[key] ?? 0);
+}
+
 function normalizeBaseStat(slot: ItemSlot, value: EquipmentStatKey | undefined): EquipmentStatKey {
   if (value === "atk" || value === "def" || value === "hp" || value === "reg") {
     return value;
@@ -513,6 +536,7 @@ function createEmptyCombatAffixStats(): CombatAffixStats {
     attackSpeed: 0,
     damageIncrease: 0,
     finalDamage: 0,
+    additionalDamage: 0,
     defPenetration: 0,
     lifeSteal: 0,
     goldGain: 0,

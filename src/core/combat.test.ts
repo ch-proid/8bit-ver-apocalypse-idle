@@ -78,6 +78,7 @@ describe("phase 3C damage formula, altar, and relic builds", () => {
         critDamage: 50,
         damageIncrease: 20,
         finalDamage: 10,
+        additionalDamage: 0,
         defPenetration: 10,
       },
       rng,
@@ -204,6 +205,7 @@ describe("phase 3C damage formula, altar, and relic builds", () => {
       attackSpeed: 300,
       damageIncrease: 1,
       finalDamage: 1,
+      additionalDamage: 7,
       defPenetration: 1,
       lifeSteal: 99,
       goldGain: 5,
@@ -212,10 +214,40 @@ describe("phase 3C damage formula, altar, and relic builds", () => {
     });
 
     expect(clamped.critChance).toBe(DAMAGE_FORMULA.critChanceCap);
+    expect(clamped.additionalDamage).toBe(7);
     expect(clamped.attackSpeed).toBe(DAMAGE_FORMULA.attackSpeedCap);
     expect(clamped.lifeSteal).toBe(DAMAGE_FORMULA.lifeStealCap);
     expect(clamped.damageReduction).toBe(DAMAGE_FORMULA.damageReductionCap);
     expect(effectiveAttackCooldown(1, clamped, 1)).toBeCloseTo(0.5);
+  });
+
+  it("adds flat additional damage after variance so multipliers do not amplify it", () => {
+    const result = calculateDamage({
+      attack: 100,
+      minDamage: 100,
+      maxDamage: 100,
+      strengthMultiplier: 1,
+      weaponAccuracy: 100,
+      defenderEvasion: 0,
+      styleMultiplier: 1,
+      defenderDefense: 0,
+      defenderDamageReduction: 0,
+      affixes: {
+        ...emptyCombatAffixes(),
+        damageIncrease: 100,
+        finalDamage: 100,
+        additionalDamage: 30,
+      },
+      rng: createRngState(7701),
+      forceCritical: false,
+      forceVarianceRoll: 0,
+    });
+
+    expect(result.afterDamageReduction).toBe(400);
+    expect(result.varianceMultiplier).toBe(1 - DAMAGE_FORMULA.variance);
+    expect(result.afterVariance).toBe(380);
+    expect(result.afterAdditionalDamage).toBe(410);
+    expect(result.finalDamage).toBe(410);
   });
 
   it("accumulates blood, spends elite challenge cost, levels altar manually, and gates 3-star upgrades", () => {
@@ -296,12 +328,16 @@ describe("phase 3C damage formula, altar, and relic builds", () => {
   it("uses altar level and rebirth count to unlock relic grades", () => {
     const altar = createDefaultAltarState();
 
-    expect(unlockedRelicGrades(altar, 0)).toEqual(["common"]);
+    expect(unlockedRelicGrades(altar, 0)).toEqual(["common", "magic"]);
     altar.level = ALTAR_BALANCE.relicGrades.rare.altarLevel;
-    expect(unlockedRelicGrades(altar, 0)).toEqual(["common", "magic", "rare"]);
+    expect(unlockedRelicGrades(altar, 0)).toEqual(["common", "magic"]);
+    expect(unlockedRelicGrades(altar, 1)).toContain("rare");
     altar.level = ALTAR_BALANCE.relicGrades.epic.altarLevel;
-    expect(unlockedRelicGrades(altar, 0)).not.toContain("epic");
-    expect(unlockedRelicGrades(altar, 1)).toContain("epic");
+    expect(unlockedRelicGrades(altar, 1)).not.toContain("epic");
+    expect(unlockedRelicGrades(altar, 3)).toContain("epic");
+    altar.level = ALTAR_BALANCE.relicGrades.legendary.altarLevel;
+    expect(unlockedRelicGrades(altar, 3)).not.toContain("legendary");
+    expect(unlockedRelicGrades(altar, 8)).toContain("legendary");
   });
 
   it("raises relic drop chance and high-grade outcomes with altar level and rebirth", () => {
@@ -474,6 +510,7 @@ function emptyCombatAffixes(): CombatAffixStats {
     attackSpeed: 0,
     damageIncrease: 0,
     finalDamage: 0,
+    additionalDamage: 0,
     defPenetration: 0,
     lifeSteal: 0,
     goldGain: 0,

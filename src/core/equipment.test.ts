@@ -16,6 +16,7 @@ import {
   generateEquipmentItem,
   rarityWeightsForStage,
   rollWeightedGeneralOption,
+  unlockedEquipmentRarities,
 } from "./equipment";
 import { equipmentDropChance } from "./drop";
 import { buyShopOffer, canRefreshShop, cubeSynthesize, refreshShop, reawakenItemOptions, reawakeningCost, rerollItemOptions, shopRefreshRemainingSeconds } from "./gold";
@@ -95,30 +96,39 @@ describe("phase 3B equipment, drops, and gold", () => {
     expectTierOrder(dropDistribution);
     expectTierOrder(reawakenDistribution);
     expect(dropDistribution.byKey.finalDamage ?? 0).toBeLessThan(dropDistribution.byKey.attackSpeed ?? 0);
+    expect(dropDistribution.byKey.finalDamage ?? 0).toBeLessThan(dropDistribution.byKey.additionalDamage ?? 0);
     expect(reawakenDistribution.byKey.finalDamage ?? 0).toBeLessThan(reawakenDistribution.byKey.attackSpeed ?? 0);
+    expect(reawakenDistribution.byKey.finalDamage ?? 0).toBeLessThan(reawakenDistribution.byKey.additionalDamage ?? 0);
   });
 
-  it("approximates chapter one rarity weights with a fixed seed", () => {
-    const rng = createRngState(123);
-    const counts: Record<ItemRarity, number> = {
-      common: 0,
-      magic: 0,
-      rare: 0,
-      epic: 0,
-      legendary: 0,
+  it("gates equipment rarities by rebirth count before applying stage weights", () => {
+    expect(unlockedEquipmentRarities(0)).toEqual(["common", "magic"]);
+    expect(unlockedEquipmentRarities(1)).toEqual(["common", "magic", "rare"]);
+    expect(unlockedEquipmentRarities(3)).toEqual(["common", "magic", "rare", "epic"]);
+    expect(unlockedEquipmentRarities(8)).toEqual(["common", "magic", "rare", "epic", "legendary"]);
+
+    const countsAtRebirth = (rebirthCount: number) => {
+      const rng = createRngState(123);
+      const counts: Record<ItemRarity, number> = {
+        common: 0,
+        magic: 0,
+        rare: 0,
+        epic: 0,
+        legendary: 0,
+      };
+      for (let i = 0; i < 3000; i += 1) {
+        const item = generateEquipmentItem({ id: `drop-${rebirthCount}-${i}`, rng, stageId: 60, rebirthCount });
+        counts[item.rarity] += 1;
+      }
+      return counts;
     };
 
-    for (let i = 0; i < 5000; i += 1) {
-      const item = generateEquipmentItem({ id: `drop${i}`, rng, stageId: 1 });
-      counts[item.rarity] += 1;
-    }
-
-    expect(counts.common / 5000).toBeGreaterThan(0.74);
-    expect(counts.common / 5000).toBeLessThan(0.82);
-    expect(counts.magic / 5000).toBeGreaterThan(0.14);
-    expect(counts.magic / 5000).toBeLessThan(0.2);
-    expect(counts.rare / 5000).toBeGreaterThan(0.025);
-    expect(counts.rare / 5000).toBeLessThan(0.055);
+    expect(countsAtRebirth(0).rare).toBe(0);
+    expect(countsAtRebirth(1).rare).toBeGreaterThan(0);
+    expect(countsAtRebirth(1).epic).toBe(0);
+    expect(countsAtRebirth(3).epic).toBeGreaterThan(0);
+    expect(countsAtRebirth(3).legendary).toBe(0);
+    expect(countsAtRebirth(8).legendary).toBeGreaterThan(0);
   });
 
   it("generates and preserves deterministic Korean equipment names", () => {
@@ -261,7 +271,7 @@ describe("phase 3B equipment, drops, and gold", () => {
     const early = createDefaultProgress();
     const late = createDefaultProgress();
     late.currentStage = 60;
-    late.rebirth.count = 4;
+    late.rebirth.count = EQUIPMENT_BALANCE.rarityRebirthGate.legendary;
 
     const earlyWeights = rarityWeightsForStage(1, 0);
     const lateWeights = rarityWeightsForStage(late.currentStage, late.rebirth.count);
@@ -403,6 +413,25 @@ describe("phase 3B equipment, drops, and gold", () => {
     const capped = upgradeEquipment(progress, armor.id, createRngState(1));
     expect(capped.success).toBe(false);
     expect(armor.upgradeLevel).toBe(EQUIPMENT_BALANCE.enhancement.maxLevel);
+  });
+
+  it("uses integer flat enhancement gains for visible base stats", () => {
+    const progress = createProgressWithGold(10000);
+    const armor = generateEquipmentItem({
+      id: "integer-upgrade",
+      rng: createRngState(1204),
+      stageId: 4,
+      rarity: "rare",
+      slot: "armor",
+      itemLevel: 4,
+    });
+    progress.inventory.items.push(armor);
+
+    const result = upgradeEquipment(progress, armor.id, createRngState(1));
+    const afterRows = equipmentBaseStatRows(armor);
+
+    expect(result.success).toBe(true);
+    expect(afterRows.every((row) => Number.isInteger(row.value))).toBe(true);
   });
 
   it("reawakens selected general options with gold and crystal while preserving SIN lines", () => {

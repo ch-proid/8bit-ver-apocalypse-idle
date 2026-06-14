@@ -122,6 +122,7 @@ const AFFIX_KR_LABELS: Record<string, string> = {
   attackSpeed: "공격속도",
   damageIncrease: "데미지증가",
   finalDamage: "최종피해",
+  additionalDamage: "추가데미지",
   defPenetration: "방어관통",
   lifeSteal: "흡혈",
   goldGain: "골드획득",
