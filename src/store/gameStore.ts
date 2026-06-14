@@ -5,7 +5,7 @@ import { RELIC_IDS } from "../data/relics";
 import { RELICS } from "../data/relics";
 import { STAGES } from "../data/stages";
 import { ALTAR_BALANCE, EXPERIENCE_CURVE, FIXED_DELTA, nextExperienceForLevel, PHASE_3B_DEBUG, PHASE_3C_DEBUG, PROGRESSION, STANDARD_DUMMY, STAT_GROWTH, TICK_RATE } from "../data/balance";
-import { eliteSummonCost, equipRelic, grantRelic, levelUpAltar, setRelicStarsForDebug } from "../core/altar";
+import { altarBloodCapacity, altarStoredCharges, awakenRelic, eliteSummonCost, equipRelic, grantRelic, levelUpAltar, setRelicStarsForDebug } from "../core/altar";
 import { triggerAltarCounter } from "../core/boss";
 import { cloneClassCombatState } from "../core/class";
 import { calculateItemValue, generateEquipmentItem } from "../core/equipment";
@@ -60,6 +60,7 @@ interface GameStore {
   summonEliteForDebug: () => void;
   summonEliteNow: () => void;
   levelUpAltarNow: () => void;
+  awakenRelicNow: (relicId: RelicId, grade: ItemRarity) => void;
   equipRelicForDebug: (relicId: RelicId) => void;
   logPhase3CDemo: () => void;
   logPhase3DDemo: () => void;
@@ -300,9 +301,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   summonEliteForDebug: () => {
     set((state) => {
       const simulation = cloneSimulation(state.simulation);
-      const required = eliteSummonCost(simulation.progress.altar);
-      if (simulation.progress.altar.blood < required) {
-        simulation.progress.altar.blood = required;
+      if (altarStoredCharges(simulation.progress.altar) <= 0) {
+        simulation.progress.altar.blood = eliteSummonCost(simulation.progress.altar);
       }
       startAltarEliteEncounter(simulation);
       return { simulation };
@@ -312,8 +312,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   summonEliteNow: () => {
     set((state) => {
       const simulation = cloneSimulation(state.simulation);
-      const required = eliteSummonCost(simulation.progress.altar);
-      if (simulation.progress.altar.blood < required) {
+      if (altarStoredCharges(simulation.progress.altar) <= 0) {
         return state;
       }
       startAltarEliteEncounter(simulation);
@@ -325,6 +324,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set((state) => {
       const simulation = cloneSimulation(state.simulation);
       levelUpAltar(simulation.progress.altar);
+      return { simulation };
+    });
+  },
+
+  awakenRelicNow: (relicId: RelicId, grade: ItemRarity) => {
+    set((state) => {
+      const simulation = cloneSimulation(state.simulation);
+      awakenRelic(simulation.progress.altar, relicId, grade);
+      applyPlayerStats(simulation.world.player, simulation.progress);
       return { simulation };
     });
   },
@@ -620,10 +628,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   debugFillBlood: () => {
     set((state) => {
       const simulation = cloneSimulation(state.simulation);
-      simulation.progress.altar.blood = Math.max(
-        simulation.progress.altar.blood,
-        eliteSummonCost(simulation.progress.altar),
-      );
+      simulation.progress.altar.blood = altarBloodCapacity(simulation.progress.altar);
       return { simulation };
     });
   },

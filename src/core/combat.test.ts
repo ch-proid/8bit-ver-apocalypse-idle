@@ -2,10 +2,14 @@ import { describe, expect, it } from "vitest";
 import { RELIC_IDS } from "../data/relics";
 import { ALTAR_BALANCE, DAMAGE_FORMULA, FIXED_DELTA, RELIC_BALANCE, TICK_RATE } from "../data/balance";
 import {
+  addAltarBlood,
   addBlood,
   addAltarExperience,
   altarEliteStatsForLevel,
   altarExperienceForLevel,
+  altarMaxStoredCharges,
+  altarStoredCharges,
+  awakenRelic,
   canLevelUpAltar,
   calculateRelicOwnedStats,
   createDefaultAltarState,
@@ -220,6 +224,7 @@ describe("phase 3C damage formula, altar, and relic builds", () => {
     expect(altar.blood).toBe(106);
 
     altar.blood = eliteSummonCost(altar);
+    expect(altarStoredCharges(altar)).toBe(1);
     expect(spendBloodForElite(altar)).toBe(true);
     expect(altar.blood).toBe(0);
 
@@ -241,6 +246,20 @@ describe("phase 3C damage formula, altar, and relic builds", () => {
     gated.bossDefeated.pride = true;
     grantRelic(gated, "specterLord");
     expect(relicStars(gated, "specterLord")).toBe(3);
+  });
+
+  it("stores multiple altar charges with level-based caps and discards overflow", () => {
+    const altar = createDefaultAltarState();
+    const chargeCost = eliteSummonCost(altar);
+
+    expect(altarMaxStoredCharges(altar)).toBe(ALTAR_BALANCE.storedCharges.levelOne);
+    addAltarBlood(altar, chargeCost * (ALTAR_BALANCE.storedCharges.levelOne + 3));
+
+    expect(altarStoredCharges(altar)).toBe(ALTAR_BALANCE.storedCharges.levelOne);
+    expect(altar.blood).toBe(chargeCost * ALTAR_BALANCE.storedCharges.levelOne);
+
+    altar.level = ALTAR_BALANCE.storedCharges.maxLevel;
+    expect(altarMaxStoredCharges(altar)).toBe(ALTAR_BALANCE.storedCharges.maxCharges);
   });
 
   it("separates equipped style effects from owned relic stat bonuses", () => {
@@ -297,6 +316,21 @@ describe("phase 3C damage formula, altar, and relic builds", () => {
 
     expect(altar.owned.specterLord?.common?.stars).toBe(ALTAR_BALANCE.maxStars);
     expect(altar.owned.specterLord?.magic?.stars).toBe(1);
+  });
+
+  it("allows manual relic awakening from stored duplicate progress without bypassing boss gates", () => {
+    const altar = createDefaultAltarState();
+
+    setRelicStarsForDebug(altar, "specterLord", 2);
+    grantRelic(altar, "specterLord");
+
+    expect(altar.owned.specterLord?.common?.duplicateProgress).toBe(1);
+    expect(awakenRelic(altar, "specterLord", "common")).toBe(false);
+    expect(relicStars(altar, "specterLord")).toBe(2);
+
+    altar.bossDefeated.pride = true;
+    expect(awakenRelic(altar, "specterLord", "common")).toBe(true);
+    expect(relicStars(altar, "specterLord")).toBe(3);
   });
 
   it("applies each of the six relic build rules through deterministic combat state", () => {

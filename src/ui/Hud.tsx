@@ -1,12 +1,14 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import {
+  altarChargeProgress,
   altarExperienceForLevel,
+  altarMaxStoredCharges,
+  altarStoredCharges,
   bestRelicInstance,
   calculateRelicOwnedStats,
   eliteSummonCost,
-  highestRelicGrade,
   ownedRelicStyleCount,
-  relicStars,
+  relicDuplicateRequirementForNextStar,
 } from "../core/altar";
 import { altarElitePreview } from "../core/elites";
 import { classCritProfile } from "../core/class";
@@ -15,7 +17,7 @@ import { calculateCombatAffixStats, enhancedBaseValue } from "../core/equipment"
 import { reawakeningCost } from "../core/gold";
 import { compareEquipmentCombatScore, createBuildSnapshot, type EquipmentScoreComparison } from "../core/sim";
 import { equipmentUpgradeCost, equipmentUpgradeFailureChance } from "../core/upgrade";
-import type { ClassId, EquipmentItem, EquipmentStatKey, ItemRarity, ItemSlot, ProgressState, RelicGrade, RelicId, StageFailureReport, StatKey } from "../core/types";
+import type { ClassId, EquipmentItem, EquipmentStatKey, ItemRarity, ItemSlot, ProgressState, RelicGrade, RelicId, RelicInstance, StageFailureReport, StatKey } from "../core/types";
 import { ALTAR_BALANCE, DAMAGE_FORMULA, EQUIPMENT_BALANCE } from "../data/balance";
 import { equipmentIconFor } from "../data/equipmentIcons";
 import { ITEM_SLOTS } from "../data/items";
@@ -55,6 +57,14 @@ const RELIC_KR_LABELS: Record<RelicId, string> = {
   martyr: "순교자",
   executioner: "처형자",
   kingsShadow: "왕의 그림자",
+};
+const RELIC_DESC_KR: Record<RelicId, string> = {
+  specterLord: "처치한 적을 망령으로 부려 함께 싸웁니다.",
+  bloodBerserker: "빠른 연타와 흡혈로 피를 대가로 전투합니다.",
+  plagueDoctor: "역병을 퍼뜨려 적 무리를 천천히 무너뜨립니다.",
+  martyr: "자기 체력을 깎아 잃은 체력만큼 피해를 키웁니다.",
+  executioner: "표식을 쌓아 임계점에서 처형 피해를 냅니다.",
+  kingsShadow: "게이지를 모아 폭주 상태로 광역 난무합니다.",
 };
 const SIN_KR_LABELS: Record<string, string> = {
   pride: "오만",
@@ -110,6 +120,11 @@ interface EquipmentPopupState {
   itemId: string;
 }
 
+interface RelicPopupState {
+  relicId: RelicId;
+  grade: RelicGrade;
+}
+
 interface EquipmentEntry {
   item: EquipmentItem;
   location: "inventory" | "equipped" | "shop";
@@ -129,11 +144,15 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
   const disassembleEquipmentItems = useGameStore((state) => state.disassembleEquipmentItems);
   const summonEliteNow = useGameStore((state) => state.summonEliteNow);
   const levelUpAltarNow = useGameStore((state) => state.levelUpAltarNow);
+  const awakenRelicNow = useGameStore((state) => state.awakenRelicNow);
   const rebirthNow = useGameStore((state) => state.rebirthNow);
   const expPercent = percent(progress.experience, progress.nextExperience);
   const bloodRequired = eliteSummonCost(progress.altar);
   const altarNextExperience = altarExperienceForLevel(progress.altar.level);
-  const bloodPercent = percent(progress.altar.blood, bloodRequired);
+  const altarCharges = altarStoredCharges(progress.altar);
+  const altarMaxCharges = altarMaxStoredCharges(progress.altar);
+  const altarChargePercent = altarChargeProgress(progress.altar);
+  const nextAltarMaxCharges = altarMaxStoredCharges({ level: progress.altar.level + 1 });
   const altarExperiencePercent = percent(progress.altar.experience, altarNextExperience);
   const chapter = Math.ceil(progress.currentStage / 10);
   const stageInChapter = ((progress.currentStage - 1) % 10) + 1;
@@ -168,6 +187,7 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
   const relicOwnedStats = calculateRelicOwnedStats(progress.altar);
   const equippedRelic = bestRelicInstance(progress.altar, progress.altar.equippedRelicId);
   const [equipmentPopup, setEquipmentPopup] = useState<EquipmentPopupState | null>(null);
+  const [relicPopup, setRelicPopup] = useState<RelicPopupState | null>(null);
   const [disassembleMode, setDisassembleMode] = useState(false);
   const [selectedDisassembleIds, setSelectedDisassembleIds] = useState<string[]>([]);
   const [dismissedFailureKey, setDismissedFailureKey] = useState<string | null>(null);
@@ -202,6 +222,7 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
     );
   }, [activePanel, gearItems, progress]);
   const popupEntry = equipmentPopup ? findEquipmentEntry(progress, equipmentPopup.itemId) : null;
+  const popupRelic = relicPopup ? progress.altar.owned[relicPopup.relicId]?.[relicPopup.grade] ?? null : null;
 
   useEffect(() => {
     if (!flashKind) {
@@ -292,6 +313,13 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
         <GbBar value={expPercent} tone="xp" />
         <b>{expPercent}%</b>
       </div>
+      <AltarBall
+        charges={altarCharges}
+        maxCharges={altarMaxCharges}
+        fill={altarChargePercent}
+        disabled={altarCharges <= 0 || Boolean(world.altarElite)}
+        onClick={summonEliteNow}
+      />
 
       <Panel open={activePanel === "stat"} label="스탯">
         <div className="stat-profile">
@@ -456,27 +484,19 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
 
       <Panel open={activePanel === "altar"} label="제단">
         <div className="statbar altar-status">
-          <IconValue type="blood" value={`${formatNumber(Math.floor(progress.altar.blood))}/${formatNumber(bloodRequired)}`} />
-          <GbBar value={bloodPercent} tone="blood" />
           <span>제단 {progress.altar.level}</span>
+          <IconValue type="blood" value={`${altarCharges}/${altarMaxCharges}`} />
           <span>제단 경험 {altarExperiencePercent}%</span>
         </div>
 
-        <Win title="제단">
+        <Win title="제단 정보">
           <MenuItem label="레벨" value={progress.altar.level} />
+          <MenuItem label="보유 상한" value={`${altarMaxCharges}개 / 다음 ${nextAltarMaxCharges}개`} />
+          <MenuItem label="1충전 비용" value={formatNumber(bloodRequired)} />
           <MenuItem label="제단 경험" value={`${formatNumber(progress.altar.experience)}/${formatNumber(altarNextExperience)}`}>
             <GbBar value={altarExperiencePercent} tone="xp" />
           </MenuItem>
-          <GbBar value={bloodPercent} tone="blood" tall />
-          <div className="altar-actions">
-            <button
-              type="button"
-              className={progress.altar.blood >= bloodRequired ? "inv-vid" : "inv-vid off"}
-              disabled={progress.altar.blood < bloodRequired}
-              onClick={summonEliteNow}
-            >
-              <span className="cur">&#9654;</span>소환
-            </button>
+          <div className="altar-actions single">
             <button
               type="button"
               className={progress.altar.experience >= altarNextExperience ? "inv-vid" : "inv-vid off"}
@@ -488,7 +508,7 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
           </div>
           <div className="elite-hint">
             <MenuItem label="엘리트" value={`체력 ${formatCompact(elitePreview.maxHp)} / 공격 ${formatCompact(elitePreview.attack)}`} />
-            <MenuItem label="다음" value={`체력 ${formatCompact(nextElitePreview.maxHp)} / 골드 ${formatCompact(nextElitePreview.gold)}`} />
+            <MenuItem label="다음 레벨" value={`체력 ${formatCompact(nextElitePreview.maxHp)} / 골드 ${formatCompact(nextElitePreview.gold)}`} />
           </div>
         </Win>
 
@@ -501,17 +521,22 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
           </div>
         </Win>
 
-        <Win title={`도감 ${ownedRelicStyleCount(progress.altar)}/6`}>
-          <div className="relics">
-            {RELIC_IDS.map((relicId) => (
-              <RelicCard
-                key={relicId}
-                relicId={relicId}
-                stars={relicStars(progress.altar, relicId)}
-                grade={highestRelicGrade(progress.altar, relicId)}
-                equipped={progress.altar.equippedRelicId === relicId}
-              />
-            ))}
+        <Win title={`유물창 ${ownedRelicStyleCount(progress.altar)}/6`}>
+          <div className="relics relic-book">
+            {RELIC_IDS.flatMap((relicId) => RELIC_GRADES.map((grade) => {
+              const instance = progress.altar.owned[relicId]?.[grade] ?? null;
+              const equipped = equippedRelic?.id === relicId && equippedRelic.grade === grade;
+              return (
+                <RelicCard
+                  key={`${relicId}-${grade}`}
+                  relicId={relicId}
+                  grade={grade}
+                  instance={instance}
+                  equipped={equipped}
+                  onOpen={() => setRelicPopup({ relicId, grade })}
+                />
+              );
+            }))}
           </div>
         </Win>
       </Panel>
@@ -553,6 +578,16 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
             setEquipmentPopup(null);
           }}
           onReawaken={(itemId, selectedLines) => reawakenEquipmentItem(itemId, selectedLines)}
+        />
+      ) : null}
+
+      {relicPopup ? (
+        <RelicInfoPopup
+          relicId={relicPopup.relicId}
+          grade={relicPopup.grade}
+          instance={popupRelic}
+          onAwaken={() => awakenRelicNow(relicPopup.relicId, relicPopup.grade)}
+          onClose={() => setRelicPopup(null)}
         />
       ) : null}
 
@@ -615,6 +650,35 @@ function IconValue({ type, value, compact = false }: { type: "gold" | "blood"; v
       <i aria-hidden="true" />
       <span>{value}</span>
     </span>
+  );
+}
+
+function AltarBall({
+  charges,
+  maxCharges,
+  fill,
+  disabled,
+  onClick,
+}: {
+  charges: number;
+  maxCharges: number;
+  fill: number;
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  const style = { "--fill": `${Math.max(0, Math.min(100, fill))}%` } as CSSProperties;
+  return (
+    <button
+      type="button"
+      className={disabled ? "altar-ball off" : "altar-ball"}
+      style={style}
+      disabled={disabled}
+      onClick={onClick}
+      aria-label={`제단 소환 ${charges}/${maxCharges}`}
+    >
+      <span>{charges}</span>
+      <small>{maxCharges}</small>
+    </button>
   );
 }
 
@@ -926,36 +990,91 @@ function RelicSummary({ relicId, instance }: { relicId: RelicId | null; instance
       <MenuItem label="이름" value={<span className="kr">{RELIC_KR_LABELS[relicId]}</span>} />
       <MenuItem label="죄" value={<span className="kr">{SIN_KR_LABELS[relic.sin]}</span>} />
       <MenuItem label="등급" value={rarityLabel(instance.grade)} valueClassName={rarityClass(instance.grade)} />
-      <MenuItem label="별" value={`${instance.stars}/${ALTAR_BALANCE.maxStars}`} />
-      <p className="tiny kr"><span className="stars">{starText(instance.stars)}</span> / 다음 ?</p>
+      <MenuItem label="별" value={<StarIcons stars={instance.stars} />} />
+      <p className="tiny kr">{RELIC_DESC_KR[relicId]}</p>
     </>
   );
 }
 
 function RelicCard({
   relicId,
-  stars,
   grade,
+  instance,
   equipped,
+  onOpen,
 }: {
   relicId: RelicId;
-  stars: number;
-  grade: ItemRarity | null;
+  grade: RelicGrade;
+  instance: RelicInstance | null;
   equipped: boolean;
+  onOpen: () => void;
 }) {
   const relic = RELICS[relicId];
-  const ownedGrade = stars > 0 ? grade : null;
+  const stars = instance?.stars ?? 0;
+  const required = instance && stars < ALTAR_BALANCE.maxStars ? relicDuplicateRequirementForNextStar(stars) : 0;
   return (
-    <div className={equipped ? "relic on" : stars > 0 ? "relic" : "relic off"}>
-      <span className="kr">{stars > 0 ? RELIC_KR_LABELS[relicId] : "?"}</span>
-      <small className="sin">{ownedGrade ? rarityLabel(ownedGrade) : <span className="kr">{SIN_KR_LABELS[relic.sin]}</span>}</small>
-      <small className="st">{stars > 0 ? `${stars}/${ALTAR_BALANCE.maxStars}` : "?".repeat(ALTAR_BALANCE.maxStars)}</small>
-      <span className="grade-ladder">
-        {RELIC_GRADES.map((entry) => (
-          <i key={entry} className={ownedGrade && ALTAR_BALANCE.relicGrades[entry].rank <= ALTAR_BALANCE.relicGrades[ownedGrade].rank ? rarityClass(entry) : "off"} />
-        ))}
-      </span>
-    </div>
+    <button type="button" className={`relic ${rarityClass(grade)}${equipped ? " on" : ""}${instance ? "" : " off"}`} onClick={onOpen}>
+      <span className="kr">{instance ? RELIC_KR_LABELS[relicId] : "?"}</span>
+      <small className="sin">{rarityLabel(grade)} / <span className="kr">{SIN_KR_LABELS[relic.sin]}</span></small>
+      <StarIcons stars={stars} dim={!instance} />
+      <small className="st">{instance && required > 0 ? `${instance.duplicateProgress}/${required}` : instance ? "MAX" : "0/?"}</small>
+    </button>
+  );
+}
+
+function RelicInfoPopup({
+  relicId,
+  grade,
+  instance,
+  onAwaken,
+  onClose,
+}: {
+  relicId: RelicId;
+  grade: RelicGrade;
+  instance: RelicInstance | null;
+  onAwaken: () => void;
+  onClose: () => void;
+}) {
+  const relic = RELICS[relicId];
+  const stars = instance?.stars ?? 0;
+  const required = instance && stars < ALTAR_BALANCE.maxStars ? relicDuplicateRequirementForNextStar(stars) : 0;
+  const duplicateProgress = instance?.duplicateProgress ?? 0;
+  const canAwaken = Boolean(instance && required > 0 && duplicateProgress >= required);
+
+  return (
+    <PopupFrame title="유물 정보">
+      <MenuItem label="이름" value={<span className="kr">{RELIC_KR_LABELS[relicId]}</span>} />
+      <MenuItem label="죄" value={<span className="kr">{SIN_KR_LABELS[relic.sin]}</span>} />
+      <MenuItem label="등급" value={rarityLabel(grade)} valueClassName={rarityClass(grade)} />
+      <MenuItem label="별" value={<StarIcons stars={stars} dim={!instance} />} />
+      <MenuItem label="공격" value={instance ? formatNumber(instance.ownedStats.atk) : "?"} />
+      <MenuItem label="체력" value={instance ? formatNumber(instance.ownedStats.hp) : "?"} />
+      <MenuItem label="방어" value={instance ? formatNumber(instance.ownedStats.def) : "?"} />
+      <p className="popup-voice kr">{RELIC_DESC_KR[relicId]}</p>
+      <div className="popup-menu two">
+        <button
+          type="button"
+          className={canAwaken ? "inv-vid" : "inv-vid off"}
+          disabled={!canAwaken}
+          onClick={onAwaken}
+        >
+          <span className="cur">&#9654;</span>{stars >= ALTAR_BALANCE.maxStars ? "최대 각성" : `각성 ${duplicateProgress}/${required || "?"}`}
+        </button>
+        <button type="button" className="inv-vid off" onClick={onClose}>닫기</button>
+      </div>
+    </PopupFrame>
+  );
+}
+
+function StarIcons({ stars, dim = false }: { stars: number; dim?: boolean }) {
+  return (
+    <span className={dim ? "star-icons dim" : "star-icons"}>
+      {Array.from({ length: ALTAR_BALANCE.maxStars }).map((_, index) => (
+        index < stars
+          ? <img key={index} src="/assets/icons/star.png" alt="" />
+          : <i key={index} />
+      ))}
+    </span>
   );
 }
 

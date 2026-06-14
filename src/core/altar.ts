@@ -33,7 +33,7 @@ export function createDefaultAltarState(): AltarState {
 
 export function normalizeAltarState(input?: Partial<AltarState>): AltarState {
   const defaults = createDefaultAltarState();
-  return {
+  const altar = {
     blood: Math.max(0, input?.blood ?? defaults.blood),
     level: Math.max(1, Math.floor(input?.level ?? defaults.level)),
     experience: Math.max(0, input?.experience ?? defaults.experience),
@@ -44,6 +44,8 @@ export function normalizeAltarState(input?: Partial<AltarState>): AltarState {
       ...input?.bossDefeated,
     },
   };
+  clampAltarBlood(altar);
+  return altar;
 }
 
 export function cloneAltarState(altar: AltarState): AltarState {
@@ -81,21 +83,65 @@ export function bloodForKill(killType: KillType, stageId: number): number {
 
 export function addBlood(altar: AltarState, killType: KillType, stageId: number): number {
   const amount = bloodForKill(killType, stageId);
-  altar.blood += amount;
-  return amount;
+  return addAltarBlood(altar, amount);
+}
+
+export function addAltarBlood(altar: AltarState, amount: number): number {
+  const before = altar.blood;
+  altar.blood = Math.min(altarBloodCapacity(altar), Math.max(0, altar.blood + Math.max(0, amount)));
+  return roundTo(altar.blood - before, 4);
 }
 
 export function eliteSummonCost(altar: AltarState): number {
   return Math.floor(ALTAR_BALANCE.eliteBloodCost * Math.pow(ALTAR_BALANCE.eliteBloodCostGrowth, altar.level - 1));
 }
 
+export function altarMaxStoredCharges(altar: Pick<AltarState, "level">): number {
+  const storage = ALTAR_BALANCE.storedCharges;
+  const safeLevel = Math.max(1, Math.floor(altar.level));
+  const levelRange = Math.max(1, storage.maxLevel - 1);
+  const progress = Math.max(0, Math.min(1, (safeLevel - 1) / levelRange));
+  return Math.round(storage.levelOne + (storage.maxCharges - storage.levelOne) * progress);
+}
+
+export function altarStoredCharges(altar: AltarState): number {
+  const required = eliteSummonCost(altar);
+  if (required <= 0) {
+    return 0;
+  }
+  return Math.min(altarMaxStoredCharges(altar), Math.floor(altar.blood / required));
+}
+
+export function altarChargeProgress(altar: AltarState): number {
+  const required = eliteSummonCost(altar);
+  if (required <= 0 || altarStoredCharges(altar) >= altarMaxStoredCharges(altar)) {
+    return 100;
+  }
+  return Math.max(0, Math.min(100, Math.floor(((altar.blood % required) / required) * 100)));
+}
+
+export function altarBloodCapacity(altar: Pick<AltarState, "level">): number {
+  return eliteSummonCost({
+    blood: 0,
+    level: altar.level,
+    experience: 0,
+    owned: {},
+    equippedRelicId: null,
+    bossDefeated: createDefaultBossFlags(),
+  }) * altarMaxStoredCharges(altar);
+}
+
+export function clampAltarBlood(altar: AltarState): void {
+  altar.blood = Math.min(altarBloodCapacity(altar), Math.max(0, altar.blood));
+}
+
 export function canSummonElite(altar: AltarState): boolean {
-  return altar.blood >= eliteSummonCost(altar);
+  return altarStoredCharges(altar) > 0;
 }
 
 export function spendBloodForElite(altar: AltarState): boolean {
   const required = eliteSummonCost(altar);
-  if (altar.blood < required) {
+  if (altarStoredCharges(altar) <= 0) {
     return false;
   }
 
@@ -123,6 +169,7 @@ export function levelUpAltar(altar: AltarState): boolean {
 
   altar.experience -= required;
   altar.level += 1;
+  clampAltarBlood(altar);
   return true;
 }
 
@@ -203,6 +250,27 @@ export function setRelicStarsForDebug(altar: AltarState, relicId: RelicId, stars
   const gradeMap = altar.owned[relicId] ?? {};
   altar.owned[relicId] = gradeMap;
   gradeMap[grade] = createRelicInstance(relicId, grade, baseRelicOwnedStats(grade, altar.level), safeStars, 0);
+}
+
+export function awakenRelic(altar: AltarState, relicId: RelicId, grade: RelicGrade): boolean {
+  const current = altar.owned[relicId]?.[grade];
+  if (!current || current.stars >= ALTAR_BALANCE.maxStars) {
+    return false;
+  }
+
+  const required = duplicateRequirementForNextStar(current.stars);
+  if (current.duplicateProgress < required) {
+    return false;
+  }
+
+  const nextStars = current.stars + 1;
+  if (nextStars >= ALTAR_BALANCE.bossGateStar && !isBossGateOpen(altar, current.id)) {
+    return false;
+  }
+
+  current.duplicateProgress -= required;
+  current.stars = nextStars;
+  return true;
 }
 
 export function equipRelic(altar: AltarState, relicId: RelicId): boolean {
@@ -318,6 +386,10 @@ function promoteRelicDuplicate(altar: AltarState, current: RelicInstance): void 
 function duplicateRequirementForNextStar(stars: number): number {
   const table = ALTAR_BALANCE.duplicateRequirementsByCurrentStar as Record<number, number>;
   return table[Math.max(1, Math.min(ALTAR_BALANCE.maxStars - 1, Math.floor(stars)))] ?? 1;
+}
+
+export function relicDuplicateRequirementForNextStar(stars: number): number {
+  return duplicateRequirementForNextStar(stars);
 }
 
 function rollUnlockedRelicGrade(altar: AltarState, rebirthCount: number, rng: RngState): RelicGrade {

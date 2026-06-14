@@ -386,31 +386,36 @@ export const MONSTER_COMBAT = {
 
 export const ALTAR_BALANCE = {
   // TODO(Phase 7): Current Stage 1 24h core sim is ~16,200 blood/day;
-  // 323 blood per elite challenge is ~50 altar charges/day at the present wave pace.
+  // 405 blood per elite challenge is ~40 altar charges/day at the present wave pace.
   bloodByKillType: {
     normal: 1,
     elite: 5,
     boss: 100,
   },
   stageBloodMultiplier: 0.05,
-  eliteBloodCost: 323,
+  eliteBloodCost: 405,
   eliteBloodCostGrowth: 1,
+  storedCharges: {
+    levelOne: 15,
+    maxLevel: 60,
+    maxCharges: 60,
+  },
   eliteTimeLimitSeconds: 45,
   initialLevel: 1,
   levelExperienceBase: 100,
   levelExperienceGrowth: 1.28,
   eliteStats: {
     // TODO(Altar v2): Retune after real Chapter 1 elite sprites and reward pacing are playable.
-    baseHp: 420,
-    hpPerLevel: 0.24,
-    baseAttack: 10,
-    attackPerLevel: 0.12,
-    baseDefense: 4,
-    defensePerLevel: 0.08,
-    baseAccuracy: 18,
+    baseHp: 95,
+    hpPerLevel: 0.08,
+    baseAttack: 4,
+    attackPerLevel: 0.05,
+    baseDefense: 2,
+    defensePerLevel: 0.03,
+    baseAccuracy: 12,
     accuracyPerLevel: 1,
-    baseEvasion: 6,
-    evasionPerLevel: 0.5,
+    baseEvasion: 3,
+    evasionPerLevel: 0.35,
     baseGold: 520,
     goldPerLevel: 0.18,
     baseExperience: 260,

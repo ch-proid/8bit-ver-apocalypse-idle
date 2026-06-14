@@ -256,7 +256,7 @@ button {
 .lcd-exp {
   position: absolute;
   left: 0;
-  right: 0;
+  right: 42px;
   bottom: 0;
   z-index: 2;
   height: var(--exp-strip-height);
@@ -283,6 +283,43 @@ button {
   -webkit-font-smoothing: none;
   text-rendering: geometricPrecision;
   text-shadow: 1px 0 0 var(--ink), -1px 0 0 var(--ink), 0 1px 0 var(--ink), 0 -1px 0 var(--ink);
+}
+
+.altar-ball {
+  position: absolute;
+  right: 5px;
+  bottom: 2px;
+  z-index: 4;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  place-items: center;
+  padding: 4px 2px 3px;
+  border: 2px solid var(--light);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 45% 35%, rgba(224, 112, 122, 0.9) 0 4px, transparent 5px),
+    conic-gradient(var(--blood) var(--fill), #21070a 0),
+    var(--ink);
+  color: var(--light);
+  box-shadow: inset 0 0 0 2px var(--ink), 0 1px 0 #000;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.altar-ball small {
+  color: var(--mid);
+  font-size: 6px;
+  line-height: 1;
+}
+
+.altar-ball.off {
+  filter: grayscale(0.55);
+  opacity: 0.72;
+  cursor: default;
 }
 
 .goldc {
@@ -832,6 +869,10 @@ button {
   grid-template-columns: 1fr 1fr;
 }
 
+.altar-actions.single {
+  grid-template-columns: 1fr;
+}
+
 .gear-actions.wide {
   grid-template-columns: 1fr 1fr;
 }
@@ -878,11 +919,17 @@ button {
   color: var(--light);
   font-size: 8px;
   text-align: center;
+  padding: 3px 2px;
+  cursor: pointer;
 }
 
 .relic.on {
   border-color: var(--light);
   box-shadow: inset 0 0 0 1px var(--light);
+}
+
+.relic-book {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .sin {
@@ -912,6 +959,27 @@ button {
 .grade-ladder i.off {
   border-color: var(--line);
   opacity: 0.65;
+}
+
+.star-icons {
+  min-height: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+}
+
+.star-icons img,
+.star-icons i {
+  width: 7px;
+  height: 7px;
+  display: inline-block;
+  image-rendering: pixelated;
+}
+
+.star-icons i {
+  border: 1px solid var(--line);
+  background: #05080b;
 }
 
 .survivor-panel {
