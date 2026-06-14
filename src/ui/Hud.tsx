@@ -136,6 +136,12 @@ interface RelicPopupState {
   grade: RelicGrade;
 }
 
+interface UpgradeToastState {
+  id: number;
+  message: string;
+  tone: "success" | "fail" | "down" | "warn";
+}
+
 interface EquipmentEntry {
   item: EquipmentItem;
   location: "inventory" | "equipped" | "shop";
@@ -222,6 +228,8 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
   const [claimedOfflineKey, setClaimedOfflineKey] = useState<string | null>(null);
   const [voiceLine, setVoiceLine] = useState<string | null>(null);
   const [flashKind, setFlashKind] = useState<string | null>(null);
+  const [upgradeToast, setUpgradeToast] = useState<UpgradeToastState | null>(null);
+  const upgradeToastId = useRef(0);
   const previousFx = useRef({
     initialized: false,
     altarEliteActive: false,
@@ -275,6 +283,15 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
   }, [voiceLine]);
 
   useEffect(() => {
+    if (!upgradeToast) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => setUpgradeToast(null), 1000);
+    return () => window.clearTimeout(timeoutId);
+  }, [upgradeToast?.id]);
+
+  useEffect(() => {
     const altarEliteActive = Boolean(world.altarElite);
     const legendaryItems = countLegendaryItems(progress);
     const highRelics = countHighGradeRelics(progress);
@@ -305,6 +322,44 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
   function triggerFlash(kind: string, line: string): void {
     setFlashKind(kind);
     setVoiceLine(line);
+  }
+
+  function showUpgradeToast(message: string, tone: UpgradeToastState["tone"]): void {
+    upgradeToastId.current += 1;
+    setUpgradeToast({ id: upgradeToastId.current, message, tone });
+  }
+
+  function handleUpgradeEquipment(itemId: string): void {
+    const beforeProgress = useGameStore.getState().simulation.progress;
+    const beforeEntry = findEquipmentEntry(beforeProgress, itemId);
+
+    if (!beforeEntry || beforeEntry.location === "shop") {
+      showUpgradeToast("강화 불가", "warn");
+      return;
+    }
+
+    const cost = equipmentUpgradeCost(beforeEntry.item);
+    if (cost <= 0) {
+      showUpgradeToast("최대 강화", "warn");
+      return;
+    }
+    if (beforeProgress.gold < cost) {
+      showUpgradeToast("골드 부족", "warn");
+      return;
+    }
+
+    const beforeLevel = beforeEntry.item.upgradeLevel;
+    upgradeEquipmentItem(itemId);
+    const afterEntry = findEquipmentEntry(useGameStore.getState().simulation.progress, itemId);
+    const afterLevel = afterEntry?.item.upgradeLevel ?? beforeLevel;
+
+    if (afterLevel > beforeLevel) {
+      showUpgradeToast("성공", "success");
+    } else if (afterLevel < beforeLevel) {
+      showUpgradeToast("하락", "down");
+    } else {
+      showUpgradeToast("실패", "fail");
+    }
   }
 
   function openEquipmentPopup(item: EquipmentItem): void {
@@ -677,11 +732,9 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
           entry={upgradePopupEntry}
           progress={progress}
           currentClassId={currentClassId}
+          toast={upgradeToast}
           onClose={() => setEquipmentUpgradePopup(null)}
-          onUpgrade={(itemId) => {
-            upgradeEquipmentItem(itemId);
-            setEquipmentUpgradePopup(null);
-          }}
+          onUpgrade={handleUpgradeEquipment}
         />
       ) : null}
 
@@ -1047,12 +1100,14 @@ function EquipmentUpgradePopup({
   entry,
   progress,
   currentClassId,
+  toast,
   onClose,
   onUpgrade,
 }: {
   entry: EquipmentEntry;
   progress: ProgressState;
   currentClassId: ClassId;
+  toast: UpgradeToastState | null;
   onClose: () => void;
   onUpgrade: (itemId: string) => void;
 }) {
@@ -1071,6 +1126,7 @@ function EquipmentUpgradePopup({
 
   return (
     <PopupFrame title="강화">
+      {toast ? <div key={toast.id} className={`upgrade-toast ${toast.tone}`} role="status">{toast.message}</div> : null}
       <div className="equipment-info-head">
         <img className="equip-icon big" src={equipmentIconFor(currentClassId, item.slot)} alt="" />
         <div className="item-detail">
