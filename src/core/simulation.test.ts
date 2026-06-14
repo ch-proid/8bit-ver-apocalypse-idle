@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { ALTAR_BALANCE, FIXED_DELTA, MAGE_AI_BALANCE, MONSTER_BALANCE, nextExperienceForLevel } from "../data/balance";
+import { ALTAR_BALANCE, FIXED_DELTA, MAGE_AI_BALANCE, MONSTER_BALANCE, PROGRESSION } from "../data/balance";
 import { STAGES } from "../data/stages";
 import { altarEliteStatsForLevel, eliteSummonCost, levelUpAltar } from "./altar";
 import { startAltarEliteEncounter } from "./elites";
 import { estimateOfflineHuntRates } from "./offline";
+import { calculateOfflineReward } from "../save/saveGame";
 import { createInitialSimulation } from "./stage";
 import { startStage } from "./stageProgress";
 import { stepSimulation } from "./simulation";
@@ -579,14 +580,19 @@ describe("phase 2 simulation", () => {
     expect(highRates.experiencePerMinute).toBeGreaterThan(lowRates.experiencePerMinute);
   });
 
-  it("keeps blocked offline experience near one level over twelve hours", () => {
+  it("caps offline rewards at eight hours and pays 80 percent of estimated online gains", () => {
     const progress = createInitialSimulation(1).progress;
     const rates = estimateOfflineHuntRates(progress);
-    const twelveHourExperience = rates.experiencePerMinute * 60 * 12;
-    const nextLevel = nextExperienceForLevel(progress.level);
+    const now = 1_800_000_000_000;
+    const reward = calculateOfflineReward({
+      version: 8,
+      progress,
+      lastSavedAt: now - 12 * 60 * 60 * 1000,
+    }, now);
 
-    expect(twelveHourExperience).toBeGreaterThan(nextLevel * 0.75);
-    expect(twelveHourExperience).toBeLessThan(nextLevel * 1.25);
+    expect(reward.elapsedSeconds).toBe(PROGRESSION.offlineCapSeconds);
+    expect(reward.gold).toBe(Math.floor(rates.goldPerMinute * 60 * 8 * PROGRESSION.offlineRewardMultiplier));
+    expect(reward.experience).toBe(Math.floor(rates.experiencePerMinute * 60 * 8 * PROGRESSION.offlineRewardMultiplier));
   });
 
 });

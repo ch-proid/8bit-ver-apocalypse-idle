@@ -67,8 +67,8 @@ export function calculateOfflineReward(snapshot: SaveSnapshot, now = Date.now())
 
   return {
     elapsedSeconds,
-    gold: Math.floor(rates.goldPerMinute * minutes),
-    experience: Math.floor(rates.experiencePerMinute * minutes),
+    gold: Math.floor(rates.goldPerMinute * minutes * PROGRESSION.offlineRewardMultiplier),
+    experience: Math.floor(rates.experiencePerMinute * minutes * PROGRESSION.offlineRewardMultiplier),
   };
 }
 

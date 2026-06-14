@@ -193,7 +193,7 @@ export function altarEliteStatsForLevel(level: number): {
 }
 
 export function rollEliteRelicDrop(altar: AltarState, rebirthCount: number, rng: RngState): RelicDrop | null {
-  if (!chance(rng, ALTAR_BALANCE.eliteStats.relicDropChance)) {
+  if (!chance(rng, eliteRelicDropChance(altar, rebirthCount))) {
     return null;
   }
 
@@ -203,6 +203,16 @@ export function rollEliteRelicDrop(altar: AltarState, rebirthCount: number, rng:
     grade,
     ownedStats: rollRelicOwnedStats(grade, altar.level, rng),
   };
+}
+
+export function eliteRelicDropChance(altar: AltarState, rebirthCount: number): number {
+  const stats = ALTAR_BALANCE.eliteStats;
+  return Math.min(
+    stats.relicDropChanceMax,
+    stats.relicDropChance
+      + Math.max(0, altar.level - 1) * stats.relicDropChancePerAltarLevel
+      + Math.max(0, rebirthCount) * stats.relicDropChancePerRebirth,
+  );
 }
 
 export function unlockedRelicGrades(altar: AltarState, rebirthCount: number): RelicGrade[] {
@@ -394,7 +404,14 @@ export function relicDuplicateRequirementForNextStar(stars: number): number {
 
 function rollUnlockedRelicGrade(altar: AltarState, rebirthCount: number, rng: RngState): RelicGrade {
   const weights = unlockedRelicGrades(altar, rebirthCount).reduce((acc, grade) => {
-    acc[grade] = ALTAR_BALANCE.relicGrades[grade].dropWeight;
+    const rule = ALTAR_BALANCE.relicGrades[grade];
+    const levelBonus = Math.max(0, altar.level - rule.altarLevel)
+      * rule.rank
+      * ALTAR_BALANCE.relicGradeWeightPerAltarLevelAboveUnlock;
+    const rebirthBonus = Math.max(0, rebirthCount - rule.rebirthCount)
+      * rule.rank
+      * ALTAR_BALANCE.relicGradeWeightPerRebirth;
+    acc[grade] = rule.dropWeight * (1 + levelBonus + rebirthBonus);
     return acc;
   }, {} as Record<RelicGrade, number>);
   return pickWeighted(rng, weights);

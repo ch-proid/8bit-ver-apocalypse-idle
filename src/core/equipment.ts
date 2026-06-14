@@ -20,6 +20,7 @@ export interface GenerateEquipmentInput {
   id: string;
   rng: RngState;
   stageId: number;
+  rebirthCount?: number;
   slot?: ItemSlot;
   rarity?: ItemRarity;
   itemLevel?: number;
@@ -28,7 +29,7 @@ export interface GenerateEquipmentInput {
 
 export function generateEquipmentItem(input: GenerateEquipmentInput): EquipmentItem {
   const slot = input.slot ?? pickOne(input.rng, ITEM_SLOTS);
-  const rarity = input.rarity ?? rollRarityForStage(input.rng, input.stageId);
+  const rarity = input.rarity ?? rollRarityForStage(input.rng, input.stageId, input.rebirthCount ?? 0);
   const itemLevel = input.itemLevel ?? itemLevelForStage(input.stageId);
   const baseStat = ITEM_SLOT_BASE_STAT[slot];
   const baseValue = calculateBaseValue(slot, rarity, itemLevel);
@@ -51,12 +52,22 @@ export function generateEquipmentItem(input: GenerateEquipmentInput): EquipmentI
   };
 }
 
-export function rollRarityForStage(rng: RngState, stageId: number): ItemRarity {
+export function rollRarityForStage(rng: RngState, stageId: number, rebirthCount = 0): ItemRarity {
+  return pickWeighted(rng, rarityWeightsForStage(stageId, rebirthCount));
+}
+
+export function rarityWeightsForStage(stageId: number, rebirthCount = 0): Record<ItemRarity, number> {
   const chapterIndex = Math.min(
     EQUIPMENT_BALANCE.rarityWeightsByChapter.length - 1,
     Math.max(0, Math.ceil(stageId / EQUIPMENT_BALANCE.stagesPerChapter) - 1),
   );
-  return pickWeighted(rng, EQUIPMENT_BALANCE.rarityWeightsByChapter[chapterIndex] as Record<ItemRarity, number>);
+  const baseWeights = EQUIPMENT_BALANCE.rarityWeightsByChapter[chapterIndex] as Record<ItemRarity, number>;
+  const rebirthMultipliers = EQUIPMENT_BALANCE.rarityRebirthWeightMultiplierPerCount as Record<ItemRarity, number>;
+  return ITEM_RARITIES.reduce((weights, rarity) => {
+    const multiplier = Math.max(0.25, 1 + Math.max(0, rebirthCount) * rebirthMultipliers[rarity]);
+    weights[rarity] = baseWeights[rarity] * multiplier;
+    return weights;
+  }, {} as Record<ItemRarity, number>);
 }
 
 export function itemLevelForStage(stageId: number): number {

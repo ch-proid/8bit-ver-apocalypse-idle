@@ -110,7 +110,7 @@ export const WAVE_BALANCE = {
   chapterAttackMultiplier: 0.12,
   chapterRewardMultiplier: 0.1,
   offlineDpsEfficiency: 0.52,
-  offlineExperienceMultiplier: 0.75,
+  offlineExperienceMultiplier: 1,
   offlineMinimumWaveSeconds: 3.5,
   offlineMovementSecondsPerWave: 2.4,
 } as const;
@@ -138,7 +138,8 @@ export const DROP_REWARD_BALANCE = {
 
 export const PROGRESSION = {
   initialStageId: 1,
-  offlineCapSeconds: 60 * 60 * 24,
+  offlineCapSeconds: 60 * 60 * 8,
+  offlineRewardMultiplier: 0.8,
 } as const;
 
 export const EXPERIENCE_CURVE = {
@@ -202,10 +203,14 @@ export const RNG_BALANCE = {
 } as const;
 
 export const EQUIPMENT_BALANCE = {
-  // TODO(Phase 7): Current Stage 1 24h core sim is ~16,200 kills/day;
-  // 0.0185% keeps regular equipment near 2-3 drops/day while preserving rarity weights.
+  // TODO(Phase 7): Common gear is intentionally frequent; high rarity is driven by stage/rebirth weights.
   inventoryCapacity: 60,
-  dropChance: 0.000185,
+  dropChance: {
+    base: 0.006,
+    perChapter: 0.0012,
+    perRebirth: 0.0008,
+    max: 0.018,
+  },
   bossDropChance: 1,
   stagesPerChapter: 10,
   itemLevelPerStage: 1,
@@ -238,13 +243,20 @@ export const EQUIPMENT_BALANCE = {
   },
   epicSinChance: 0.3,
   rarityWeightsByChapter: [
-    { common: 60, magic: 25, rare: 10, epic: 4, legendary: 1 },
-    { common: 52, magic: 27, rare: 13, epic: 6, legendary: 2 },
-    { common: 45, magic: 28, rare: 16, epic: 8, legendary: 3 },
-    { common: 38, magic: 29, rare: 19, epic: 10, legendary: 4 },
-    { common: 32, magic: 29, rare: 22, epic: 12, legendary: 5 },
-    { common: 26, magic: 29, rare: 25, epic: 14, legendary: 6 },
+    { common: 78, magic: 17, rare: 4, epic: 0.8, legendary: 0.2 },
+    { common: 70, magic: 20, rare: 7, epic: 2.3, legendary: 0.7 },
+    { common: 62, magic: 22, rare: 10, epic: 4.5, legendary: 1.5 },
+    { common: 54, magic: 24, rare: 13, epic: 6.5, legendary: 2.5 },
+    { common: 46, magic: 25, rare: 17, epic: 8.5, legendary: 3.5 },
+    { common: 38, magic: 26, rare: 21, epic: 10.5, legendary: 4.5 },
   ],
+  rarityRebirthWeightMultiplierPerCount: {
+    common: -0.06,
+    magic: 0.03,
+    rare: 0.08,
+    epic: 0.14,
+    legendary: 0.22,
+  },
   itemValue: {
     levelWeight: 12,
     rarityWeight: 140,
@@ -425,7 +437,10 @@ export const ALTAR_BALANCE = {
     moveSpeed: 12,
     spawnOffsetX: 8,
     platformInsetX: 3,
-    relicDropChance: 0.02,
+    relicDropChance: 0.22,
+    relicDropChancePerAltarLevel: 0.006,
+    relicDropChancePerRebirth: 0.04,
+    relicDropChanceMax: 0.65,
   },
   relicGrades: {
     // TODO(Altar v2): Tune unlock levels and owned stat ranges after elite clear pacing is playable.
@@ -433,7 +448,7 @@ export const ALTAR_BALANCE = {
       rank: 0,
       altarLevel: 1,
       rebirthCount: 0,
-      dropWeight: 70,
+      dropWeight: 84,
       ownedStats: { atk: 1, hp: 6, def: 0.2 },
       variance: 0.08,
     },
@@ -441,7 +456,7 @@ export const ALTAR_BALANCE = {
       rank: 1,
       altarLevel: 3,
       rebirthCount: 0,
-      dropWeight: 22,
+      dropWeight: 13,
       ownedStats: { atk: 2.2, hp: 13, def: 0.45 },
       variance: 0.1,
     },
@@ -449,7 +464,7 @@ export const ALTAR_BALANCE = {
       rank: 2,
       altarLevel: 6,
       rebirthCount: 0,
-      dropWeight: 7,
+      dropWeight: 2.5,
       ownedStats: { atk: 4.2, hp: 26, def: 0.9 },
       variance: 0.12,
     },
@@ -457,7 +472,7 @@ export const ALTAR_BALANCE = {
       rank: 3,
       altarLevel: 10,
       rebirthCount: 1,
-      dropWeight: 2,
+      dropWeight: 0.45,
       ownedStats: { atk: 7, hp: 44, def: 1.5 },
       variance: 0.14,
     },
@@ -465,11 +480,13 @@ export const ALTAR_BALANCE = {
       rank: 4,
       altarLevel: 15,
       rebirthCount: 2,
-      dropWeight: 0.5,
+      dropWeight: 0.08,
       ownedStats: { atk: 11, hp: 72, def: 2.5 },
       variance: 0.16,
     },
   },
+  relicGradeWeightPerAltarLevelAboveUnlock: 0.08,
+  relicGradeWeightPerRebirth: 0.35,
   relicOwnedStatCapPerAltarLevel: 0.015,
   relicOwnedStatPerStarBonus: 0.12,
   duplicateRequirementsByCurrentStar: {

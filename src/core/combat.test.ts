@@ -13,11 +13,13 @@ import {
   canLevelUpAltar,
   calculateRelicOwnedStats,
   createDefaultAltarState,
+  eliteRelicDropChance,
   eliteSummonCost,
   equipRelic,
   grantRelic,
   levelUpAltar,
   relicStars,
+  rollEliteRelicDrop,
   rollRelicOwnedStats,
   setRelicStarsForDebug,
   spendBloodForElite,
@@ -299,6 +301,33 @@ describe("phase 3C damage formula, altar, and relic builds", () => {
     altar.level = ALTAR_BALANCE.relicGrades.epic.altarLevel;
     expect(unlockedRelicGrades(altar, 0)).not.toContain("epic");
     expect(unlockedRelicGrades(altar, 1)).toContain("epic");
+  });
+
+  it("raises relic drop chance and high-grade outcomes with altar level and rebirth", () => {
+    const low = createDefaultAltarState();
+    const high = createDefaultAltarState();
+    high.level = ALTAR_BALANCE.relicGrades.legendary.altarLevel;
+
+    expect(eliteRelicDropChance(high, 3)).toBeGreaterThan(eliteRelicDropChance(low, 0));
+
+    const lowRng = createRngState(501);
+    const highRng = createRngState(501);
+    let lowHighGrades = 0;
+    let highHighGrades = 0;
+
+    for (let i = 0; i < 3000; i += 1) {
+      const lowDrop = rollEliteRelicDrop(low, 0, lowRng);
+      const highDrop = rollEliteRelicDrop(high, 3, highRng);
+      if (lowDrop && ALTAR_BALANCE.relicGrades[lowDrop.grade].rank >= ALTAR_BALANCE.relicGrades.rare.rank) {
+        lowHighGrades += 1;
+      }
+      if (highDrop && ALTAR_BALANCE.relicGrades[highDrop.grade].rank >= ALTAR_BALANCE.relicGrades.rare.rank) {
+        highHighGrades += 1;
+      }
+    }
+
+    expect(lowHighGrades).toBe(0);
+    expect(highHighGrades).toBeGreaterThan(0);
   });
 
   it("uses rising duplicate requirements through 7 stars and promotes overflow to the next grade", () => {

@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { GENERAL_AFFIXES } from "../data/affixes";
 import { EQUIPMENT_BALANCE, FIXED_DELTA, GOLD_BALANCE, PLAYER_BALANCE } from "../data/balance";
-import { generateEquipmentItem } from "./equipment";
+import { generateEquipmentItem, rarityWeightsForStage } from "./equipment";
+import { equipmentDropChance } from "./drop";
 import { cubeSynthesize, reawakenItemOptions, reawakeningCost, rerollItemOptions } from "./gold";
 import { addItemToInventory, disassembleItems, equipItem, setAutoSell } from "./inventory";
 import { createDefaultProgress } from "./progression";
@@ -75,12 +76,31 @@ describe("phase 3B equipment, drops, and gold", () => {
       counts[item.rarity] += 1;
     }
 
-    expect(counts.common / 5000).toBeGreaterThan(0.56);
-    expect(counts.common / 5000).toBeLessThan(0.64);
-    expect(counts.magic / 5000).toBeGreaterThan(0.22);
-    expect(counts.magic / 5000).toBeLessThan(0.28);
-    expect(counts.rare / 5000).toBeGreaterThan(0.08);
-    expect(counts.rare / 5000).toBeLessThan(0.12);
+    expect(counts.common / 5000).toBeGreaterThan(0.74);
+    expect(counts.common / 5000).toBeLessThan(0.82);
+    expect(counts.magic / 5000).toBeGreaterThan(0.14);
+    expect(counts.magic / 5000).toBeLessThan(0.2);
+    expect(counts.rare / 5000).toBeGreaterThan(0.025);
+    expect(counts.rare / 5000).toBeLessThan(0.055);
+  });
+
+  it("raises equipment drop chance and high-rarity relative weights with stage and rebirth", () => {
+    const early = createDefaultProgress();
+    const late = createDefaultProgress();
+    late.currentStage = 60;
+    late.rebirth.count = 4;
+
+    const earlyWeights = rarityWeightsForStage(1, 0);
+    const lateWeights = rarityWeightsForStage(late.currentStage, late.rebirth.count);
+    const highShare = (weights: Record<ItemRarity, number>) => (
+      (weights.rare + weights.epic + weights.legendary)
+      / Object.values(weights).reduce((sum, value) => sum + value, 0)
+    );
+
+    expect(equipmentDropChance(late)).toBeGreaterThan(equipmentDropChance(early));
+    expect(equipmentDropChance(late)).toBeLessThanOrEqual(EQUIPMENT_BALANCE.dropChance.max);
+    expect(highShare(lateWeights)).toBeGreaterThan(highShare(earlyWeights));
+    expect(lateWeights.legendary / lateWeights.common).toBeGreaterThan(earlyWeights.legendary / earlyWeights.common);
   });
 
   it("cubes three items of one rarity into one higher-rarity item", () => {
