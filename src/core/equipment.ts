@@ -101,11 +101,11 @@ export function itemLevelForStage(stageId: number): number {
 
 export function rollGeneralOptions(rng: RngState, slot: ItemSlot, rarity: ItemRarity): ItemOption[] {
   const count = EQUIPMENT_BALANCE.generalOptionLines[rarity];
-  const allowed = generalAffixesForSlot(slot);
+  const weights = generalAffixWeightsForSlot(slot);
   const options: ItemOption[] = [];
 
   for (let i = 0; i < count; i += 1) {
-    const key = pickOne(rng, allowed);
+    const key = pickWeighted(rng, weights);
     options.push({
       key,
       value: rollAffixValue(rng, key),
@@ -117,12 +117,7 @@ export function rollGeneralOptions(rng: RngState, slot: ItemSlot, rarity: ItemRa
 }
 
 export function rollWeightedGeneralOption(rng: RngState, slot: ItemSlot): ItemOption {
-  const allowed = new Set(generalAffixesForSlot(slot));
-  const weights = Object.fromEntries(
-    Object.entries(EQUIPMENT_BALANCE.reawakening.affixWeights)
-      .filter(([key]) => allowed.has(key as GeneralAffixKey)),
-  ) as Record<GeneralAffixKey, number>;
-  const key = pickWeighted(rng, weights);
+  const key = pickWeighted(rng, generalAffixWeightsForSlot(slot));
   return {
     key,
     value: rollAffixValue(rng, key),
@@ -140,7 +135,7 @@ export function rollSinOption(rng: RngState, slot: ItemSlot): ItemOption {
 }
 
 export function calculateEquipmentStats(equipped: EquippedItems): EquipmentStatAllocation {
-  const stats: EquipmentStatAllocation = { atk: 0, def: 0, hp: 0, reg: 0 };
+  const stats = createEmptyEquipmentStats();
 
   for (const item of Object.values(equipped)) {
     if (!item) {
@@ -151,6 +146,11 @@ export function calculateEquipmentStats(equipped: EquippedItems): EquipmentStatA
     stats.def += baseStats.def ?? 0;
     stats.hp += baseStats.hp ?? 0;
     stats.reg += baseStats.reg ?? 0;
+    for (const option of item.options) {
+      if (!option.sin) {
+        applyGeneralStatOption(stats, option);
+      }
+    }
   }
 
   return stats;
@@ -473,6 +473,18 @@ function generalAffixesForSlot(slot: ItemSlot): GeneralAffixKey[] {
     .map((affix) => affix.key);
 }
 
+export function generalAffixWeightsForSlot(slot: ItemSlot): Record<GeneralAffixKey, number> {
+  return generalAffixesForSlot(slot).reduce((weights, key) => {
+    weights[key] = generalAffixWeight(key);
+    return weights;
+  }, {} as Record<GeneralAffixKey, number>);
+}
+
+export function generalAffixWeight(key: GeneralAffixKey): number {
+  const tier = EQUIPMENT_BALANCE.generalAffixTiers[key];
+  return EQUIPMENT_BALANCE.generalAffixTierWeights[tier];
+}
+
 function sinAffixesForSlot(slot: ItemSlot): SinAffixKey[] {
   return Object.values(SIN_AFFIXES)
     .filter((affix) => affix.allowedSlots.includes(slot))
@@ -504,8 +516,49 @@ function createEmptyCombatAffixStats(): CombatAffixStats {
     defPenetration: 0,
     lifeSteal: 0,
     goldGain: 0,
+    experienceGain: 0,
     damageReduction: 0,
   };
+}
+
+function createEmptyEquipmentStats(): EquipmentStatAllocation {
+  return {
+    atk: 0,
+    atkPercent: 0,
+    def: 0,
+    hp: 0,
+    reg: 0,
+    accuracy: 0,
+    evasion: 0,
+  };
+}
+
+function applyGeneralStatOption(stats: EquipmentStatAllocation, option: ItemOption): void {
+  switch (option.key) {
+    case "attackFlat":
+      stats.atk += option.value;
+      break;
+    case "attackPercent":
+      stats.atkPercent += option.value;
+      break;
+    case "defenseFlat":
+      stats.def += option.value;
+      break;
+    case "hpFlat":
+      stats.hp += option.value;
+      break;
+    case "hpRegen":
+      stats.reg += option.value;
+      break;
+    case "accuracy":
+      stats.accuracy += option.value;
+      break;
+    case "evasion":
+      stats.evasion += option.value;
+      break;
+    default:
+      break;
+  }
 }
 
 function createEmptySinAffixStats(): SinAffixStats {

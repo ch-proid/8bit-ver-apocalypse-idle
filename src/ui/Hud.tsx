@@ -110,6 +110,13 @@ const EQUIPMENT_STAT_KR_LABELS: Record<EquipmentBaseStatKey, string> = {
   critChance: "치명확률",
 };
 const AFFIX_KR_LABELS: Record<string, string> = {
+  attackFlat: "공격력",
+  attackPercent: "공격력",
+  defenseFlat: "방어력",
+  hpFlat: "체력",
+  hpRegen: "체력재생",
+  accuracy: "명중",
+  evasion: "회피력",
   critChance: "치명확률",
   critDamage: "치명피해",
   attackSpeed: "공격속도",
@@ -118,6 +125,7 @@ const AFFIX_KR_LABELS: Record<string, string> = {
   defPenetration: "방어관통",
   lifeSteal: "흡혈",
   goldGain: "골드획득",
+  experienceGain: "경험치획득",
   damageReduction: "피해감소",
   specterDamage: "망령피해",
   bloodLeech: "흡혈강화",
@@ -126,6 +134,18 @@ const AFFIX_KR_LABELS: Record<string, string> = {
   executionThreshold: "처형문턱",
   despairBurst: "절망폭주",
 };
+const PERCENT_AFFIX_KEYS = new Set<string>([
+  "attackPercent",
+  "critChance",
+  "critDamage",
+  "attackSpeed",
+  "damageIncrease",
+  "finalDamage",
+  "lifeSteal",
+  "goldGain",
+  "experienceGain",
+  "damageReduction",
+]);
 
 interface EquipmentPopupState {
   itemId: string;
@@ -211,6 +231,7 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
     { label: "방어관통", value: formatNumberLike(combatAffixes.defPenetration) },
     { label: "흡혈%", value: `${formatNumberLike(combatAffixes.lifeSteal)}%` },
     { label: "골드획득%", value: `${formatNumberLike(combatAffixes.goldGain)}%` },
+    { label: "경험치획득%", value: `${formatNumberLike(combatAffixes.experienceGain)}%` },
     { label: "피해감소%", value: `${formatNumberLike(combatAffixes.damageReduction)}%` },
     { label: "체력회복", value: formatNumber(player.hpRegen) },
   ];
@@ -1535,14 +1556,21 @@ function signedBaseDelta(key: EquipmentBaseStatKey, value: number): string {
 }
 
 function formatAffixValue(option: ItemOption): string {
-  const suffix = option.sin || option.key === "defPenetration" ? "" : "%";
+  const suffix = affixValueSuffix(option);
   return `+${formatNumberLike(option.value)}${suffix}`;
 }
 
 function formatAffixDelta(option: ItemOption, value: number): string {
-  const suffix = option.sin || option.key === "defPenetration" ? "" : "%";
+  const suffix = affixValueSuffix(option);
   const sign = value >= 0 ? "+" : "";
   return `${sign}${formatNumberLike(value)}${suffix}`;
+}
+
+function affixValueSuffix(option: ItemOption): string {
+  if (option.sin || option.key === "defPenetration") {
+    return "";
+  }
+  return PERCENT_AFFIX_KEYS.has(option.key) ? "%" : "";
 }
 
 function formatNumberLike(value: number): string {

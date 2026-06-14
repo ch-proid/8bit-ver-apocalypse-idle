@@ -122,7 +122,7 @@ export function calculatePlayerStats(progress: ProgressState): PlayerStats {
   let attack = PLAYER_BALANCE.attack + classDefinition.growth.attackPerLevel * levelSteps;
   let defense = PLAYER_BALANCE.defense + classDefinition.growth.defensePerLevel * levelSteps;
   let maxHp = PLAYER_BALANCE.maxHp + classDefinition.growth.hpPerLevel * levelSteps;
-  const hpRegen = PLAYER_BALANCE.hpRegen + equipmentStats.reg;
+  let hpRegen = PLAYER_BALANCE.hpRegen;
   let evasion = PLAYER_BALANCE.evasion + classDefinition.growth.evasionPerLevel * levelSteps;
 
   attack *= statMultiplier(statPoints.str, STAT_GROWTH.strAttackPercentPerPoint);
@@ -200,12 +200,13 @@ function applyEquipmentStats(
   stats: Pick<PlayerStats, "attack" | "defense" | "maxHp" | "hpRegen" | "evasion">,
   equipment: EquipmentStatAllocation,
 ): Pick<PlayerStats, "attack" | "defense" | "maxHp" | "hpRegen" | "evasion"> {
+  const attackWithFlat = stats.attack + equipment.atk;
   return {
-    attack: roundTo(stats.attack + equipment.atk, 2),
+    attack: roundTo(attackWithFlat * (1 + equipment.atkPercent / 100), 2),
     defense: roundTo(stats.defense + equipment.def, 2),
     maxHp: roundTo(stats.maxHp + equipment.hp, 2),
-    hpRegen: roundTo(stats.hpRegen, 2),
-    evasion: roundTo(stats.evasion, 2),
+    hpRegen: roundTo(stats.hpRegen + equipment.reg, 2),
+    evasion: roundTo(stats.evasion + equipment.evasion, 2),
   };
 }
 

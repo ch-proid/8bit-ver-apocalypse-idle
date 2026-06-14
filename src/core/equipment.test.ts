@@ -15,6 +15,7 @@ import {
   equipmentDisplayName,
   generateEquipmentItem,
   rarityWeightsForStage,
+  rollWeightedGeneralOption,
 } from "./equipment";
 import { equipmentDropChance } from "./drop";
 import { buyShopOffer, canRefreshShop, cubeSynthesize, refreshShop, reawakenItemOptions, reawakeningCost, rerollItemOptions, shopRefreshRemainingSeconds } from "./gold";
@@ -73,6 +74,28 @@ describe("phase 3B equipment, drops, and gold", () => {
         }
       }
     }
+  });
+
+  it("uses four-tier weighted general affixes for initial drops and reawakening", () => {
+    const dropRng = createRngState(9101);
+    const dropDistribution = countAffixTiers(() => {
+      const item = generateEquipmentItem({
+        id: `drop-${dropRng.seed}`,
+        rng: dropRng,
+        stageId: 1,
+        rarity: "legendary",
+        slot: "accessory",
+        kind: "ring",
+      });
+      return item.options.filter((option) => !option.sin).map((option) => option.key as GeneralAffixKey);
+    }, 5000);
+    const reawakenRng = createRngState(9201);
+    const reawakenDistribution = countAffixTiers(() => [rollWeightedGeneralOption(reawakenRng, "accessory").key as GeneralAffixKey], 20000);
+
+    expectTierOrder(dropDistribution);
+    expectTierOrder(reawakenDistribution);
+    expect(dropDistribution.byKey.finalDamage ?? 0).toBeLessThan(dropDistribution.byKey.attackSpeed ?? 0);
+    expect(reawakenDistribution.byKey.finalDamage ?? 0).toBeLessThan(reawakenDistribution.byKey.attackSpeed ?? 0);
   });
 
   it("approximates chapter one rarity weights with a fixed seed", () => {
@@ -190,6 +213,8 @@ describe("phase 3B equipment, drops, and gold", () => {
     expect(directStats.def).toBeGreaterThan(0);
     expect(directStats.hp).toBeGreaterThan(0);
     expect(directStats.reg).toBeGreaterThan(0);
+    expect(directStats.evasion).toBeGreaterThanOrEqual(0);
+    expect(directStats.accuracy).toBeGreaterThanOrEqual(0);
     expect(combatStats.critChance).toBeGreaterThan(0);
   });
 
@@ -451,6 +476,42 @@ function createProgressWithGold(gold: number): ProgressState {
   const progress = createDefaultProgress(1);
   progress.gold = gold;
   return progress;
+}
+
+function countAffixTiers(
+  roll: () => GeneralAffixKey[],
+  iterations: number,
+): {
+  total: number;
+  byTier: Record<keyof typeof EQUIPMENT_BALANCE.generalAffixTierWeights, number>;
+  byKey: Partial<Record<GeneralAffixKey, number>>;
+} {
+  const byTier: Record<keyof typeof EQUIPMENT_BALANCE.generalAffixTierWeights, number> = {
+    surplus: 0,
+    main: 0,
+    rare: 0,
+    ultraRare: 0,
+  };
+  const byKey: Partial<Record<GeneralAffixKey, number>> = {};
+  let total = 0;
+
+  for (let i = 0; i < iterations; i += 1) {
+    for (const key of roll()) {
+      const tier = EQUIPMENT_BALANCE.generalAffixTiers[key];
+      byTier[tier] += 1;
+      byKey[key] = (byKey[key] ?? 0) + 1;
+      total += 1;
+    }
+  }
+
+  return { total, byTier, byKey };
+}
+
+function expectTierOrder(counts: ReturnType<typeof countAffixTiers>): void {
+  expect(counts.byTier.surplus).toBeGreaterThan(counts.byTier.main);
+  expect(counts.byTier.main).toBeGreaterThan(counts.byTier.rare);
+  expect(counts.byTier.rare).toBeGreaterThan(counts.byTier.ultraRare);
+  expect(counts.byTier.ultraRare).toBeGreaterThan(0);
 }
 
 function makeItem(id: string, rarity: ItemRarity): EquipmentItem {

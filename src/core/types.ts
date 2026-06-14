@@ -25,6 +25,13 @@ export type EquipmentKind = WeaponType | "helmet" | "hood" | "hat" | "cap" | "ar
 export type ItemRarity = "common" | "magic" | "rare" | "epic" | "legendary";
 export type RelicGrade = ItemRarity;
 export type GeneralAffixKey =
+  | "attackFlat"
+  | "attackPercent"
+  | "defenseFlat"
+  | "hpFlat"
+  | "hpRegen"
+  | "accuracy"
+  | "evasion"
   | "critChance"
   | "critDamage"
   | "attackSpeed"
@@ -33,6 +40,7 @@ export type GeneralAffixKey =
   | "defPenetration"
   | "lifeSteal"
   | "goldGain"
+  | "experienceGain"
   | "damageReduction";
 export type SinAffixKey =
   | "specterDamage"
@@ -64,9 +72,12 @@ export interface StatAllocation {
 
 export interface EquipmentStatAllocation {
   atk: number;
+  atkPercent: number;
   def: number;
   hp: number;
   reg: number;
+  accuracy: number;
+  evasion: number;
 }
 
 export type EquipmentBaseStats = Partial<Record<EquipmentBaseStatKey, number>>;
@@ -192,6 +203,7 @@ export interface CombatAffixStats {
   defPenetration: number;
   lifeSteal: number;
   goldGain: number;
+  experienceGain: number;
   damageReduction: number;
 }
 

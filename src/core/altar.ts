@@ -350,9 +350,12 @@ export function calculateRelicOwnedStats(altar: AltarState): EquipmentStatAlloca
   }
   return {
     atk: roundTo(total.atk, 2),
+    atkPercent: 0,
     hp: roundTo(total.hp, 2),
     def: roundTo(total.def, 2),
     reg: 0,
+    accuracy: 0,
+    evasion: 0,
   };
 }
 

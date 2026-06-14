@@ -1,6 +1,6 @@
 import { CLASS_BALANCE, DAMAGE_FORMULA, PLAYER_BALANCE } from "../data/balance";
 import { classCritProfile, classDamageIncreaseBonus, getPlayerClass } from "./class";
-import { calculateCombatAffixStats, normalizeEquipmentItem } from "./equipment";
+import { calculateCombatAffixStats, calculateEquipmentStats, normalizeEquipmentItem } from "./equipment";
 import { nextRandom } from "./rng";
 import { relicDamageHooks } from "./relics";
 import { strengthDamageMultiplier } from "./stats";
@@ -180,6 +180,7 @@ export function clampCombatAffixes(
     defPenetration: Math.max(0, affixes.defPenetration),
     lifeSteal: clamp(affixes.lifeSteal, 0, DAMAGE_FORMULA.lifeStealCap),
     goldGain: Math.max(0, affixes.goldGain),
+    experienceGain: Math.max(0, affixes.experienceGain),
     damageReduction: clamp(affixes.damageReduction, 0, DAMAGE_FORMULA.damageReductionCap),
   };
 }
@@ -245,6 +246,7 @@ function playerWeaponDamageProfile(progress: ProgressState, player: Player): { m
   const weapon = progress.inventory.equipped.weapon
     ? normalizeEquipmentItem(progress.inventory.equipped.weapon)
     : null;
+  const equipmentStats = calculateEquipmentStats(progress.inventory.equipped);
   const intrinsic = intrinsicClassDamage(progress);
   const knightDefenseBonus = progress.classId === "knight"
     ? player.defense * CLASS_BALANCE.knight.passive.defenseToAttackPercent / 100
@@ -254,14 +256,14 @@ function playerWeaponDamageProfile(progress: ProgressState, player: Player): { m
     return {
       minDamage: DAMAGE_FORMULA.unarmedMinDamage + intrinsic + knightDefenseBonus,
       maxDamage: DAMAGE_FORMULA.unarmedMaxDamage + intrinsic + knightDefenseBonus,
-      accuracy: DAMAGE_FORMULA.unarmedAccuracy,
+      accuracy: DAMAGE_FORMULA.unarmedAccuracy + equipmentStats.accuracy,
     };
   }
 
   return {
     minDamage: weapon.minDmg + intrinsic + knightDefenseBonus,
     maxDamage: weapon.maxDmg + intrinsic + knightDefenseBonus,
-    accuracy: weapon.accuracy,
+    accuracy: weapon.accuracy + equipmentStats.accuracy,
   };
 }
 

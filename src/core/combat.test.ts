@@ -207,6 +207,7 @@ describe("phase 3C damage formula, altar, and relic builds", () => {
       defPenetration: 1,
       lifeSteal: 99,
       goldGain: 5,
+      experienceGain: 5,
       damageReduction: 99,
     });
 
@@ -275,7 +276,7 @@ describe("phase 3C damage formula, altar, and relic builds", () => {
     const ownedStats = calculateRelicOwnedStats(state.progress.altar);
     const withRelics = calculatePlayerStats(state.progress);
 
-    expect(ownedStats).toEqual({ atk: 6, hp: 30, def: 3, reg: 0 });
+    expect(ownedStats).toEqual({ atk: 6, atkPercent: 0, hp: 30, def: 3, reg: 0, accuracy: 0, evasion: 0 });
     expect(withRelics.attack).toBeCloseTo(baseline.attack + ownedStats.atk);
     expect(withRelics.maxHp).toBeCloseTo(baseline.maxHp + ownedStats.hp);
     expect(withRelics.defense).toBeCloseTo(baseline.defense + ownedStats.def);
@@ -476,6 +477,7 @@ function emptyCombatAffixes(): CombatAffixStats {
     defPenetration: 0,
     lifeSteal: 0,
     goldGain: 0,
+    experienceGain: 0,
     damageReduction: 0,
   };
 }

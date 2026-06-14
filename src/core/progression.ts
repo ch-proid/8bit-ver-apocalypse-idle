@@ -102,9 +102,10 @@ export function grantRewards(
 ): void {
   const affixes = calculateCombatAffixStats(progress.inventory.equipped);
   const actualGold = Math.max(0, Math.floor(gold * (1 + affixes.goldGain / 100)));
+  const actualExperience = Math.max(0, Math.floor(experience * (1 + affixes.experienceGain / 100)));
   progress.gold += actualGold;
 
-  gainExperience(progress, world, experience);
+  gainExperience(progress, world, actualExperience);
 }
 
 export function gainExperience(progress: ProgressState, world: WorldState, baseExperience: number): void {

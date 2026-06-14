@@ -11,6 +11,13 @@ export interface SinAffixDefinition {
 }
 
 export const GENERAL_AFFIXES: Record<GeneralAffixKey, GeneralAffixDefinition> = {
+  attackFlat: { key: "attackFlat", allowedSlots: ["weapon", "accessory"] },
+  attackPercent: { key: "attackPercent", allowedSlots: ["weapon", "accessory"] },
+  defenseFlat: { key: "defenseFlat", allowedSlots: ["helmet", "armor"] },
+  hpFlat: { key: "hpFlat", allowedSlots: ["helmet", "armor", "accessory"] },
+  hpRegen: { key: "hpRegen", allowedSlots: ["armor", "accessory"] },
+  accuracy: { key: "accuracy", allowedSlots: ["weapon", "accessory"] },
+  evasion: { key: "evasion", allowedSlots: ["helmet", "armor", "accessory"] },
   critChance: { key: "critChance", allowedSlots: ["weapon", "accessory"] },
   critDamage: { key: "critDamage", allowedSlots: ["weapon", "accessory"] },
   attackSpeed: { key: "attackSpeed", allowedSlots: ["weapon", "accessory"] },
@@ -19,6 +26,7 @@ export const GENERAL_AFFIXES: Record<GeneralAffixKey, GeneralAffixDefinition> = 
   defPenetration: { key: "defPenetration", allowedSlots: ["weapon"] },
   lifeSteal: { key: "lifeSteal", allowedSlots: ["weapon", "armor", "accessory"] },
   goldGain: { key: "goldGain", allowedSlots: ["helmet", "armor", "accessory"] },
+  experienceGain: { key: "experienceGain", allowedSlots: ["helmet", "armor", "accessory"] },
   damageReduction: { key: "damageReduction", allowedSlots: ["armor"] },
 };
 
