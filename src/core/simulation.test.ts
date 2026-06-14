@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ALTAR_BALANCE, FIXED_DELTA, MAGE_AI_BALANCE, MONSTER_BALANCE, PROGRESSION } from "../data/balance";
 import { STAGES } from "../data/stages";
-import { altarEliteStatsForLevel, eliteSummonCost, levelUpAltar } from "./altar";
+import { altarBloodCapacity, altarEliteStatsForLevel, eliteSummonCost, levelUpAltar } from "./altar";
 import { startAltarEliteEncounter } from "./elites";
 import { estimateOfflineHuntRates } from "./offline";
 import { calculateOfflineReward } from "../save/saveGame";
@@ -593,6 +593,12 @@ describe("phase 2 simulation", () => {
     expect(reward.elapsedSeconds).toBe(PROGRESSION.offlineCapSeconds);
     expect(reward.gold).toBe(Math.floor(rates.goldPerMinute * 60 * 8 * PROGRESSION.offlineRewardMultiplier));
     expect(reward.experience).toBe(Math.floor(rates.experiencePerMinute * 60 * 8 * PROGRESSION.offlineRewardMultiplier));
+    expect(reward.crystal).toBe(Math.floor(rates.crystalPerMinute * 60 * 8 * PROGRESSION.offlineRewardMultiplier));
+    expect(reward.blood).toBe(Math.min(
+      Math.floor(altarBloodCapacity(progress.altar) - progress.altar.blood),
+      Math.floor(rates.bloodPerMinute * 60 * 8 * PROGRESSION.offlineRewardMultiplier),
+    ));
+    expect(reward).not.toHaveProperty("items");
   });
 
 });

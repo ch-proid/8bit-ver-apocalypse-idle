@@ -114,6 +114,8 @@ export const WAVE_BALANCE = {
   stageGoldMultiplier: 0.04,
   offlineDpsEfficiency: 0.52,
   offlineExperienceMultiplier: 1,
+  // TODO(Pacing): Offline gear is disabled, so this is a small deterministic salvage proxy.
+  offlineCrystalPerKill: 0.012,
   offlineMinimumWaveSeconds: 3.5,
   offlineMovementSecondsPerWave: 2.4,
 } as const;
@@ -215,6 +217,16 @@ export const EQUIPMENT_BALANCE = {
     perChapter: 0.0012,
     perRebirth: 0.0008,
     max: 0.018,
+  },
+  onlineLowRarityBonusDropChance: {
+    base: 0.014,
+    perChapter: 0.001,
+    perRebirth: 0,
+    max: 0.03,
+  },
+  onlineLowRarityBonusWeights: {
+    common: 75,
+    magic: 25,
   },
   bossDropChance: 1,
   stagesPerChapter: 10,

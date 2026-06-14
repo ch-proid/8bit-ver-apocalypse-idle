@@ -3,18 +3,35 @@ import { STAGES } from "../data/stages";
 import { chance, pickWeighted } from "./rng";
 import { generateEquipmentItem, rollRarityForStage } from "./equipment";
 import { createItemId } from "./inventory";
-import type { BossId, EquipmentItem, ItemSlot, ProgressState, RngState } from "./types";
+import type { BossId, EquipmentItem, ItemRarity, ItemSlot, ProgressState, RngState } from "./types";
+
+type LowRarity = Extract<ItemRarity, "common" | "magic">;
 
 export function rollMonsterDrop(progress: ProgressState, rng: RngState): EquipmentItem | null {
-  if (!chance(rng, equipmentDropChance(progress))) {
+  if (chance(rng, equipmentDropChance(progress))) {
+    return generateEquipmentItem({
+      id: createItemId(progress.inventory),
+      rng,
+      stageId: progress.currentStage,
+      rebirthCount: progress.rebirth.count,
+      slot: rollSlotForStage(progress, rng),
+    });
+  }
+
+  if (!chance(rng, onlineLowRarityEquipmentDropChance(progress))) {
     return null;
   }
 
+  const rarity = pickWeighted(
+    rng,
+    EQUIPMENT_BALANCE.onlineLowRarityBonusWeights as Record<LowRarity, number>,
+  );
   return generateEquipmentItem({
     id: createItemId(progress.inventory),
     rng,
     stageId: progress.currentStage,
     rebirthCount: progress.rebirth.count,
+    rarity,
     slot: rollSlotForStage(progress, rng),
   });
 }
@@ -52,6 +69,17 @@ export function rollSlotForStage(progress: ProgressState, rng: RngState): ItemSl
 export function equipmentDropChance(progress: ProgressState): number {
   const chapter = Math.max(1, Math.ceil(progress.currentStage / EQUIPMENT_BALANCE.stagesPerChapter));
   const config = EQUIPMENT_BALANCE.dropChance;
+  return Math.min(
+    config.max,
+    config.base
+      + Math.max(0, chapter - 1) * config.perChapter
+      + Math.max(0, progress.rebirth.count) * config.perRebirth,
+  );
+}
+
+export function onlineLowRarityEquipmentDropChance(progress: ProgressState): number {
+  const chapter = Math.max(1, Math.ceil(progress.currentStage / EQUIPMENT_BALANCE.stagesPerChapter));
+  const config = EQUIPMENT_BALANCE.onlineLowRarityBonusDropChance;
   return Math.min(
     config.max,
     config.base

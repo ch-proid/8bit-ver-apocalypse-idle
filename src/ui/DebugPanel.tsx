@@ -85,7 +85,12 @@ export function DebugPanel({ open }: DebugPanelProps) {
         <span>SPD x{debugSpeed}</span>
         <span>{bossStatusLabel(bossState)}</span>
         {offlineReward ? (
-          <span>AFK {formatDuration(offlineReward.elapsedSeconds)} +{formatNumber(offlineReward.gold)}G</span>
+          <span>
+            AFK {formatDuration(offlineReward.elapsedSeconds)}
+            {" "}+{formatNumber(offlineReward.gold)}G
+            {" "}+{formatNumber(offlineReward.crystal)}C
+            {" "}+{formatNumber(offlineReward.blood)}B
+          </span>
         ) : null}
       </div>
 

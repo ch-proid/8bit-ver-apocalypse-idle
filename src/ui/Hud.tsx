@@ -262,7 +262,7 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
   const failure = progress.stageProgress.lastFailure;
   const failureKey = failure ? `${failure.stageId}:${failure.reason}:${failure.recommendedStage}` : null;
   const offlineKey = offlineReward
-    ? `${Math.floor(offlineReward.elapsedSeconds)}:${offlineReward.gold}:${offlineReward.experience}`
+    ? `${Math.floor(offlineReward.elapsedSeconds)}:${offlineReward.gold}:${offlineReward.experience}:${offlineReward.crystal}:${offlineReward.blood}`
     : null;
   const showFailurePopup = Boolean(failure && failureKey !== dismissedFailureKey);
   const showOfflinePopup = Boolean(offlineReward && offlineKey !== claimedOfflineKey);
@@ -1053,7 +1053,7 @@ function OfflineRewardPopup({
   reward,
   onClaim,
 }: {
-  reward: { elapsedSeconds: number; gold: number; experience: number };
+  reward: { elapsedSeconds: number; gold: number; experience: number; crystal: number; blood: number };
   onClaim: () => void;
 }) {
   return (
@@ -1062,8 +1062,9 @@ function OfflineRewardPopup({
         <MenuItem label="시간" value={formatDuration(reward.elapsedSeconds)} />
         <MenuItem label="골드" value={formatNumber(reward.gold)} valueClassName="goldc" />
         <MenuItem label="경험치" value={formatNumber(reward.experience)} />
+        <MenuItem label="결정" value={formatNumber(reward.crystal)} />
         <MenuItem label="전리품" value="0" />
-        <MenuItem label="피" value="0" valueClassName="bloodc" />
+        <MenuItem label="피" value={formatNumber(reward.blood)} valueClassName="bloodc" />
       </div>
       <p className="popup-voice kr">제단이 깨어났다.</p>
       <div className="popup-menu">

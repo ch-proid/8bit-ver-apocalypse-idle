@@ -1,6 +1,7 @@
 import { openDB, type DBSchema } from "idb";
 import type { ProgressState } from "../core/types";
 import { PROGRESSION } from "../data/balance";
+import { altarBloodCapacity } from "../core/altar";
 import { estimateOfflineHuntRates } from "../core/offline";
 import { normalizeProgress } from "../core/progression";
 
@@ -12,6 +13,14 @@ export interface SaveSnapshot {
   version: 8;
   progress: ProgressState;
   lastSavedAt: number;
+}
+
+export interface OfflineReward {
+  elapsedSeconds: number;
+  gold: number;
+  experience: number;
+  crystal: number;
+  blood: number;
 }
 
 type StoredSaveSnapshot = Partial<Omit<SaveSnapshot, "progress" | "version">> & {
@@ -60,15 +69,21 @@ export async function loadGame(): Promise<SaveSnapshot | undefined> {
   return migrateSnapshot(snapshot);
 }
 
-export function calculateOfflineReward(snapshot: SaveSnapshot, now = Date.now()) {
+export function calculateOfflineReward(snapshot: SaveSnapshot, now = Date.now()): OfflineReward {
   const elapsedSeconds = Math.max(0, Math.min((now - snapshot.lastSavedAt) / 1000, PROGRESSION.offlineCapSeconds));
   const rates = estimateOfflineHuntRates(snapshot.progress);
   const minutes = elapsedSeconds / 60;
+  const bloodCapacityLeft = Math.max(0, altarBloodCapacity(snapshot.progress.altar) - snapshot.progress.altar.blood);
 
   return {
     elapsedSeconds,
     gold: Math.floor(rates.goldPerMinute * minutes * PROGRESSION.offlineRewardMultiplier),
     experience: Math.floor(rates.experiencePerMinute * minutes * PROGRESSION.offlineRewardMultiplier),
+    crystal: Math.floor(rates.crystalPerMinute * minutes * PROGRESSION.offlineRewardMultiplier),
+    blood: Math.min(
+      Math.floor(bloodCapacityLeft),
+      Math.floor(rates.bloodPerMinute * minutes * PROGRESSION.offlineRewardMultiplier),
+    ),
   };
 }
 

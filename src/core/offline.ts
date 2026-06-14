@@ -1,6 +1,7 @@
-import { WAVE_BALANCE } from "../data/balance";
+import { DROP_REWARD_BALANCE, WAVE_BALANCE } from "../data/balance";
 import { MONSTERS } from "../data/monsters";
 import { STAGES } from "../data/stages";
+import { bloodForKill } from "./altar";
 import { calculatePlayerStats } from "./stats";
 import { normalMonsterStatsForStage } from "./stage";
 import type { ProgressState } from "./types";
@@ -10,6 +11,8 @@ export interface OfflineHuntRates {
   killsPerMinute: number;
   goldPerMinute: number;
   experiencePerMinute: number;
+  crystalPerMinute: number;
+  bloodPerMinute: number;
   cycleSeconds: number;
 }
 
@@ -30,6 +33,7 @@ export function estimateOfflineHuntRates(progress: ProgressState): OfflineHuntRa
   let cycleKills = 0;
   let cycleGold = 0;
   let cycleExperience = 0;
+  let cycleBlood = 0;
 
   for (const wave of stage.waves) {
     let waveHp = 0;
@@ -45,6 +49,7 @@ export function estimateOfflineHuntRates(progress: ProgressState): OfflineHuntRa
       waveKills += spawn.count;
       cycleGold += stats.gold * spawn.count;
       cycleExperience += stats.experience * spawn.count;
+      cycleBlood += bloodForKill("normal", stage.id) * spawn.count;
     }
 
     cycleKills += waveKills;
@@ -62,8 +67,10 @@ export function estimateOfflineHuntRates(progress: ProgressState): OfflineHuntRa
   return {
     stageId: stage.id,
     killsPerMinute: cycleKills * cyclesPerMinute,
-    goldPerMinute: cycleGold * cyclesPerMinute,
+    goldPerMinute: cycleGold * cyclesPerMinute * DROP_REWARD_BALANCE.goldChance,
     experiencePerMinute: cycleExperience * cyclesPerMinute * WAVE_BALANCE.offlineExperienceMultiplier,
+    crystalPerMinute: cycleKills * cyclesPerMinute * WAVE_BALANCE.offlineCrystalPerKill,
+    bloodPerMinute: cycleBlood * cyclesPerMinute * DROP_REWARD_BALANCE.bloodChance,
     cycleSeconds,
   };
 }
@@ -74,6 +81,8 @@ function emptyRates(stageId: number): OfflineHuntRates {
     killsPerMinute: 0,
     goldPerMinute: 0,
     experiencePerMinute: 0,
+    crystalPerMinute: 0,
+    bloodPerMinute: 0,
     cycleSeconds: 0,
   };
 }

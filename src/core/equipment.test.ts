@@ -18,7 +18,7 @@ import {
   rollWeightedGeneralOption,
   unlockedEquipmentRarities,
 } from "./equipment";
-import { equipmentDropChance } from "./drop";
+import { equipmentDropChance, onlineLowRarityEquipmentDropChance, rollMonsterDrop } from "./drop";
 import { buyShopOffer, canRefreshShop, cubeSynthesize, refreshShop, reawakenItemOptions, reawakeningCost, rerollItemOptions, shopRefreshRemainingSeconds } from "./gold";
 import { addItemToInventory, disassembleItems, equipItem, setAutoSell } from "./inventory";
 import { createDefaultProgress } from "./progression";
@@ -284,6 +284,24 @@ describe("phase 3B equipment, drops, and gold", () => {
     expect(equipmentDropChance(late)).toBeLessThanOrEqual(EQUIPMENT_BALANCE.dropChance.max);
     expect(highShare(lateWeights)).toBeGreaterThan(highShare(earlyWeights));
     expect(lateWeights.legendary / lateWeights.common).toBeGreaterThan(earlyWeights.legendary / earlyWeights.common);
+  });
+
+  it("adds an online low-rarity bonus drop roll without unlocking high rarities", () => {
+    const progress = createDefaultProgress();
+    const rng = createRngState(8812);
+    const iterations = 5000;
+    const drops: EquipmentItem[] = [];
+
+    for (let i = 0; i < iterations; i += 1) {
+      const item = rollMonsterDrop(progress, rng);
+      if (item) {
+        drops.push(item);
+      }
+    }
+
+    expect(onlineLowRarityEquipmentDropChance(progress)).toBeGreaterThan(equipmentDropChance(progress));
+    expect(drops.length).toBeGreaterThan(iterations * equipmentDropChance(progress) * 2);
+    expect(new Set(drops.map((item) => item.rarity))).toEqual(new Set(["common", "magic"]));
   });
 
   it("cubes three items of one rarity into one higher-rarity item", () => {

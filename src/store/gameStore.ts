@@ -5,7 +5,7 @@ import { RELIC_IDS } from "../data/relics";
 import { RELICS } from "../data/relics";
 import { STAGES } from "../data/stages";
 import { ALTAR_BALANCE, EXPERIENCE_CURVE, FIXED_DELTA, nextExperienceForLevel, PHASE_3B_DEBUG, PHASE_3C_DEBUG, PROGRESSION, STANDARD_DUMMY, STAT_GROWTH, TICK_RATE } from "../data/balance";
-import { altarBloodCapacity, altarStoredCharges, awakenRelic, eliteSummonCost, equipRelic, grantRelic, levelUpAltar, setRelicStarsForDebug } from "../core/altar";
+import { addAltarBlood, altarBloodCapacity, altarStoredCharges, awakenRelic, eliteSummonCost, equipRelic, grantRelic, levelUpAltar, setRelicStarsForDebug } from "../core/altar";
 import { triggerAltarCounter } from "../core/boss";
 import { cloneClassCombatState } from "../core/class";
 import { calculateItemValue, generateEquipmentItem } from "../core/equipment";
@@ -32,7 +32,7 @@ import {
   spendStatPoint,
 } from "../core/stats";
 import type { ClassId, ItemRarity, ItemSlot, RelicId, SimulationState, SinId, StageMode, StatKey, StatPreset } from "../core/types";
-import { calculateOfflineReward, deleteSaveGame, loadGame, saveGame } from "../save/saveGame";
+import { calculateOfflineReward, deleteSaveGame, loadGame, saveGame, type OfflineReward } from "../save/saveGame";
 
 export type DebugSpeed = 1 | 4 | 16;
 
@@ -41,7 +41,7 @@ interface GameStore {
   hydrated: boolean;
   debugSpeed: DebugSpeed;
   debugLog: string;
-  lastOfflineReward: { elapsedSeconds: number; gold: number; experience: number } | null;
+  lastOfflineReward: OfflineReward | null;
   tick: (dt: number) => void;
   addGold: (amount: number) => void;
   addExperience: (amount: number) => void;
@@ -704,9 +704,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const progress = {
       ...save.progress,
       gold: save.progress.gold + reward.gold,
+      crystal: save.progress.crystal + reward.crystal,
     };
     const simulation = createInitialSimulation(progress.currentStage, progress);
     gainExperience(simulation.progress, simulation.world, reward.experience);
+    addAltarBlood(simulation.progress.altar, reward.blood);
 
     set({
       hydrated: true,
