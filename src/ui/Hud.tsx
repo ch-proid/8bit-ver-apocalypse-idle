@@ -9,9 +9,12 @@ import {
   relicStars,
 } from "../core/altar";
 import { altarElitePreview } from "../core/elites";
+import { classCritProfile } from "../core/class";
+import { clampCombatAffixes } from "../core/combat";
+import { calculateCombatAffixStats } from "../core/equipment";
 import { compareEquipmentCombatScore, createBuildSnapshot, type EquipmentScoreComparison } from "../core/sim";
 import type { ClassId, EquipmentItem, EquipmentStatKey, ItemRarity, ItemSlot, ProgressState, RelicGrade, RelicId, StageFailureReport, StatKey } from "../core/types";
-import { ALTAR_BALANCE } from "../data/balance";
+import { ALTAR_BALANCE, DAMAGE_FORMULA } from "../data/balance";
 import { ITEM_SLOTS } from "../data/items";
 import { PLAYER_CLASSES } from "../data/classes";
 import { RELIC_GRADES, RELIC_IDS, RELICS } from "../data/relics";
@@ -32,11 +35,11 @@ interface HudProps {
 
 const STAT_KEYS: StatKey[] = ["str", "grit", "agi"];
 const STAT_LABELS: Record<StatKey, string> = {
-  str: "STR",
-  grit: "GRIT",
-  agi: "AGI",
+  str: "힘",
+  grit: "근성",
+  agi: "민첩",
 };
-const DEFAULT_NICKNAME = "SURVIVOR"; // TODO(Profile): replace when nickname storage exists.
+const DEFAULT_NICKNAME = "생존자"; // TODO(Profile): replace when nickname storage exists.
 const CLASS_KR_LABELS: Record<ClassId, string> = {
   assassin: "암살자",
   knight: "기사",
@@ -57,6 +60,47 @@ const SIN_KR_LABELS: Record<string, string> = {
   fanaticism: "광신",
   abyss: "심연",
   despair: "절망",
+};
+const CLASS_PASSIVE_KR: Record<ClassId, string> = {
+  assassin: "치명 상한 100% / 기본 치명 강화",
+  knight: "저체력 추가 피해 / 방어력 공격 전환",
+  mage: "공격 시 체력 비례 지속 피해",
+};
+const SLOT_KR_LABELS: Record<ItemSlot, string> = {
+  weapon: "무기",
+  helmet: "투구",
+  armor: "갑옷",
+  accessory: "반지",
+};
+const RARITY_KR_LABELS: Record<ItemRarity, string> = {
+  common: "일반",
+  magic: "마법",
+  rare: "희귀",
+  epic: "영웅",
+  legendary: "전설",
+};
+const EQUIPMENT_STAT_KR_LABELS: Record<EquipmentStatKey, string> = {
+  atk: "공격",
+  def: "방어",
+  hp: "체력",
+  reg: "회복",
+};
+const AFFIX_KR_LABELS: Record<string, string> = {
+  critChance: "치명확률",
+  critDamage: "치명피해",
+  attackSpeed: "공격속도",
+  damageIncrease: "데미지증가",
+  finalDamage: "최종피해",
+  defPenetration: "방어관통",
+  lifeSteal: "흡혈",
+  goldGain: "골드획득",
+  damageReduction: "피해감소",
+  specterDamage: "망령피해",
+  bloodLeech: "흡혈강화",
+  plagueSpread: "역병전염",
+  martyrPain: "순교고통",
+  executionThreshold: "처형문턱",
+  despairBurst: "절망폭주",
 };
 
 interface EquipmentPopupState {
@@ -85,6 +129,30 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
   const stageInChapter = ((progress.currentStage - 1) % 10) + 1;
   const skin = SURVIVOR_SKINS.find((entry) => entry.id === currentClassId) ?? SURVIVOR_SKINS[0];
   const classDef = PLAYER_CLASSES[currentClassId];
+  const classCrit = classCritProfile(progress);
+  const combatAffixes = clampCombatAffixes(
+    calculateCombatAffixStats(progress.inventory.equipped),
+    classCrit.critChanceCap,
+  );
+  const autoDistributionEnabled = progress.statDistribution.preset !== "MANUAL";
+  const abilityRows = [
+    { label: "체력", value: formatNumber(player.maxHp) },
+    { label: "공격력", value: formatNumber(player.attack) },
+    { label: "방어력", value: formatNumber(player.defense) },
+    { label: "회피력", value: formatNumber(player.evasion) },
+    { label: "치명확률", value: `${Math.min(classCrit.critChanceCap, combatAffixes.critChance + classCrit.critChanceBonus)}%` },
+    { label: "치명피해", value: `${Math.round(DAMAGE_FORMULA.defaultCritDamage * 100 + combatAffixes.critDamage + classCrit.critDamageBonus)}%` },
+    { label: "데미지증가", value: `${combatAffixes.damageIncrease}%` },
+    { label: "공격속도", value: `${combatAffixes.attackSpeed}%` },
+    { label: "최종피해", value: `${combatAffixes.finalDamage}%` },
+    { label: "방어관통", value: formatNumber(combatAffixes.defPenetration) },
+    { label: "흡혈", value: `${combatAffixes.lifeSteal}%` },
+    { label: "골드획득", value: `${combatAffixes.goldGain}%` },
+    { label: "피해감소", value: `${combatAffixes.damageReduction}%` },
+    { label: "체력회복", value: formatNumber(player.hpRegen) },
+    { label: "공격사거리", value: formatNumber(player.attackRange) },
+    { label: "공격간격", value: `${player.attackCooldown.toFixed(2)}초` },
+  ];
   const highlightedItem = progress.inventory.equipped.weapon
     ?? progress.inventory.equipped.armor
     ?? progress.inventory.equipped.helmet
@@ -177,45 +245,35 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
 
   return (
     <>
-      <div className="lcd-hud" aria-label="Stage summary">
+      <div className="lcd-hud" aria-label="전투 상태">
         <span className="char-status">
           <span className="char-face"><SurvivorSprite skin={skin} scale={0.5} /></span>
-          <span className="char-level">LV {progress.level}</span>
+          <span className="char-level">레벨 {progress.level}</span>
           <span className="char-name kr">{DEFAULT_NICKNAME}</span>
         </span>
-        <span className="stage-label">STAGE {chapter}-{stageInChapter}</span>
+        <span className="stage-label">스테이지 {chapter}-{stageInChapter}</span>
         <IconValue type="gold" value={formatNumber(progress.gold)} />
       </div>
-      <div className="lcd-exp" aria-label="Experience">
+      <div className="lcd-exp" aria-label="경험치">
         <GbBar value={expPercent} tone="xp" />
         <b>{expPercent}%</b>
       </div>
 
-      <Panel open={activePanel === "stat"} label="STAT">
-        <div className="statbar rich">
-          <span className="mini-class">
-            <SurvivorSprite skin={skin} scale={0.45} />
-            <b>{classDef.label}</b>
-          </span>
-          <span>LV {progress.level}</span>
-          <span>CP {formatNumber(progress.records.dummyScore.value)}</span>
-          <IconValue type="gold" value={formatNumber(progress.gold)} />
+      <Panel open={activePanel === "stat"} label="스탯">
+        <div className="stat-profile">
+          <button type="button" className="skin-mini" onClick={onOpenClassSelect} aria-label="직업 변경">
+            <SurvivorSprite skin={skin} scale={1} />
+          </button>
+          <div className="profile-lines">
+            <MenuItem label="레벨" value={progress.level} />
+            <MenuItem label="닉네임" value={<span className="kr">{DEFAULT_NICKNAME}</span>} />
+            <MenuItem label="전투력" value={formatNumber(progress.records.dummyScore.value)} />
+            <MenuItem label="직업" value={<span className="kr">{CLASS_KR_LABELS[currentClassId]}</span>} />
+            <MenuItem label="패시브" value={<span className="kr">{CLASS_PASSIVE_KR[currentClassId]}</span>} valueClassName="thin kr" />
+          </div>
         </div>
 
-        <Win title="STATUS">
-          <div className="status-head">
-            <button type="button" className="skin-mini" onClick={onOpenClassSelect} aria-label="CLASS">
-              <SurvivorSprite skin={skin} scale={1} />
-            </button>
-            <div className="status-lines">
-              <MenuItem label="CLASS" value={<span className="kr">{CLASS_KR_LABELS[currentClassId]}</span>} />
-              <MenuItem label="PASS" value={classDef.passive.description} valueClassName="thin" />
-              <MenuItem label="EXP" value={`${expPercent}%`}>
-                <GbBar value={expPercent} tone="xp" />
-              </MenuItem>
-            </div>
-          </div>
-
+        <Win title="스탯">
           <div className="stat-rows">
             {STAT_KEYS.map((key) => (
               <MenuItem
@@ -226,9 +284,9 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
                   <button
                     type="button"
                     className="pbox add"
-                    disabled={progress.statDistribution.unspentPoints <= 0}
+                    disabled={autoDistributionEnabled || progress.statDistribution.unspentPoints <= 0}
                     onClick={() => spendPoint(key)}
-                    aria-label={`ADD ${STAT_LABELS[key]}`}
+                    aria-label={`${STAT_LABELS[key]} 투자`}
                   >
                     +
                   </button>
@@ -237,65 +295,57 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
             ))}
           </div>
 
-          <div className="derived-grid">
-            <MenuItem label="ATK" value={formatNumber(player.attack)} />
-            <MenuItem label="DEF" value={formatNumber(player.defense)} />
-            <MenuItem label="EVA" value={formatNumber(player.evasion)} />
-            <MenuItem label="HP" value={formatNumber(player.maxHp)} />
-          </div>
-
           <div className="preset-row">
             <span className="cur">&#9654;</span>
             <button
               type="button"
-              className="pbox rec"
-              onClick={() => setPreset(classDef.recommendedPreset)}
+              className={autoDistributionEnabled ? "pbox auto on" : "pbox auto"}
+              onClick={() => setPreset(autoDistributionEnabled ? "MANUAL" : classDef.recommendedPreset)}
             >
-              REC
+              자동분배 {autoDistributionEnabled ? "켜짐" : "꺼짐"}
             </button>
-            {(["STR", "BAL", "GRIT", "AGI", "MANUAL"] as const).map((preset) => (
-              <button
-                key={preset}
-                type="button"
-                className={progress.statDistribution.preset === preset ? "pbox on" : "pbox"}
-                onClick={() => setPreset(preset)}
-              >
-                {preset === "MANUAL" ? "MAN" : preset === "GRIT" ? "GRT" : preset}
-              </button>
-            ))}
             <span className="dots" />
-            <span>PT {progress.statDistribution.unspentPoints}</span>
+            <span>포인트 {progress.statDistribution.unspentPoints}</span>
+          </div>
+          <p className="tiny dim kr">추천식 {formatAllocation(classDef.recommendedAllocation)}</p>
+        </Win>
+
+        <Win title="능력치">
+          <div className="ability-list">
+            {abilityRows.map((row) => (
+              <MenuItem key={row.label} label={row.label} value={row.value} />
+            ))}
           </div>
         </Win>
 
-        <Win title="REBIRTH">
-          <MenuItem label="MULT" value={`x${progress.rebirth.experienceMultiplier.toFixed(2)}`} valueClassName="bloodc" />
-          <MenuItem label="RUN" value={progress.rebirth.count} />
+        <Win title="환생">
+          <MenuItem label="경험 배율" value={`x${progress.rebirth.experienceMultiplier.toFixed(2)}`} valueClassName="bloodc" />
+          <MenuItem label="환생 횟수" value={progress.rebirth.count} />
           <button
             type="button"
             className={progress.rebirth.canRebirth ? "inv-vid" : "inv-vid off"}
             disabled={!progress.rebirth.canRebirth}
             onClick={rebirthNow}
           >
-            <span className="cur">&#9654;</span>REBIRTH
+            <span className="cur">&#9654;</span>환생
           </button>
         </Win>
 
-        <Win title="RECORD">
-          <MenuItem label="LV" value={progress.records.highestLevel.value} />
-          <MenuItem label="CP" value={formatNumber(progress.records.dummyScore.value)} />
-          <MenuItem label="RE" value={progress.records.highestRebirthStage.value} />
+        <Win title="기록">
+          <MenuItem label="최고 레벨" value={progress.records.highestLevel.value} />
+          <MenuItem label="최고 전투력" value={formatNumber(progress.records.dummyScore.value)} />
+          <MenuItem label="환생 스테이지" value={progress.records.highestRebirthStage.value} />
         </Win>
       </Panel>
 
-      <Panel open={activePanel === "gear"} label="GEAR">
+      <Panel open={activePanel === "gear"} label="장비">
         <div className="statbar rich">
-          <span>BAG {progress.inventory.items.length}/{progress.inventory.capacity}</span>
+          <span>가방 {progress.inventory.items.length}/{progress.inventory.capacity}</span>
           <IconValue type="gold" value={formatNumber(progress.gold)} />
-          <span>CP {formatNumber(progress.records.dummyScore.value)}</span>
+          <span>전투력 {formatNumber(progress.records.dummyScore.value)}</span>
         </div>
 
-        <Win title="EQUIP">
+        <Win title="착용">
           <div className="slots">
             {ITEM_SLOTS.map((slot) => (
               <EquipmentSlot
@@ -308,15 +358,15 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
           </div>
         </Win>
 
-        <Win title="ITEM">
+        <Win title="장비 정보">
           <ItemDetail item={highlightedItem} />
           <div className="gear-actions wide">
-            <button type="button" className="inv-vid off">REROLL</button>
-            <button type="button" className="inv-vid off">UPG</button>
+            <button type="button" className="inv-vid off">옵션변경</button>
+            <button type="button" className="inv-vid off">강화</button>
           </div>
         </Win>
 
-        <Win title="BAG">
+        <Win title="가방">
           <div className="grid6">
             {progress.inventory.items.slice(0, 24).map((item) => (
               <ItemCell key={item.id} item={item} onCompare={openEquipmentPopup} />
@@ -326,13 +376,13 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
             ))}
           </div>
           <div className="gear-actions">
-            <button type="button" className="inv-vid off">CUBE</button>
-            <button type="button" className="inv-vid off">SELL</button>
-            <button type="button" className="inv-vid" onClick={equipBestItems}>AUTO</button>
+            <button type="button" className="inv-vid off">합성</button>
+            <button type="button" className="inv-vid off">판매</button>
+            <button type="button" className="inv-vid" onClick={equipBestItems}>자동착용</button>
           </div>
         </Win>
 
-        <Win title="SHOP">
+        <Win title="상점">
           <div className="shop">
             {progress.shop.offers.slice(0, 6).map((offer) => (
               <ItemCell
@@ -346,17 +396,17 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
         </Win>
       </Panel>
 
-      <Panel open={activePanel === "altar"} label="ALTAR">
+      <Panel open={activePanel === "altar"} label="제단">
         <div className="statbar altar-status">
           <IconValue type="blood" value={`${formatNumber(Math.floor(progress.altar.blood))}/${formatNumber(bloodRequired)}`} />
           <GbBar value={bloodPercent} tone="blood" />
-          <span>ALV {progress.altar.level}</span>
-          <span>AXP {altarExperiencePercent}%</span>
+          <span>제단 {progress.altar.level}</span>
+          <span>제단 경험 {altarExperiencePercent}%</span>
         </div>
 
-        <Win title="ALTAR">
-          <MenuItem label="LV" value={progress.altar.level} />
-          <MenuItem label="AXP" value={`${formatNumber(progress.altar.experience)}/${formatNumber(altarNextExperience)}`}>
+        <Win title="제단">
+          <MenuItem label="레벨" value={progress.altar.level} />
+          <MenuItem label="제단 경험" value={`${formatNumber(progress.altar.experience)}/${formatNumber(altarNextExperience)}`}>
             <GbBar value={altarExperiencePercent} tone="xp" />
           </MenuItem>
           <GbBar value={bloodPercent} tone="blood" tall />
@@ -367,7 +417,7 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
               disabled={progress.altar.blood < bloodRequired}
               onClick={summonEliteNow}
             >
-              <span className="cur">&#9654;</span>SUMMON
+              <span className="cur">&#9654;</span>소환
             </button>
             <button
               type="button"
@@ -375,25 +425,25 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
               disabled={progress.altar.experience < altarNextExperience}
               onClick={levelUpAltarNow}
             >
-              LV UP
+              레벨업
             </button>
           </div>
           <div className="elite-hint">
-            <MenuItem label="ELITE" value={`HP ${formatCompact(elitePreview.maxHp)} / ATK ${formatCompact(elitePreview.attack)}`} />
-            <MenuItem label="NEXT" value={`HP ${formatCompact(nextElitePreview.maxHp)} / G ${formatCompact(nextElitePreview.gold)}`} />
+            <MenuItem label="엘리트" value={`체력 ${formatCompact(elitePreview.maxHp)} / 공격 ${formatCompact(elitePreview.attack)}`} />
+            <MenuItem label="다음" value={`체력 ${formatCompact(nextElitePreview.maxHp)} / 골드 ${formatCompact(nextElitePreview.gold)}`} />
           </div>
         </Win>
 
-        <Win title="RELIC">
+        <Win title="유물">
           <RelicSummary relicId={progress.altar.equippedRelicId} instance={equippedRelic} />
           <div className="relic-owned">
-            <MenuItem label="O-ATK" value={formatNumber(relicOwnedStats.atk)} />
-            <MenuItem label="O-HP" value={formatNumber(relicOwnedStats.hp)} />
-            <MenuItem label="O-DEF" value={formatNumber(relicOwnedStats.def)} />
+            <MenuItem label="보유 공격" value={formatNumber(relicOwnedStats.atk)} />
+            <MenuItem label="보유 체력" value={formatNumber(relicOwnedStats.hp)} />
+            <MenuItem label="보유 방어" value={formatNumber(relicOwnedStats.def)} />
           </div>
         </Win>
 
-        <Win title={`CODEX ${ownedRelicStyleCount(progress.altar)}/6`}>
+        <Win title={`도감 ${ownedRelicStyleCount(progress.altar)}/6`}>
           <div className="relics">
             {RELIC_IDS.map((relicId) => (
               <RelicCard
@@ -511,12 +561,12 @@ function EquipmentSlot({
     <button
       type="button"
       className={item ? `slot ${rarityClass(item.rarity)}` : "slot off"}
-      aria-label={`${slotShort(slot)} COMPARE`}
+      aria-label={`${slotLabel(slot)} 비교`}
       disabled={!item}
       onClick={() => item ? onCompare(item) : undefined}
     >
       <span>{slotIcon(slot)}</span>
-      <small>{item ? `+${item.upgradeLevel}` : slotShort(slot)}</small>
+      <small>{item ? `+${item.upgradeLevel}` : slotLabel(slot)}</small>
     </button>
   );
 }
@@ -526,11 +576,11 @@ function ItemCell({ item, label, onCompare }: { item: EquipmentItem; label?: Rea
     <button
       type="button"
       className={`cell ${rarityClass(item.rarity)}`}
-      title={`${item.rarity} ${item.slot}`}
-      aria-label={`${item.rarity} ${item.slot} COMPARE`}
+      title={`${rarityLabel(item.rarity)} ${slotLabel(item.slot)}`}
+      aria-label={`${rarityLabel(item.rarity)} ${slotLabel(item.slot)} 비교`}
       onClick={() => onCompare(item)}
     >
-      <b>{statShort(item.baseStat)}</b>
+      <b>{statLabel(item.baseStat)}</b>
       {label ? <small>{label}</small> : null}
     </button>
   );
@@ -540,28 +590,28 @@ function ItemDetail({ item }: { item: EquipmentItem | null }) {
   if (!item) {
     return (
       <>
-        <MenuItem label="SEL" value="NONE" />
-        <p className="tiny dim">CELL TAP / COMPARE 4C</p>
+        <MenuItem label="선택" value="없음" />
+        <p className="tiny dim kr">장비 칸을 눌러 비교</p>
       </>
     );
   }
 
   return (
     <div className="item-detail">
-      <MenuItem label="TYPE" value={`${item.rarity.toUpperCase()} ${slotShort(item.slot)}`} valueClassName={rarityClass(item.rarity)} />
-      <MenuItem label="BASE" value={`${statShort(item.baseStat)} ${formatNumber(item.baseValue)}`} />
-      <MenuItem label="DMG" value={`${formatNumber(item.minDmg)}-${formatNumber(item.maxDmg)}`} />
-      <MenuItem label="ACC" value={formatNumber(item.accuracy)} />
-      <MenuItem label="UPG" value={`+${item.upgradeLevel}`} />
+      <MenuItem label="종류" value={`${rarityLabel(item.rarity)} ${slotLabel(item.slot)}`} valueClassName={rarityClass(item.rarity)} />
+      <MenuItem label="기본" value={`${statLabel(item.baseStat)} ${formatNumber(item.baseValue)}`} />
+      <MenuItem label="피해" value={`${formatNumber(item.minDmg)}-${formatNumber(item.maxDmg)}`} />
+      <MenuItem label="명중" value={formatNumber(item.accuracy)} />
+      <MenuItem label="강화" value={`+${item.upgradeLevel}`} />
       <div className="option-list">
         {item.options.length > 0 ? item.options.map((option, index) => (
           <MenuItem
             key={`${option.key}-${index}`}
-            label={option.sin ? "SIN" : `OP${index + 1}`}
-            value={`${affixShort(option.key)} +${formatNumber(option.value)}`}
+            label={option.sin ? "죄옵션" : `옵션${index + 1}`}
+            value={`${affixLabel(option.key)} +${formatNumber(option.value)}`}
             valueClassName={option.sin ? "bloodc" : undefined}
           />
-        )) : <MenuItem label="OP" value="NONE" />}
+        )) : <MenuItem label="옵션" value="없음" />}
       </div>
     </div>
   );
@@ -600,18 +650,18 @@ function OfflineRewardPopup({
   onClaim: () => void;
 }) {
   return (
-    <PopupFrame title="RETURN">
+    <PopupFrame title="복귀 정산">
       <div className="return-seq">
-        <MenuItem label="TIME" value={formatDuration(reward.elapsedSeconds)} />
-        <MenuItem label="G" value={formatNumber(reward.gold)} valueClassName="goldc" />
-        <MenuItem label="EXP" value={formatNumber(reward.experience)} />
-        <MenuItem label="LOOT" value="0" />
-        <MenuItem label="BLOOD" value="0" valueClassName="bloodc" />
+        <MenuItem label="시간" value={formatDuration(reward.elapsedSeconds)} />
+        <MenuItem label="골드" value={formatNumber(reward.gold)} valueClassName="goldc" />
+        <MenuItem label="경험치" value={formatNumber(reward.experience)} />
+        <MenuItem label="전리품" value="0" />
+        <MenuItem label="피" value="0" valueClassName="bloodc" />
       </div>
       <p className="popup-voice kr">제단이 깨어났다.</p>
       <div className="popup-menu">
         <button type="button" className="inv-vid" onClick={onClaim}>
-          <span className="cur">&#9654;</span>CLAIM
+          <span className="cur">&#9654;</span>확인
         </button>
       </div>
     </PopupFrame>
@@ -621,16 +671,16 @@ function OfflineRewardPopup({
 function ChallengeFailurePopup({ failure, onClose }: { failure: StageFailureReport; onClose: () => void }) {
   const line = failure.reason === "death" ? "버티지 못했다" : "화력이 부족하다";
   return (
-    <PopupFrame title="FAILED">
+    <PopupFrame title="도전 실패">
       <p className="popup-voice kr">{line}</p>
-      <MenuItem label="STAGE" value={failure.stageId} />
-      <MenuItem label="CAUSE" value={failure.reason.toUpperCase()} valueClassName="bloodc" />
+      <MenuItem label="스테이지" value={failure.stageId} />
+      <MenuItem label="원인" value={failure.reason === "death" ? "사망" : "시간초과"} valueClassName="bloodc" />
       <div className="popup-menu two">
         <button type="button" className="inv-vid" onClick={onClose}>
-          <span className="cur">&#9654;</span>HUNT {failure.recommendedStage}
+          <span className="cur">&#9654;</span>추천 사냥터 {failure.recommendedStage}
         </button>
         <button type="button" className="inv-vid off" onClick={onClose}>
-          STAY
+          유지
         </button>
       </div>
     </PopupFrame>
@@ -641,38 +691,38 @@ function EquipmentComparePopup({ popup, onClose }: { popup: EquipmentPopupState;
   const { candidate, current, comparison } = popup;
   const deltaClass = comparison.delta >= 0 ? "goldc" : "bloodc";
   return (
-    <PopupFrame title="COMPARE">
+    <PopupFrame title="장비 비교">
       <div className="compare-head">
-        <MenuItem label="CUR" value={current ? `${current.rarity.toUpperCase()} ${slotShort(current.slot)}` : "NONE"} />
-        <MenuItem label="NEW" value={`${candidate.rarity.toUpperCase()} ${slotShort(candidate.slot)}`} valueClassName={rarityClass(candidate.rarity)} />
-        <MenuItem label="CP" value={`${signedNumber(comparison.delta)} / ${signedPercent(comparison.deltaPercent)}`} valueClassName={deltaClass} />
+        <MenuItem label="현재" value={current ? `${rarityLabel(current.rarity)} ${slotLabel(current.slot)}` : "없음"} />
+        <MenuItem label="후보" value={`${rarityLabel(candidate.rarity)} ${slotLabel(candidate.slot)}`} valueClassName={rarityClass(candidate.rarity)} />
+        <MenuItem label="전투력" value={`${signedNumber(comparison.delta)} / ${signedPercent(comparison.deltaPercent)}`} valueClassName={deltaClass} />
       </div>
 
       <div className="compare-lines">
-        <CompareLine label="BASE" current={current?.baseValue ?? 0} candidate={candidate.baseValue} />
-        <CompareLine label="DMG" current={current ? Math.round((current.minDmg + current.maxDmg) / 2) : 0} candidate={Math.round((candidate.minDmg + candidate.maxDmg) / 2)} />
-        <CompareLine label="ACC" current={current?.accuracy ?? 0} candidate={candidate.accuracy} />
+        <CompareLine label="기본" current={current?.baseValue ?? 0} candidate={candidate.baseValue} />
+        <CompareLine label="피해" current={current ? Math.round((current.minDmg + current.maxDmg) / 2) : 0} candidate={Math.round((candidate.minDmg + candidate.maxDmg) / 2)} />
+        <CompareLine label="명중" current={current?.accuracy ?? 0} candidate={candidate.accuracy} />
         {candidate.options.length > 0 ? candidate.options.map((option, index) => {
           const currentValue = current?.options.find((entry) => entry.key === option.key && entry.sin === option.sin)?.value ?? 0;
           return (
             <CompareLine
               key={`${option.key}-${index}`}
-              label={option.sin ? "SIN" : `OP${index + 1}`}
-              name={affixShort(option.key)}
+              label={option.sin ? "죄옵션" : `옵션${index + 1}`}
+              name={affixLabel(option.key)}
               current={currentValue}
               candidate={option.value}
               sin={option.sin}
             />
           );
-        }) : <MenuItem label="OP" value="NONE" />}
+        }) : <MenuItem label="옵션" value="없음" />}
       </div>
 
       <div className="popup-menu three">
         <button type="button" className="inv-vid" onClick={onClose}>
-          <span className="cur">&#9654;</span>EQUIP
+          <span className="cur">&#9654;</span>착용
         </button>
-        <button type="button" className="inv-vid off" onClick={onClose}>REROLL</button>
-        <button type="button" className="inv-vid off" onClick={onClose}>SELL</button>
+        <button type="button" className="inv-vid off" onClick={onClose}>옵션변경</button>
+        <button type="button" className="inv-vid off" onClick={onClose}>판매</button>
       </div>
     </PopupFrame>
   );
@@ -719,8 +769,8 @@ function RelicSummary({ relicId, instance }: { relicId: RelicId | null; instance
   if (!relicId || !instance) {
     return (
       <>
-        <MenuItem label="NAME" value="NONE" />
-        <p className="tiny dim">NO RELIC / PICK ONE</p>
+        <MenuItem label="이름" value="없음" />
+        <p className="tiny dim kr">유물을 장착하세요</p>
       </>
     );
   }
@@ -728,11 +778,11 @@ function RelicSummary({ relicId, instance }: { relicId: RelicId | null; instance
   const relic = RELICS[relicId];
   return (
     <>
-      <MenuItem label="NAME" value={<span className="kr">{RELIC_KR_LABELS[relicId]}</span>} />
-      <MenuItem label="SIN" value={<span className="kr">{SIN_KR_LABELS[relic.sin]}</span>} />
-      <MenuItem label="GRADE" value={gradeShort(instance.grade)} valueClassName={rarityClass(instance.grade)} />
-      <MenuItem label="STAR" value={`${instance.stars}/${ALTAR_BALANCE.maxStars}`} />
-      <p className="tiny"><span className="stars">{starText(instance.stars)}</span> / NEXT ?</p>
+      <MenuItem label="이름" value={<span className="kr">{RELIC_KR_LABELS[relicId]}</span>} />
+      <MenuItem label="죄" value={<span className="kr">{SIN_KR_LABELS[relic.sin]}</span>} />
+      <MenuItem label="등급" value={rarityLabel(instance.grade)} valueClassName={rarityClass(instance.grade)} />
+      <MenuItem label="별" value={`${instance.stars}/${ALTAR_BALANCE.maxStars}`} />
+      <p className="tiny kr"><span className="stars">{starText(instance.stars)}</span> / 다음 ?</p>
     </>
   );
 }
@@ -753,7 +803,7 @@ function RelicCard({
   return (
     <div className={equipped ? "relic on" : stars > 0 ? "relic" : "relic off"}>
       <span className="kr">{stars > 0 ? RELIC_KR_LABELS[relicId] : "?"}</span>
-      <small className="sin">{ownedGrade ? gradeShort(ownedGrade) : <span className="kr">{SIN_KR_LABELS[relic.sin]}</span>}</small>
+      <small className="sin">{ownedGrade ? rarityLabel(ownedGrade) : <span className="kr">{SIN_KR_LABELS[relic.sin]}</span>}</small>
       <small className="st">{stars > 0 ? `${stars}/${ALTAR_BALANCE.maxStars}` : "?".repeat(ALTAR_BALANCE.maxStars)}</small>
       <span className="grade-ladder">
         {RELIC_GRADES.map((entry) => (
@@ -791,38 +841,24 @@ function slotIcon(slot: ItemSlot): string {
   }[slot];
 }
 
-function slotShort(slot: ItemSlot): string {
-  return {
-    weapon: "WPN",
-    helmet: "HLM",
-    armor: "ARM",
-    accessory: "ACC",
-  }[slot];
+function slotLabel(slot: ItemSlot): string {
+  return SLOT_KR_LABELS[slot];
 }
 
-function statShort(stat: EquipmentStatKey): string {
-  return stat.toUpperCase();
+function statLabel(stat: EquipmentStatKey): string {
+  return EQUIPMENT_STAT_KR_LABELS[stat];
 }
 
-function gradeShort(grade: RelicGrade): string {
-  return grade.slice(0, 3).toUpperCase();
+function rarityLabel(rarity: RelicGrade): string {
+  return RARITY_KR_LABELS[rarity];
 }
 
-function affixShort(key: string): string {
-  return key
-    .replace("Chance", "CH")
-    .replace("Damage", "DMG")
-    .replace("Increase", "INC")
-    .replace("defPenetration", "PEN")
-    .replace("attackSpeed", "ASPD")
-    .replace("damageReduction", "DR")
-    .replace("lifeSteal", "LIFE")
-    .replace("goldGain", "GOLD")
-    .replace("specter", "SPC")
-    .replace("plague", "PLG")
-    .replace("martyr", "MTR")
-    .replace("execution", "EXE")
-    .replace("despair", "DSP");
+function affixLabel(key: string): string {
+  return AFFIX_KR_LABELS[key] ?? key;
+}
+
+function formatAllocation(allocation: Record<StatKey, number>): string {
+  return `힘 ${allocation.str} / 근성 ${allocation.grit} / 민첩 ${allocation.agi}`;
 }
 
 function countLegendaryItems(progress: ProgressState): number {

@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { eliteSummonCost } from "./core/altar";
 import type { ClassId } from "./core/types";
 import { FIXED_DELTA } from "./data/balance";
-import { PLAYER_CLASSES } from "./data/classes";
 import { SURVIVOR_SKINS } from "./data/sprites/survivors";
 import { FixedStepLoop } from "./runtime/gameLoop";
 import { useGameStore } from "./store/gameStore";
@@ -21,6 +20,16 @@ const CLASS_STYLE_LINES: Record<ClassId, string> = {
   assassin: "치명·회피 성장",
   knight: "방어·체력 성장",
   mage: "원거리·도트 성장",
+};
+const CLASS_PASSIVE_LINES: Record<ClassId, string> = {
+  assassin: "치명 상한 100% / 기본 치명 강화",
+  knight: "저체력 추가 피해 / 방어력 공격 전환",
+  mage: "공격 시 체력 비례 지속 피해",
+};
+const CLASS_RECOMMEND_LINES: Record<ClassId, string> = {
+  assassin: "힘 3 / 민첩 2",
+  knight: "힘 3 / 근성 2",
+  mage: "힘 3 / 근성 2",
 };
 
 export default function App() {
@@ -107,14 +116,14 @@ export default function App() {
           <div className="bezel-top">
             <span className="silk">Apocalypse</span>
             <div className="led-wrap">
-              <i className={bloodIsFull ? "led on" : "led"} aria-label="Blood gauge" />
+              <i className={bloodIsFull ? "led on" : "led"} aria-label="피 게이지" />
               <button
                 type="button"
                 id="dmg"
                 className={dmgMode ? "dmg-sw on" : "dmg-sw"}
                 onClick={() => setDmgMode((value) => !value)}
               >
-                DMG
+                흑백
               </button>
             </div>
           </div>
@@ -142,11 +151,11 @@ export default function App() {
 
         <div className="deck">
           <div className="tab-btns">
-            <TabButton active={activePanel === "stat"} label="STAT" onClick={() => togglePanel("stat")} />
-            <TabButton active={activePanel === "gear"} label="GEAR" onClick={() => togglePanel("gear")} />
-            <TabButton active={activePanel === "altar"} label="ALTAR" onClick={() => togglePanel("altar")} />
+            <TabButton active={activePanel === "stat"} label="스탯" onClick={() => togglePanel("stat")} />
+            <TabButton active={activePanel === "gear"} label="장비" onClick={() => togglePanel("gear")} />
+            <TabButton active={activePanel === "altar"} label="제단" onClick={() => togglePanel("altar")} />
             {DEBUG_PANEL_ENABLED ? (
-              <TabButton active={debugOpen} label="DEBUG" onClick={toggleDebug} />
+              <TabButton active={debugOpen} label="개발" onClick={toggleDebug} />
             ) : null}
           </div>
           <div className="grille" aria-hidden="true"><i /><i /><i /><i /><i /><i /></div>
@@ -175,12 +184,10 @@ function ClassSelectPanel({
   onPick: () => void;
 }) {
   const selectedClass = SURVIVOR_SKINS[selectedClassIndex] ?? SURVIVOR_SKINS[0];
-  const selectedClassDef = PLAYER_CLASSES[selectedClass.id];
-
   return (
-    <section className="panel on survivor-panel" aria-label="Class select">
+    <section className="panel on survivor-panel" aria-label="직업 선택">
       <div className="win survivor-win">
-        <span className="win-t">CLASS</span>
+        <span className="win-t">직업 선택</span>
         <div className="survivor-list">
           {SURVIVOR_SKINS.map((skin, index) => (
             <button
@@ -190,33 +197,33 @@ function ClassSelectPanel({
               onClick={() => onSelect(index)}
             >
               <SurvivorSprite skin={skin} scale={2} />
-              <b>{skin.name}</b>
+              <b className="kr">{CLASS_KR_LABELS[skin.id]}</b>
               <small className="kr">{CLASS_STYLE_LINES[skin.id]}</small>
             </button>
           ))}
         </div>
         <div className="class-brief">
           <div className="mi">
-            <span>JOB</span>
+            <span>직업</span>
             <span className="dots" />
             <span className="v kr">{CLASS_KR_LABELS[selectedClass.id]}</span>
           </div>
           <div className="mi">
-            <span>PASS</span>
+            <span>패시브</span>
             <span className="dots" />
-            <span className="v thin">{selectedClassDef.passive.description}</span>
+            <span className="v thin kr">{CLASS_PASSIVE_LINES[selectedClass.id]}</span>
           </div>
           <div className="mi">
-            <span>REC</span>
+            <span>추천</span>
             <span className="dots" />
-            <span className="v">{selectedClassDef.recommendedPreset}</span>
+            <span className="v kr">{CLASS_RECOMMEND_LINES[selectedClass.id]}</span>
           </div>
         </div>
         <div className="mi survivor-name">
           <span className="cur">&#9654;</span>
-          <span>{selectedClass.name}</span>
+          <span className="kr">{CLASS_KR_LABELS[selectedClass.id]}</span>
           <span className="dots" />
-          <button type="button" className="inv-vid pick-btn" onClick={onPick}>PICK</button>
+          <button type="button" className="inv-vid pick-btn" onClick={onPick}>선택</button>
         </div>
       </div>
     </section>
