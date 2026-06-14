@@ -9,7 +9,13 @@ import {
   spendBloodForElite,
 } from "./altar";
 import { addDropIcon, grantRewards } from "./progression";
-import { rebirthEnemyAttackMultiplier, rebirthEnemyDefenseMultiplier, rebirthEnemyHpMultiplier } from "./rebirthScaling";
+import {
+  rebirthEnemyAttackMultiplier,
+  rebirthEnemyDefenseMultiplier,
+  rebirthEnemyExperienceMultiplier,
+  rebirthEnemyHpMultiplier,
+  rebirthEnemyRewardMultiplier,
+} from "./rebirthScaling";
 import { getPlatformById, platformCenterX } from "./stage";
 import { applyPlayerStats } from "./stats";
 import type { Monster, Platform, SimulationState } from "./types";
@@ -45,6 +51,7 @@ export function createAltarEliteMonster(state: SimulationState): Monster {
   }
   const level = state.progress.altar.level;
   const stats = altarEliteStatsForLevel(level);
+  const rewards = altarEliteRewardsForLevel(level, state.progress.rebirth.count);
   const maxHp = Math.max(1, Math.round(stats.maxHp * rebirthEnemyHpMultiplier(state.progress.rebirth.count)));
   const attack = Math.max(0, Math.round(stats.attack * rebirthEnemyAttackMultiplier(state.progress.rebirth.count)));
   const x = spawnXNearPlayer(platform, state.world.player.position.x, ALTAR_ELITE.width);
@@ -68,8 +75,8 @@ export function createAltarEliteMonster(state: SimulationState): Monster {
     accuracy: eliteAccuracyForLevel(level),
     evasion: eliteEvasionForLevel(level),
     attack,
-    experience: stats.experience,
-    gold: stats.gold,
+    experience: rewards.experience,
+    gold: rewards.gold,
     moveSpeed: ALTAR_BALANCE.eliteStats.moveSpeed,
     respawnTime: 0,
     respawnTimer: 0,
@@ -106,7 +113,7 @@ export function updateAltarEliteEncounter(state: SimulationState, dt: number): v
 
 export function resolveAltarEliteDefeat(state: SimulationState, monster: Monster): void {
   const level = state.world.altarElite?.level ?? state.progress.altar.level;
-  const rewards = altarEliteStatsForLevel(level);
+  const rewards = altarEliteRewardsForLevel(level, state.progress.rebirth.count);
   grantRewards(state.progress, state.world, rewards.experience, rewards.gold);
   if (rewards.gold > 0) {
     addDropIcon(state.world, "gold", monster.position.x + monster.width / 2, monster.position.y - 4);
@@ -128,8 +135,11 @@ export function resolveAltarEliteDefeat(state: SimulationState, monster: Monster
 
 export function altarElitePreview(level: number, rebirthCount = 0): ReturnType<typeof altarEliteStatsForLevel> & { cost: number } {
   const stats = altarEliteStatsForLevel(level);
+  const rewards = altarEliteRewardsForLevel(level, rebirthCount);
   return {
     ...stats,
+    experience: rewards.experience,
+    gold: rewards.gold,
     maxHp: Math.max(1, Math.round(stats.maxHp * rebirthEnemyHpMultiplier(rebirthCount))),
     attack: Math.max(0, Math.round(stats.attack * rebirthEnemyAttackMultiplier(rebirthCount))),
     cost: eliteSummonCost({
@@ -181,4 +191,13 @@ function eliteAccuracyForLevel(level: number): number {
 function eliteEvasionForLevel(level: number): number {
   const steps = Math.max(0, level - 1);
   return Math.round(ALTAR_BALANCE.eliteStats.baseEvasion + steps * ALTAR_BALANCE.eliteStats.evasionPerLevel);
+}
+
+function altarEliteRewardsForLevel(level: number, rebirthCount: number): ReturnType<typeof altarEliteStatsForLevel> {
+  const stats = altarEliteStatsForLevel(level);
+  return {
+    ...stats,
+    experience: Math.max(0, Math.round(stats.experience * rebirthEnemyExperienceMultiplier(rebirthCount))),
+    gold: Math.max(0, Math.round(stats.gold * rebirthEnemyRewardMultiplier(rebirthCount))),
+  };
 }

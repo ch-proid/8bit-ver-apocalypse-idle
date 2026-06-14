@@ -124,8 +124,7 @@ export interface RebirthRecord {
 export interface RebirthState {
   canRebirth: boolean;
   count: number;
-  experienceMultiplier: number;
-  permanentStats: StatAllocation;
+  multiplier: number;
 }
 
 export interface ItemOption {

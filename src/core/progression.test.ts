@@ -4,10 +4,12 @@ import { PLAYER_CLASSES } from "../data/classes";
 import { MONSTERS } from "../data/monsters";
 import { createAltarEliteMonster } from "./elites";
 import { createDefaultProgress, gainExperience, normalizeProgress } from "./progression";
-import { calculateRebirthExperienceMultiplier, canRebirth, rebirthSimulation } from "./rebirth";
+import { canRebirth, rebirthSimulation } from "./rebirth";
+import { rebirthStatMultiplier } from "./rebirthScaling";
 import { createInitialSimulation, normalMonsterStatsForStage } from "./stage";
 import {
   applyLevelStatPoints,
+  combatPowerEstimate,
   calculatePlayerStats,
   createDefaultStatDistribution,
   createRecommendedStatDistribution,
@@ -102,6 +104,18 @@ describe("phase 3A progression", () => {
 
     state.progress.level = REBIRTH_BALANCE.requiredLevel;
     expect(canRebirth(state.progress)).toBe(true);
+
+    delete state.progress.stageProgress.clearedStages[REBIRTH_BALANCE.requiredStageId];
+    delete state.progress.stageProgress.defeatedBossStages[REBIRTH_BALANCE.requiredStageId];
+    expect(canRebirth(state.progress)).toBe(false);
+  });
+
+  it("makes higher stages the main experience accelerator", () => {
+    const early = normalMonsterStatsForStage(1, MONSTERS.wildDog, 0);
+    const late = normalMonsterStatsForStage(REBIRTH_BALANCE.requiredStageId, MONSTERS.wildDog, 0);
+
+    expect(late.experience).toBeGreaterThan(early.experience);
+    expect(late.experience / early.experience).toBeGreaterThan(5);
   });
 
   it("resets only stage progression on rebirth while preserving level stats resources and records", () => {
@@ -135,8 +149,7 @@ describe("phase 3A progression", () => {
     expect(reborn.progress.nextExperience).toBe(nextExperienceForLevel(43));
     expect(reborn.progress.statDistribution).toEqual(distribution);
     expect(reborn.progress.rebirth.count).toBe(1);
-    expect(reborn.progress.rebirth.experienceMultiplier).toBeGreaterThan(1);
-    expect(reborn.progress.rebirth.permanentStats.str).toBeGreaterThan(0);
+    expect(reborn.progress.rebirth.multiplier).toBe(rebirthStatMultiplier(1));
     expect(reborn.progress.records.highestLevel).toEqual({ value: 43, updatedAt: 123456 });
     expect(reborn.progress.records.highestRebirthStage).toEqual({ value: REBIRTH_BALANCE.requiredStageId, updatedAt: 123456 });
     expect(reborn.progress.rebirthRecords).toEqual([
@@ -144,14 +157,22 @@ describe("phase 3A progression", () => {
     ]);
   });
 
-  it("applies permanent experience multiplier after rebirth", () => {
+  it("applies the rebirth multiplier to stats while leaving direct experience grants unmultiplied", () => {
     const state = createInitialSimulation(1);
-    state.progress.rebirth.experienceMultiplier = 2;
+    const baseStats = calculatePlayerStats(state.progress);
+    const basePower = combatPowerEstimate(state.progress);
+
+    state.progress.rebirth.count = 2;
+    state.progress.rebirth.multiplier = rebirthStatMultiplier(2);
+    const rebornStats = calculatePlayerStats(state.progress);
 
     gainExperience(state.progress, state.world, 10);
 
+    expect(rebornStats.attack).toBeGreaterThan(baseStats.attack);
+    expect(rebornStats.maxHp).toBeGreaterThan(baseStats.maxHp);
+    expect(combatPowerEstimate(state.progress)).toBeGreaterThan(basePower);
     expect(state.progress.level).toBe(1);
-    expect(state.progress.experience).toBe(20);
+    expect(state.progress.experience).toBe(10);
   });
 
   it("scales normal bosses and altar elites by rebirth count", () => {
@@ -160,7 +181,8 @@ describe("phase 3A progression", () => {
 
     expect(normalReborn.maxHp).toBeGreaterThan(normalBase.maxHp);
     expect(normalReborn.attack).toBeGreaterThan(normalBase.attack);
-    expect(normalReborn.gold).toBe(normalBase.gold);
+    expect(normalReborn.gold).toBeGreaterThan(normalBase.gold);
+    expect(normalReborn.experience).toBeGreaterThan(normalBase.experience);
 
     const baseBoss = createInitialSimulation(10);
     const rebornBossProgress = createDefaultProgress(10);
@@ -168,6 +190,8 @@ describe("phase 3A progression", () => {
     const rebornBoss = createInitialSimulation(10, rebornBossProgress);
     expect(rebornBoss.world.monsters[0].maxHp).toBeGreaterThan(baseBoss.world.monsters[0].maxHp);
     expect(rebornBoss.world.monsters[0].attack).toBeGreaterThan(baseBoss.world.monsters[0].attack);
+    expect(rebornBoss.world.monsters[0].gold).toBeGreaterThan(baseBoss.world.monsters[0].gold);
+    expect(rebornBoss.world.monsters[0].experience).toBeGreaterThan(baseBoss.world.monsters[0].experience);
 
     const baseEliteState = createInitialSimulation(1);
     const rebornEliteState = createInitialSimulation(1);
@@ -176,6 +200,8 @@ describe("phase 3A progression", () => {
     const rebornElite = createAltarEliteMonster(rebornEliteState);
     expect(rebornElite.maxHp).toBeGreaterThan(baseElite.maxHp);
     expect(rebornElite.attack).toBeGreaterThan(baseElite.attack);
+    expect(rebornElite.gold).toBeGreaterThan(baseElite.gold);
+    expect(rebornElite.experience).toBeGreaterThan(baseElite.experience);
   });
 
   it("migrates missing class and old four-stat progression fields with current defaults", () => {
@@ -189,6 +215,11 @@ describe("phase 3A progression", () => {
         unspentPoints: 2,
         preset: "ATK" as never,
       },
+      rebirth: {
+        count: 2,
+        experienceMultiplier: 1.8,
+        permanentStats: { str: 99, grit: 99, agi: 99 },
+      } as never,
     });
 
     expect(progress.gold).toBe(25);
@@ -200,12 +231,16 @@ describe("phase 3A progression", () => {
       unspentPoints: 2,
       preset: "GRIT",
     });
-    expect(progress.rebirth.experienceMultiplier).toBe(1);
+    expect(progress.rebirth.multiplier).toBe(rebirthStatMultiplier(2));
+    expect("experienceMultiplier" in progress.rebirth).toBe(false);
+    expect("permanentStats" in progress.rebirth).toBe(false);
     expect(progress.records.highestLevel.value).toBe(12);
   });
 
-  it("calculates a rebirth multiplier from level, power, and run count", () => {
-    expect(calculateRebirthExperienceMultiplier(40, 300, 1)).toBeGreaterThan(1);
+  it("calculates a count-based permanent stat multiplier", () => {
+    expect(rebirthStatMultiplier(0)).toBe(1);
+    expect(rebirthStatMultiplier(1)).toBeGreaterThan(1);
+    expect(rebirthStatMultiplier(2)).toBeGreaterThan(rebirthStatMultiplier(1));
   });
 });
 

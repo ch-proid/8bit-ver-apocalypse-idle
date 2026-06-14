@@ -203,7 +203,6 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
   const critChanceBase = Math.min(classCrit.critChanceCap, classCrit.critChanceBonus);
   const critChanceTotal = Math.min(classCrit.critChanceCap, combatAffixes.critChance + classCrit.critChanceBonus);
   const critDamageBase = Math.round(DAMAGE_FORMULA.defaultCritDamage * 100 + classCrit.critDamageBonus);
-  const experienceGainBonus = Math.max(0, Math.round((progress.rebirth.experienceMultiplier - 1) * 100));
   const abilityRows = [
     { label: "체력", value: <SplitValue base={player.maxHp - directStatBonus.hp} extra={directStatBonus.hp} /> },
     { label: "공격력", value: <SplitValue base={player.attack - directStatBonus.atk} extra={directStatBonus.atk} /> },
@@ -213,7 +212,6 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
     { label: "치명피해%", value: <SplitValue base={critDamageBase} extra={combatAffixes.critDamage} suffix="%" /> },
     { label: "데미지증가%", value: <SplitValue base={0} extra={combatAffixes.damageIncrease} suffix="%" /> },
     { label: "공격속도%", value: <SplitValue base={0} extra={combatAffixes.attackSpeed} suffix="%" /> },
-    { label: "경험치획득%", value: <SplitValue base={100} extra={experienceGainBonus} suffix="%" /> },
     { label: "최종피해%", value: <SplitValue base={0} extra={combatAffixes.finalDamage} suffix="%" /> },
     { label: "방어관통", value: <SplitValue base={0} extra={combatAffixes.defPenetration} /> },
     { label: "흡혈%", value: <SplitValue base={0} extra={combatAffixes.lifeSteal} suffix="%" /> },
@@ -402,7 +400,7 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
               <MenuItem
                 key={key}
                 label={STAT_LABELS[key]}
-                value={<SplitValue base={progress.statDistribution.assigned[key]} extra={progress.rebirth.permanentStats[key]} />}
+                value={<SplitValue base={progress.statDistribution.assigned[key]} />}
                 action={(
                   <button
                     type="button"
@@ -459,13 +457,12 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
       <Panel open={activePanel === "rebirth"} label="환생">
         <div className="statbar rich">
           <span>환생 {progress.rebirth.count}회</span>
-          <span className="bloodc">x{progress.rebirth.experienceMultiplier.toFixed(2)}</span>
+          <span className="bloodc">x{progress.rebirth.multiplier.toFixed(2)}</span>
         </div>
 
         <Win title="환생">
           <MenuItem label="환생 횟수" value={`${progress.rebirth.count}회`} />
-          <MenuItem label="현재 배율" value={`x${progress.rebirth.experienceMultiplier.toFixed(2)}`} valueClassName="bloodc" />
-          <MenuItem label="영구 스탯" value={`힘 +${progress.rebirth.permanentStats.str} / 근성 +${progress.rebirth.permanentStats.grit} / 민첩 +${progress.rebirth.permanentStats.agi}`} />
+          <MenuItem label="현재 배율" value={`x${progress.rebirth.multiplier.toFixed(2)}`} valueClassName="bloodc" />
           <MenuItem
             label="해금 조건"
             value={rebirthConditionLabel}

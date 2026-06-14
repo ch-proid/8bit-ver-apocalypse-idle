@@ -1,4 +1,4 @@
-import { DROP_REWARD_BALANCE, FLOATING_TEXT, nextExperienceForLevel, PROGRESSION, REBIRTH_BALANCE, STAT_GROWTH } from "../data/balance";
+import { DROP_REWARD_BALANCE, FLOATING_TEXT, nextExperienceForLevel, PROGRESSION, STAT_GROWTH } from "../data/balance";
 import { cloneAltarState, createDefaultAltarState, normalizeAltarState } from "./altar";
 import { getPlayerClass, normalizeClassId } from "./class";
 import { calculateCombatAffixStats, cloneItem } from "./equipment";
@@ -9,9 +9,9 @@ import {
   applyLevelStatPoints,
   applyPlayerStats,
   createRecommendedStatDistribution,
-  emptyAllocation,
   normalizeStatDistribution,
 } from "./stats";
+import { rebirthStatMultiplier } from "./rebirthScaling";
 import type { DropIconKind, ProgressRecords, ProgressState, RebirthState, RecordEntry, WorldState } from "./types";
 
 export function createDefaultProgress(stageId: number = PROGRESSION.initialStageId): ProgressState {
@@ -84,10 +84,7 @@ export function cloneProgress(progress: ProgressState): ProgressState {
     },
     stageProgress: cloneStageProgress(progress.stageProgress),
     altar: cloneAltarState(progress.altar),
-    rebirth: {
-      ...progress.rebirth,
-      permanentStats: { ...progress.rebirth.permanentStats },
-    },
+    rebirth: { ...progress.rebirth },
     rebirthRecords: progress.rebirthRecords.map((record) => ({ ...record })),
     records: {
       highestLevel: { ...progress.records.highestLevel },
@@ -115,7 +112,7 @@ export function gainExperience(progress: ProgressState, world: WorldState, baseE
     return;
   }
 
-  progress.experience += applyExperienceMultiplier(baseExperience, progress.rebirth.experienceMultiplier);
+  progress.experience += Math.max(0, Math.floor(baseExperience));
 
   while (progress.experience >= progress.nextExperience) {
     progress.experience -= progress.nextExperience;
@@ -182,8 +179,7 @@ export function createDefaultRebirthState(): RebirthState {
   return {
     canRebirth: false,
     count: 0,
-    experienceMultiplier: REBIRTH_BALANCE.baseExperienceMultiplier,
-    permanentStats: emptyAllocation(),
+    multiplier: rebirthStatMultiplier(0),
   };
 }
 
@@ -208,20 +204,25 @@ export function updateRecordAt(record: RecordEntry, value: number, updatedAt: nu
   record.updatedAt = updatedAt;
 }
 
-function applyExperienceMultiplier(baseExperience: number, multiplier: number): number {
-  return Math.max(0, Math.floor(baseExperience * multiplier));
-}
-
 function createRecordEntry(value: number, updatedAt: number | null): RecordEntry {
   return { value, updatedAt };
 }
 
 function normalizeRebirth(input?: Partial<RebirthState>): RebirthState {
   const defaults = createDefaultRebirthState();
+  const legacy = input as (Partial<RebirthState> & {
+    experienceMultiplier?: number;
+    permanentStats?: unknown;
+  }) | undefined;
+  const count = Math.max(0, Math.floor(input?.count ?? defaults.count));
+  const multiplier = rebirthStatMultiplier(count);
+
   return {
-    ...defaults,
-    ...input,
-    permanentStats: normalizePermanentStats(input?.permanentStats, defaults.permanentStats),
+    canRebirth: Boolean(legacy?.canRebirth ?? defaults.canRebirth),
+    count,
+    // Legacy saves may still carry experienceMultiplier/permanentStats. The new loop derives a single
+    // permanent stat multiplier from count, so those fields are intentionally ignored during migration.
+    multiplier,
   };
 }
 
@@ -231,16 +232,5 @@ function normalizeRecords(input?: Partial<ProgressRecords>): ProgressRecords {
     highestLevel: { ...defaults.highestLevel, ...input?.highestLevel },
     dummyScore: { ...defaults.dummyScore, ...input?.dummyScore },
     highestRebirthStage: { ...defaults.highestRebirthStage, ...input?.highestRebirthStage },
-  };
-}
-
-function normalizePermanentStats(
-  input: Partial<ReturnType<typeof emptyAllocation>> | undefined,
-  defaults: ReturnType<typeof emptyAllocation>,
-) {
-  return {
-    str: Math.max(0, input?.str ?? defaults.str),
-    grit: Math.max(0, input?.grit ?? defaults.grit),
-    agi: Math.max(0, input?.agi ?? defaults.agi),
   };
 }

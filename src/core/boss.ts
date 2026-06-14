@@ -7,7 +7,13 @@ import { rollPlayerEvasion } from "./combat";
 import { rollBossDrop } from "./drop";
 import { addItemToInventory } from "./inventory";
 import { addDropIcon, grantRewards } from "./progression";
-import { rebirthEnemyAttackMultiplier, rebirthEnemyDefenseMultiplier, rebirthEnemyHpMultiplier } from "./rebirthScaling";
+import {
+  rebirthEnemyAttackMultiplier,
+  rebirthEnemyDefenseMultiplier,
+  rebirthEnemyExperienceMultiplier,
+  rebirthEnemyHpMultiplier,
+  rebirthEnemyRewardMultiplier,
+} from "./rebirthScaling";
 import { clearBossStage, continueAutoChallenge } from "./stageProgress";
 import type { BossCombatState, BossId, Monster, Platform, ProgressState, SimulationState, WorldState } from "./types";
 
@@ -60,8 +66,8 @@ export function createBossMonster(bossId: BossId, platform: Platform, rebirthCou
     accuracy: bossAccuracy(definition.chapter),
     evasion: bossEvasion(definition.chapter),
     attack,
-    experience: definition.experience,
-    gold: definition.gold,
+    experience: Math.max(0, Math.round(definition.experience * rebirthEnemyExperienceMultiplier(rebirthCount))),
+    gold: Math.max(0, Math.round(definition.gold * rebirthEnemyRewardMultiplier(rebirthCount))),
     moveSpeed: 0,
     respawnTime: 0,
     respawnTimer: 0,

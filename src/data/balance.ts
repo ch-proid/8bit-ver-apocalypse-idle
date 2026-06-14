@@ -109,6 +109,9 @@ export const WAVE_BALANCE = {
   chapterHpMultiplier: 0.18,
   chapterAttackMultiplier: 0.12,
   chapterRewardMultiplier: 0.1,
+  // TODO(Rebirth loop): Tune after full stage clear telemetry; this makes higher stages the main level-up accelerator.
+  stageExperienceMultiplier: 0.16,
+  stageGoldMultiplier: 0.04,
   offlineDpsEfficiency: 0.52,
   offlineExperienceMultiplier: 1,
   offlineMinimumWaveSeconds: 3.5,
@@ -175,16 +178,13 @@ export const REBIRTH_BALANCE = {
   requiredStageId: 60,
   requiredLevel: 40,
   maxRecords: 30,
-  baseExperienceMultiplier: 1,
-  levelMultiplierDivisor: 1000,
-  combatPowerMultiplierDivisor: 100000,
-  countMultiplierBonus: 0.04,
-  permanentStrPerRebirth: 1,
-  permanentGritPerRebirth: 1,
-  permanentAgiPerRebirth: 1,
+  baseStatMultiplier: 1,
+  statMultiplierPerRebirth: 0.08,
   enemyHpMultiplierPerRebirth: 0.35,
   enemyAttackMultiplierPerRebirth: 0.2,
   enemyDefenseMultiplierPerRebirth: 0.12,
+  enemyRewardMultiplierPerRebirth: 0.18,
+  enemyExperienceMultiplierPerRebirth: 0.22,
 } as const;
 
 export const COMBAT_POWER = {

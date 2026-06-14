@@ -3,6 +3,7 @@ import { PLAYER_CLASSES } from "../data/classes";
 import { calculateRelicOwnedStats } from "./altar";
 import { calculateEquipmentStats } from "./equipment";
 import { defaultClassId, getPlayerClass } from "./class";
+import { rebirthStatMultiplier } from "./rebirthScaling";
 import type {
   EquipmentStatAllocation,
   Player,
@@ -114,7 +115,7 @@ export function resetStatDistribution(preset?: StatPreset): StatDistributionStat
 export function calculatePlayerStats(progress: ProgressState): PlayerStats {
   const classDefinition = getPlayerClass(progress.classId);
   const levelSteps = Math.max(0, progress.level - 1);
-  const statPoints = addAllocation(progress.statDistribution.assigned, progress.rebirth.permanentStats, 1);
+  const statPoints = progress.statDistribution.assigned;
   const equipmentStats = calculateEquipmentStats(progress.inventory.equipped);
   const relicStats = calculateRelicOwnedStats(progress.altar);
 
@@ -136,8 +137,9 @@ export function calculatePlayerStats(progress: ProgressState): PlayerStats {
 
   const withEquipment = applyEquipmentStats({ attack, defense, maxHp, hpRegen, evasion }, equipmentStats);
   const withRelics = applyEquipmentStats(withEquipment, relicStats);
+  const withRebirth = applyRebirthMultiplier(withRelics, rebirthStatMultiplier(progress.rebirth.count));
   return {
-    ...withRelics,
+    ...withRebirth,
     moveSpeed: roundTo(PLAYER_BALANCE.moveSpeed * classDefinition.growth.moveSpeedMultiplier, 2),
     attackCooldown: roundTo(PLAYER_BALANCE.attackCooldown * classDefinition.growth.attackCooldownMultiplier, 3),
     attackRange: classDefinition.growth.attackRange,
@@ -145,8 +147,7 @@ export function calculatePlayerStats(progress: ProgressState): PlayerStats {
 }
 
 export function strengthDamageMultiplier(progress: ProgressState): number {
-  const statPoints = addAllocation(progress.statDistribution.assigned, progress.rebirth.permanentStats, 1);
-  return statMultiplier(statPoints.str, STAT_GROWTH.strAttackPercentPerPoint);
+  return statMultiplier(progress.statDistribution.assigned.str, STAT_GROWTH.strAttackPercentPerPoint);
 }
 
 export function applyPlayerStats(player: Player, progress: ProgressState): void {
@@ -205,6 +206,19 @@ function applyEquipmentStats(
     maxHp: roundTo(stats.maxHp + equipment.hp, 2),
     hpRegen: roundTo(stats.hpRegen, 2),
     evasion: roundTo(stats.evasion, 2),
+  };
+}
+
+function applyRebirthMultiplier(
+  stats: Pick<PlayerStats, "attack" | "defense" | "maxHp" | "hpRegen" | "evasion">,
+  multiplier: number,
+): Pick<PlayerStats, "attack" | "defense" | "maxHp" | "hpRegen" | "evasion"> {
+  return {
+    attack: roundTo(stats.attack * multiplier, 2),
+    defense: roundTo(stats.defense * multiplier, 2),
+    maxHp: roundTo(stats.maxHp * multiplier, 2),
+    hpRegen: roundTo(stats.hpRegen * multiplier, 2),
+    evasion: roundTo(stats.evasion * multiplier, 2),
   };
 }
 

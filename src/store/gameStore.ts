@@ -14,7 +14,8 @@ import { buyShopOffer, reawakenItemOptions, refreshShop } from "../core/gold";
 import { addItemToInventory, bestInventoryItemForSlot, createItemId, disassembleItems, equipItem, findItem, sellItem, unequipItem } from "../core/inventory";
 import { cloneProgress, gainExperience, updateRecordAt } from "../core/progression";
 import { cloneRelicCombatState, relicDebugSnapshot } from "../core/relics";
-import { calculateRebirthExperienceMultiplier, rebirthSimulation, unlockRebirth } from "../core/rebirth";
+import { rebirthSimulation, unlockRebirth } from "../core/rebirth";
+import { rebirthStatMultiplier } from "../core/rebirthScaling";
 import { cloneRngState, createRngState } from "../core/rng";
 import { compareEquipmentCombatScore, createBuildSnapshot, simulateStandardDummy, updateDummyScoreRecord } from "../core/sim";
 import { createInitialSimulation } from "../core/stage";
@@ -249,15 +250,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const { progress } = get().simulation;
     const combatPower = combatPowerEstimate(progress);
     const wallLevel = EXPERIENCE_CURVE.firstKneeLevel;
-    const nextMultiplier = calculateRebirthExperienceMultiplier(wallLevel, combatPower, progress.rebirth.count + 1);
+    const nextMultiplier = rebirthStatMultiplier(progress.rebirth.count + 1);
     console.table([
-      { checkpoint: `LV ${wallLevel - 1}`, nextExp: nextExperienceForLevel(wallLevel - 1), effectiveNextAfterRebirth: null },
-      { checkpoint: `LV ${wallLevel} WALL`, nextExp: nextExperienceForLevel(wallLevel), effectiveNextAfterRebirth: null },
-      { checkpoint: `LV ${wallLevel + 1} WALL+`, nextExp: nextExperienceForLevel(wallLevel + 1), effectiveNextAfterRebirth: null },
+      { checkpoint: `LV ${wallLevel - 1}`, nextExp: nextExperienceForLevel(wallLevel - 1), currentPower: combatPower, nextRebirthStatMultiplier: null },
+      { checkpoint: `LV ${wallLevel} WALL`, nextExp: nextExperienceForLevel(wallLevel), currentPower: combatPower, nextRebirthStatMultiplier: null },
+      { checkpoint: `LV ${wallLevel + 1} WALL+`, nextExp: nextExperienceForLevel(wallLevel + 1), currentPower: combatPower, nextRebirthStatMultiplier: null },
       {
         checkpoint: "REBIRTH PREVIEW",
         nextExp: nextExperienceForLevel(1),
-        effectiveNextAfterRebirth: Math.ceil(nextExperienceForLevel(1) / nextMultiplier),
+        currentPower: combatPower,
+        nextRebirthStatMultiplier: nextMultiplier,
       },
     ]);
   },

@@ -3,6 +3,7 @@ import { cloneOwnedRelics } from "./altar";
 import { applyClassAfterHit, applyClassPassiveDamage } from "./class";
 import { calculateCombatAffixStats, cloneEquipped, cloneItem } from "./equipment";
 import { createDefaultProgress, updateRecord } from "./progression";
+import { rebirthStatMultiplier } from "./rebirthScaling";
 import { createInitialSimulation } from "./stage";
 import {
   applyRelicAfterHit,
@@ -22,7 +23,6 @@ import type {
   ProgressState,
   RelicId,
   SimulationState,
-  StatAllocation,
   StatDistributionState,
   WorldState,
 } from "./types";
@@ -30,7 +30,7 @@ import type {
 export interface BuildSnapshot {
   classId: ClassId;
   statDistribution: StatDistributionState;
-  permanentStats: StatAllocation;
+  rebirthCount: number;
   equipped: EquippedItems;
   equippedRelicId: RelicId | null;
   ownedRelics: OwnedRelics;
@@ -58,7 +58,7 @@ export function createBuildSnapshot(progress: ProgressState): BuildSnapshot {
   return {
     classId: progress.classId,
     statDistribution: cloneStatDistribution(progress.statDistribution),
-    permanentStats: { ...progress.rebirth.permanentStats },
+    rebirthCount: progress.rebirth.count,
     equipped: cloneEquipped(progress.inventory.equipped),
     equippedRelicId: progress.altar.equippedRelicId,
     ownedRelics: cloneOwnedRelics(progress.altar.owned),
@@ -134,7 +134,8 @@ function createProgressFromSnapshot(snapshot: BuildSnapshot): ProgressState {
   const progress = createDefaultProgress(1);
   progress.classId = snapshot.classId;
   progress.statDistribution = cloneStatDistribution(snapshot.statDistribution);
-  progress.rebirth.permanentStats = { ...snapshot.permanentStats };
+  progress.rebirth.count = Math.max(0, Math.floor(snapshot.rebirthCount));
+  progress.rebirth.multiplier = rebirthStatMultiplier(progress.rebirth.count);
   progress.inventory.equipped = cloneEquipped(snapshot.equipped);
   progress.altar.owned = cloneOwnedRelics(snapshot.ownedRelics);
   progress.altar.equippedRelicId = snapshot.equippedRelicId && progress.altar.owned[snapshot.equippedRelicId]
@@ -199,7 +200,7 @@ function cloneBuildSnapshot(snapshot: BuildSnapshot): BuildSnapshot {
   return {
     classId: snapshot.classId,
     statDistribution: cloneStatDistribution(snapshot.statDistribution),
-    permanentStats: { ...snapshot.permanentStats },
+    rebirthCount: snapshot.rebirthCount,
     equipped: cloneEquipped(snapshot.equipped),
     equippedRelicId: snapshot.equippedRelicId,
     ownedRelics: cloneOwnedRelics(snapshot.ownedRelics),

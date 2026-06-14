@@ -5,7 +5,12 @@ import { STAGE_1, STAGES, type StageDefinition } from "../data/stages";
 import { createBossCombatState, createBossMonster } from "./boss";
 import { createDefaultClassCombatState } from "./class";
 import { createDefaultProgress } from "./progression";
-import { rebirthEnemyAttackMultiplier, rebirthEnemyHpMultiplier } from "./rebirthScaling";
+import {
+  rebirthEnemyAttackMultiplier,
+  rebirthEnemyExperienceMultiplier,
+  rebirthEnemyHpMultiplier,
+  rebirthEnemyRewardMultiplier,
+} from "./rebirthScaling";
 import { createDefaultRelicCombatState } from "./relics";
 import { createRngState, nextRandom } from "./rng";
 import { applyPlayerStats } from "./stats";
@@ -188,15 +193,19 @@ function spawnXOnPlatform(platform: Platform, definition: MonsterDefinition, rng
 export function normalMonsterStatsForStage(stageId: number, definition: MonsterDefinition, rebirthCount = 0): Pick<Monster, "maxHp" | "attack" | "experience" | "gold"> {
   const chapter = Math.max(1, STAGES[stageId]?.chapter ?? 1);
   const chapterSteps = chapter - 1;
+  const stageSteps = Math.max(0, stageId - 1);
   const hpScale = 1 + chapterSteps * WAVE_BALANCE.chapterHpMultiplier;
   const attackScale = 1 + chapterSteps * WAVE_BALANCE.chapterAttackMultiplier;
-  const rewardScale = 1 + chapterSteps * WAVE_BALANCE.chapterRewardMultiplier;
+  const goldScale = (1 + chapterSteps * WAVE_BALANCE.chapterRewardMultiplier + stageSteps * WAVE_BALANCE.stageGoldMultiplier)
+    * rebirthEnemyRewardMultiplier(rebirthCount);
+  const experienceScale = (1 + stageSteps * WAVE_BALANCE.stageExperienceMultiplier)
+    * rebirthEnemyExperienceMultiplier(rebirthCount);
 
   return {
     maxHp: Math.max(1, Math.round(definition.maxHp * hpScale * rebirthEnemyHpMultiplier(rebirthCount))),
     attack: Math.max(0, Math.round(definition.attack * attackScale * rebirthEnemyAttackMultiplier(rebirthCount))),
-    experience: Math.max(0, Math.round(definition.experience * rewardScale)),
-    gold: Math.max(0, Math.round(definition.gold * rewardScale)),
+    experience: Math.max(0, Math.round(definition.experience * experienceScale)),
+    gold: Math.max(0, Math.round(definition.gold * goldScale)),
   };
 }
 
