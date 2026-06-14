@@ -509,12 +509,6 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
       </Panel>
 
       <Panel open={activePanel === "altar"} label="제단">
-        <div className="statbar altar-status">
-          <span>제단 {progress.altar.level}</span>
-          <IconValue type="blood" value={`${altarCharges}/${altarMaxCharges}`} />
-          <span>제단 경험 {altarExperiencePercent}%</span>
-        </div>
-
         <Win title="제단 정보">
           <MenuItem label="레벨" value={progress.altar.level} />
           <MenuItem label="보유 상한" value={`${altarMaxCharges}개 / 다음 ${nextAltarMaxCharges}개`} />
@@ -540,10 +534,18 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
 
         <Win title="유물">
           <RelicSummary relicId={progress.altar.equippedRelicId} instance={equippedRelic} />
-          <div className="relic-owned">
-            <MenuItem label="보유 공격" value={formatNumber(relicOwnedStats.atk)} />
-            <MenuItem label="보유 체력" value={formatNumber(relicOwnedStats.hp)} />
-            <MenuItem label="보유 방어" value={formatNumber(relicOwnedStats.def)} />
+          <div className="relic-owned-block">
+            <span className="section-label kr">보유 효과</span>
+            {hasRelicOwnedStats ? (
+              <div className="relic-owned">
+                {relicOwnedStats.atk > 0 ? <MenuItem label="공격력" value={<BonusValue value={relicOwnedStats.atk} />} /> : null}
+                {relicOwnedStats.hp > 0 ? <MenuItem label="체력" value={<BonusValue value={relicOwnedStats.hp} />} /> : null}
+                {relicOwnedStats.def > 0 ? <MenuItem label="방어력" value={<BonusValue value={relicOwnedStats.def} />} /> : null}
+                {relicOwnedStats.reg > 0 ? <MenuItem label="체력회복" value={<BonusValue value={relicOwnedStats.reg} />} /> : null}
+              </div>
+            ) : (
+              <p className="empty-note kr">보유 효과가 없습니다</p>
+            )}
           </div>
         </Win>
 
@@ -713,17 +715,20 @@ function AltarBall({
 }) {
   const style = { "--fill": `${Math.max(0, Math.min(100, fill))}%` } as CSSProperties;
   return (
-    <button
-      type="button"
-      className={disabled ? "altar-ball off" : "altar-ball"}
-      style={style}
-      disabled={disabled}
-      onClick={onClick}
-      aria-label={`제단 소환 ${charges}/${maxCharges}`}
-    >
-      <span>{charges}</span>
-      <small>{maxCharges}</small>
-    </button>
+    <div className="altar-ball-wrap">
+      <button
+        type="button"
+        className={disabled ? "altar-ball off" : "altar-ball"}
+        style={style}
+        disabled={disabled}
+        onClick={onClick}
+        aria-label={`제단 소환 ${charges}/${maxCharges}`}
+      >
+        <span>{charges}</span>
+        <small>{maxCharges}</small>
+      </button>
+      <IconValue type="blood" value={`${charges}/${maxCharges}`} compact />
+    </div>
   );
 }
 
@@ -1022,22 +1027,24 @@ function PopupFrame({ title, children }: { title: string; children: ReactNode })
 function RelicSummary({ relicId, instance }: { relicId: RelicId | null; instance: ReturnType<typeof bestRelicInstance> }) {
   if (!relicId || !instance) {
     return (
-      <>
-        <MenuItem label="이름" value="없음" />
+      <div className="relic-summary">
+        <div className="relic-name-line empty kr">유물 없음</div>
         <p className="tiny dim kr">유물을 장착하세요</p>
-      </>
+      </div>
     );
   }
 
   const relic = RELICS[relicId];
   return (
-    <>
-      <MenuItem label="이름" value={<span className="kr">{RELIC_KR_LABELS[relicId]}</span>} />
-      <MenuItem label="죄" value={<span className="kr">{SIN_KR_LABELS[relic.sin]}</span>} />
+    <div className="relic-summary">
+      <div className="relic-name-line kr">
+        <span className="sin-prefix">{SIN_KR_LABELS[relic.sin]}의</span>
+        <span>{RELIC_KR_LABELS[relicId]}</span>
+      </div>
       <MenuItem label="등급" value={rarityLabel(instance.grade)} valueClassName={rarityClass(instance.grade)} />
       <MenuItem label="별" value={<StarIcons stars={instance.stars} />} />
       <p className="tiny kr">{RELIC_DESC_KR[relicId]}</p>
-    </>
+    </div>
   );
 }
 

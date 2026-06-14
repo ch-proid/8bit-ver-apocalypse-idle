@@ -285,11 +285,19 @@ button {
   text-shadow: 1px 0 0 var(--ink), -1px 0 0 var(--ink), 0 1px 0 var(--ink), 0 -1px 0 var(--ink);
 }
 
-.altar-ball {
+.altar-ball-wrap {
   position: absolute;
   right: 5px;
   bottom: 2px;
   z-index: 4;
+  display: grid;
+  place-items: center;
+  gap: 1px;
+  pointer-events: none;
+}
+
+.altar-ball {
+  position: relative;
   width: 34px;
   height: 34px;
   display: grid;
@@ -308,6 +316,7 @@ button {
   font-weight: 700;
   line-height: 1;
   cursor: pointer;
+  pointer-events: auto;
 }
 
 .altar-ball small {
@@ -320,6 +329,15 @@ button {
   filter: grayscale(0.55);
   opacity: 0.72;
   cursor: default;
+}
+
+.altar-ball-wrap .ico-val {
+  min-width: 33px;
+  justify-content: center;
+  padding: 0 2px;
+  color: var(--light);
+  background: rgba(16, 8, 10, 0.82);
+  text-shadow: 1px 0 0 var(--ink);
 }
 
 .goldc {
@@ -450,16 +468,6 @@ button {
 
 .statbar.rich {
   align-items: center;
-}
-
-.statbar.altar-status {
-  align-items: center;
-  gap: 5px;
-}
-
-.statbar.altar-status .gb-bar {
-  max-width: 86px;
-  height: 8px;
 }
 
 .mini-class {
@@ -650,6 +658,41 @@ button {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0 9px;
+}
+
+.section-label {
+  display: inline-block;
+  margin-bottom: 3px;
+  color: var(--gold);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.relic-summary {
+  display: grid;
+  gap: 3px;
+}
+
+.relic-name-line {
+  min-height: 16px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--light);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.relic-name-line.empty {
+  color: var(--mid);
+}
+
+.sin-prefix {
+  color: var(--blood);
+}
+
+.relic-owned-block {
+  margin-top: 6px;
 }
 
 .ability-list {
