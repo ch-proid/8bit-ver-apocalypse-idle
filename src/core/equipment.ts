@@ -2,9 +2,11 @@ import { GENERAL_AFFIXES, SIN_AFFIXES } from "../data/affixes";
 import { AFFIX_BALANCE, EQUIPMENT_BALANCE } from "../data/balance";
 import {
   EQUIPMENT_KIND_LABELS,
-  EQUIPMENT_NAME_ADJECTIVES,
+  EQUIPMENT_NAME_ADJECTIVES_BY_RARITY,
   EQUIPMENT_RARITY_NAME_PREFIX,
   EQUIPMENT_SLOT_KIND_POOL,
+  FUN_EQUIPMENT_ADJECTIVE_CHANCE,
+  FUN_EQUIPMENT_ADJECTIVES,
   WEAPON_TYPE_CLASS_ALLOWLIST,
   WEAPON_TYPES,
 } from "../data/equipmentNames";
@@ -372,7 +374,10 @@ function calculateBaseValue(slot: ItemSlot, rarity: ItemRarity, itemLevel: numbe
 }
 
 function rollEquipmentName(rng: RngState, rarity: ItemRarity, kind: EquipmentKind): string {
-  const adjective = pickOne(rng, EQUIPMENT_NAME_ADJECTIVES);
+  const adjectivePool = rarity !== "common" && rarity !== "magic" && chance(rng, FUN_EQUIPMENT_ADJECTIVE_CHANCE)
+    ? FUN_EQUIPMENT_ADJECTIVES
+    : EQUIPMENT_NAME_ADJECTIVES_BY_RARITY[rarity];
+  const adjective = pickOne(rng, adjectivePool);
   return `${EQUIPMENT_RARITY_NAME_PREFIX[rarity]}의 ${adjective} ${EQUIPMENT_KIND_LABELS[kind]}`;
 }
 

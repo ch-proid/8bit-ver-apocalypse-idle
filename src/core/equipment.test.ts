@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { GENERAL_AFFIXES } from "../data/affixes";
+import {
+  FUN_EQUIPMENT_ADJECTIVES,
+  LEGENDARY_EQUIPMENT_ADJECTIVES,
+  LOW_RARITY_EQUIPMENT_ADJECTIVES,
+  MID_RARITY_EQUIPMENT_ADJECTIVES,
+} from "../data/affixAdjectives";
 import { EQUIPMENT_BALANCE, FIXED_DELTA, GOLD_BALANCE, PLAYER_BALANCE } from "../data/balance";
 import {
   calculateCombatAffixStats,
@@ -106,6 +112,64 @@ describe("phase 3B equipment, drops, and gold", () => {
     expect(item.name).toMatch(/^희귀의 .+ 로브$/);
     expect(equipmentDisplayName({ ...item, name: undefined })).toBe("희귀의 로브");
     expect(equipmentDisplayName(item)).toBe(item.name);
+  });
+
+  it("uses rarity-specific deterministic adjective pools for equipment names", () => {
+    const lowRng = createRngState(3001);
+    const common = generateEquipmentItem({
+      id: "name-common",
+      rng: lowRng,
+      stageId: 1,
+      rarity: "common",
+      slot: "weapon",
+      kind: "dagger",
+    });
+    const magic = generateEquipmentItem({
+      id: "name-magic",
+      rng: createRngState(3002),
+      stageId: 1,
+      rarity: "magic",
+      slot: "helmet",
+      kind: "helmet",
+    });
+    const rare = generateEquipmentItem({
+      id: "name-rare",
+      rng: createRngState(3003),
+      stageId: 1,
+      rarity: "rare",
+      slot: "armor",
+      kind: "robe",
+    });
+    const legendary = generateEquipmentItem({
+      id: "name-legendary",
+      rng: createRngState(3004),
+      stageId: 1,
+      rarity: "legendary",
+      slot: "accessory",
+      kind: "ring",
+    });
+
+    expect(LOW_RARITY_EQUIPMENT_ADJECTIVES.some((adjective) => common.name?.includes(adjective))).toBe(true);
+    expect(LOW_RARITY_EQUIPMENT_ADJECTIVES.some((adjective) => magic.name?.includes(adjective))).toBe(true);
+    expect([...MID_RARITY_EQUIPMENT_ADJECTIVES, ...FUN_EQUIPMENT_ADJECTIVES].some((adjective) => rare.name?.includes(adjective))).toBe(true);
+    expect([...LEGENDARY_EQUIPMENT_ADJECTIVES, ...FUN_EQUIPMENT_ADJECTIVES].some((adjective) => legendary.name?.includes(adjective))).toBe(true);
+    expect(common.name).toMatch(/^일반의 .+ 단검$/);
+    expect(magic.name).toMatch(/^마법의 .+ 헬멧$/);
+    expect(legendary.name).toMatch(/^전설의 .+ 반지$/);
+  });
+
+  it("mixes fun adjectives into rare or higher equipment names at a deterministic low chance", () => {
+    const item = generateEquipmentItem({
+      id: "fun-name",
+      rng: createRngState(1),
+      stageId: 1,
+      rarity: "rare",
+      slot: "weapon",
+      kind: "staff",
+    });
+
+    expect(FUN_EQUIPMENT_ADJECTIVES.some((adjective) => item.name?.includes(adjective))).toBe(true);
+    expect(item.name).toMatch(/^희귀의 .+ 지팡이$/);
   });
 
   it("uses the revised base stat package for each equipment slot", () => {

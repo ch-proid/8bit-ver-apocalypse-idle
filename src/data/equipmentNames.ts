@@ -1,4 +1,11 @@
 import type { ClassId, EquipmentKind, ItemRarity, ItemSlot, WeaponType } from "../core/types";
+import {
+  FUN_EQUIPMENT_ADJECTIVE_CHANCE,
+  FUN_EQUIPMENT_ADJECTIVES,
+  LEGENDARY_EQUIPMENT_ADJECTIVES,
+  LOW_RARITY_EQUIPMENT_ADJECTIVES,
+  MID_RARITY_EQUIPMENT_ADJECTIVES,
+} from "./affixAdjectives";
 
 export const EQUIPMENT_RARITY_NAME_PREFIX: Record<ItemRarity, string> = {
   common: "일반",
@@ -8,20 +15,15 @@ export const EQUIPMENT_RARITY_NAME_PREFIX: Record<ItemRarity, string> = {
   legendary: "전설",
 };
 
-export const EQUIPMENT_NAME_ADJECTIVES = [
-  "낡은",
-  "비뚤어진",
-  "날카로운",
-  "그을린",
-  "묵직한",
-  "수상한",
-  "끈질긴",
-  "불길한",
-  "번쩍이는",
-  "허세 가득한",
-  "겁나 튼튼한",
-  "잠 덜 깬",
-] as const;
+export const EQUIPMENT_NAME_ADJECTIVES_BY_RARITY: Record<ItemRarity, readonly string[]> = {
+  common: LOW_RARITY_EQUIPMENT_ADJECTIVES,
+  magic: LOW_RARITY_EQUIPMENT_ADJECTIVES,
+  rare: MID_RARITY_EQUIPMENT_ADJECTIVES,
+  epic: MID_RARITY_EQUIPMENT_ADJECTIVES,
+  legendary: LEGENDARY_EQUIPMENT_ADJECTIVES,
+};
+
+export { FUN_EQUIPMENT_ADJECTIVE_CHANCE, FUN_EQUIPMENT_ADJECTIVES };
 
 export const WEAPON_TYPES: readonly WeaponType[] = ["dagger", "sword", "greatsword", "staff"];
 
