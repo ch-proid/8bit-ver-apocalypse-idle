@@ -352,7 +352,8 @@ export const GOLD_BALANCE = {
   rerollCostGrowth: 1.65,
   shopSlots: 6,
   shopRefreshGoldCost: 120,
-  shopFreeRefreshSeconds: 60 * 20,
+  // TODO(Equipment shop): Two free lineups per 24h. Ad reroll is UI-reserved for a later monetization pass.
+  shopFreeRefreshSeconds: 60 * 60 * 12,
   shopItemPriceLevelWeight: 35,
   shopItemPriceRarityWeight: 220,
   shopSinOfferChance: 0.04,

@@ -10,7 +10,7 @@ import { triggerAltarCounter } from "../core/boss";
 import { cloneClassCombatState } from "../core/class";
 import { calculateItemValue, generateEquipmentItem } from "../core/equipment";
 import { startAltarEliteEncounter } from "../core/elites";
-import { reawakenItemOptions } from "../core/gold";
+import { buyShopOffer, reawakenItemOptions, refreshShop } from "../core/gold";
 import { addItemToInventory, bestInventoryItemForSlot, createItemId, disassembleItems, equipItem, findItem, sellItem, unequipItem } from "../core/inventory";
 import { cloneProgress, gainExperience, updateRecordAt } from "../core/progression";
 import { cloneRelicCombatState, relicDebugSnapshot } from "../core/relics";
@@ -52,6 +52,8 @@ interface GameStore {
   reawakenEquipmentItem: (itemId: string, selectedGeneralLineIndexes?: number[]) => void;
   sellEquipmentItem: (itemId: string) => void;
   disassembleEquipmentItems: (itemIds: string[]) => void;
+  refreshShopNow: () => void;
+  buyShopOfferNow: (offerId: string) => void;
   unlockRebirthForDebug: () => void;
   rebirthNow: () => void;
   logPhase3ADemo: () => void;
@@ -209,6 +211,22 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set((state) => {
       const simulation = cloneSimulation(state.simulation);
       disassembleItems(simulation.progress, itemIds);
+      return { simulation };
+    });
+  },
+
+  refreshShopNow: () => {
+    set((state) => {
+      const simulation = cloneSimulation(state.simulation);
+      refreshShop(simulation.progress, simulation.world.rng, simulation.world.elapsed, false);
+      return { simulation };
+    });
+  },
+
+  buyShopOfferNow: (offerId: string) => {
+    set((state) => {
+      const simulation = cloneSimulation(state.simulation);
+      buyShopOffer(simulation.progress, offerId);
       return { simulation };
     });
   },

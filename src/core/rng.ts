@@ -31,7 +31,7 @@ export function chance(rng: RngState, probability: number): boolean {
   return nextRandom(rng) < probability;
 }
 
-export function pickOne<T>(rng: RngState, values: T[]): T {
+export function pickOne<T>(rng: RngState, values: readonly T[]): T {
   return values[randomInt(rng, 0, values.length - 1)];
 }
 

@@ -163,6 +163,8 @@ export function refreshShop(progress: ProgressState, rng: RngState, elapsedSecon
       return false;
     }
     progress.gold -= GOLD_BALANCE.shopRefreshGoldCost;
+  } else if (!canRefreshShop(progress, elapsedSeconds)) {
+    return false;
   }
 
   const offers: ShopOffer[] = [];
@@ -183,6 +185,19 @@ export function refreshShop(progress: ProgressState, rng: RngState, elapsedSecon
   progress.shop.offers = offers;
   progress.shop.refreshedAt = elapsedSeconds;
   return true;
+}
+
+export function canRefreshShop(progress: ProgressState, elapsedSeconds: number): boolean {
+  return progress.shop.offers.length <= 0
+    || elapsedSeconds - progress.shop.refreshedAt >= GOLD_BALANCE.shopFreeRefreshSeconds;
+}
+
+export function shopRefreshRemainingSeconds(progress: ProgressState, elapsedSeconds: number): number {
+  if (canRefreshShop(progress, elapsedSeconds)) {
+    return 0;
+  }
+
+  return Math.max(0, GOLD_BALANCE.shopFreeRefreshSeconds - (elapsedSeconds - progress.shop.refreshedAt));
 }
 
 export function buyShopOffer(progress: ProgressState, offerId: string): boolean {

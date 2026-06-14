@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { GENERAL_AFFIXES } from "../data/affixes";
 import { EQUIPMENT_BALANCE, FIXED_DELTA, GOLD_BALANCE, PLAYER_BALANCE } from "../data/balance";
-import { generateEquipmentItem, rarityWeightsForStage } from "./equipment";
+import { equipmentDisplayName, generateEquipmentItem, rarityWeightsForStage } from "./equipment";
 import { equipmentDropChance } from "./drop";
-import { cubeSynthesize, reawakenItemOptions, reawakeningCost, rerollItemOptions } from "./gold";
+import { buyShopOffer, canRefreshShop, cubeSynthesize, refreshShop, reawakenItemOptions, reawakeningCost, rerollItemOptions, shopRefreshRemainingSeconds } from "./gold";
 import { addItemToInventory, disassembleItems, equipItem, setAutoSell } from "./inventory";
 import { createDefaultProgress } from "./progression";
 import { createRngState } from "./rng";
@@ -82,6 +82,41 @@ describe("phase 3B equipment, drops, and gold", () => {
     expect(counts.magic / 5000).toBeLessThan(0.2);
     expect(counts.rare / 5000).toBeGreaterThan(0.025);
     expect(counts.rare / 5000).toBeLessThan(0.055);
+  });
+
+  it("generates and preserves deterministic Korean equipment names", () => {
+    const rng = createRngState(2026);
+    const item = generateEquipmentItem({
+      id: "named",
+      rng,
+      stageId: 3,
+      rarity: "rare",
+      slot: "armor",
+    });
+
+    expect(item.name).toMatch(/^희귀의 .+ (갑옷|가죽옷|로브|흉갑)$/);
+    expect(equipmentDisplayName({ ...item, name: undefined })).toBe("희귀의 갑옷");
+    expect(equipmentDisplayName(item)).toBe(item.name);
+  });
+
+  it("refreshes shop twice per day and buys deterministic offers", () => {
+    const progress = createProgressWithGold(100000);
+    const rng = createRngState(334);
+
+    expect(refreshShop(progress, rng, 0, false)).toBe(true);
+    expect(progress.shop.offers).toHaveLength(GOLD_BALANCE.shopSlots);
+    expect(progress.shop.offers.every((offer) => Boolean(offer.item.name))).toBe(true);
+    expect(canRefreshShop(progress, GOLD_BALANCE.shopFreeRefreshSeconds - 1)).toBe(false);
+    expect(shopRefreshRemainingSeconds(progress, GOLD_BALANCE.shopFreeRefreshSeconds - 1)).toBe(1);
+    expect(refreshShop(progress, rng, GOLD_BALANCE.shopFreeRefreshSeconds - 1, false)).toBe(false);
+    expect(refreshShop(progress, rng, GOLD_BALANCE.shopFreeRefreshSeconds, false)).toBe(true);
+
+    const offer = progress.shop.offers[0];
+    const bought = buyShopOffer(progress, offer.id);
+
+    expect(bought).toBe(true);
+    expect(progress.inventory.items.some((item) => item.id === offer.item.id)).toBe(true);
+    expect(progress.shop.offers.some((entry) => entry.id === offer.id)).toBe(false);
   });
 
   it("raises equipment drop chance and high-rarity relative weights with stage and rebirth", () => {

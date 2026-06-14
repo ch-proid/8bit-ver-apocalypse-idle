@@ -1,5 +1,6 @@
 import { GENERAL_AFFIXES, SIN_AFFIXES } from "../data/affixes";
 import { AFFIX_BALANCE, EQUIPMENT_BALANCE } from "../data/balance";
+import { EQUIPMENT_NAME_ADJECTIVES, EQUIPMENT_RARITY_NAME_PREFIX, EQUIPMENT_SLOT_NAME_POOL } from "../data/equipmentNames";
 import { ITEM_RARITIES, ITEM_SLOT_BASE_STAT, ITEM_SLOTS } from "../data/items";
 import { chance, pickOne, pickWeighted, randomInt } from "./rng";
 import type {
@@ -42,6 +43,7 @@ export function generateEquipmentItem(input: GenerateEquipmentInput): EquipmentI
 
   return {
     id: input.id,
+    name: rollEquipmentName(input.rng, rarity, slot),
     slot,
     rarity,
     itemLevel,
@@ -195,6 +197,7 @@ export function normalizeEquipmentItem(item: EquipmentItem): EquipmentItem {
   const raw = item as Partial<EquipmentItem>;
   return {
     ...item,
+    name: normalizeEquipmentName(item),
     minDmg: safeNumber(raw.minDmg, derived.minDmg),
     maxDmg: Math.max(safeNumber(raw.maxDmg, derived.maxDmg), safeNumber(raw.minDmg, derived.minDmg)),
     accuracy: safeNumber(raw.accuracy, derived.accuracy),
@@ -202,6 +205,10 @@ export function normalizeEquipmentItem(item: EquipmentItem): EquipmentItem {
     locked: Boolean(raw.locked),
     options: item.options?.map((option) => ({ ...option })) ?? [],
   };
+}
+
+export function equipmentDisplayName(item: EquipmentItem): string {
+  return normalizeEquipmentName(item);
 }
 
 export function enhancedBaseValue(item: EquipmentItem): number {
@@ -284,6 +291,22 @@ function shouldAttachSinOption(rng: RngState, rarity: ItemRarity, forceSin?: boo
 function calculateBaseValue(slot: ItemSlot, rarity: ItemRarity, itemLevel: number): number {
   const raw = EQUIPMENT_BALANCE.slotBaseValues[slot] * itemLevel * EQUIPMENT_BALANCE.rarityMultipliers[rarity];
   return slot === "accessory" ? roundTo(raw, 2) : Math.max(1, Math.floor(raw));
+}
+
+function rollEquipmentName(rng: RngState, rarity: ItemRarity, slot: ItemSlot): string {
+  const adjective = pickOne(rng, EQUIPMENT_NAME_ADJECTIVES);
+  const slotName = pickOne(rng, EQUIPMENT_SLOT_NAME_POOL[slot]);
+  return `${EQUIPMENT_RARITY_NAME_PREFIX[rarity]}의 ${adjective} ${slotName}`;
+}
+
+function normalizeEquipmentName(item: EquipmentItem): string {
+  const rawName = (item as Partial<EquipmentItem>).name;
+  if (typeof rawName === "string" && rawName.trim().length > 0) {
+    return rawName;
+  }
+
+  const fallbackSlotName = EQUIPMENT_SLOT_NAME_POOL[item.slot][0];
+  return `${EQUIPMENT_RARITY_NAME_PREFIX[item.rarity]}의 ${fallbackSlotName}`;
 }
 
 function safeNumber(value: unknown, fallback: number): number {

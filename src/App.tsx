@@ -153,6 +153,7 @@ export default function App() {
           <div className="tab-btns">
             <TabButton active={activePanel === "stat"} label="스탯" onClick={() => togglePanel("stat")} />
             <TabButton active={activePanel === "gear"} label="장비" onClick={() => togglePanel("gear")} />
+            <TabButton active={activePanel === "shop"} label="상점" onClick={() => togglePanel("shop")} />
             <TabButton active={activePanel === "altar"} label="제단" onClick={() => togglePanel("altar")} />
             <TabButton active={activePanel === "rebirth"} label="환생" onClick={() => togglePanel("rebirth")} />
             {DEBUG_PANEL_ENABLED ? (

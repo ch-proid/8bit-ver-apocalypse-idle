@@ -452,8 +452,7 @@ button {
 
 .statbar {
   flex: 0 0 auto;
-  position: sticky;
-  top: 0;
+  position: static;
   z-index: 1;
   display: flex;
   justify-content: space-between;
@@ -944,6 +943,17 @@ button {
   color: #9ed7ff;
 }
 
+.merchant-line {
+  margin: 0 0 7px;
+  padding: 5px 6px;
+  border: 1px dotted var(--mid);
+  color: var(--light);
+  background: var(--ink);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
 .equipment-info-head {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -1237,6 +1247,24 @@ button {
   min-height: 16px;
 }
 
+.compare-marker {
+  width: 0;
+  height: 0;
+  flex: 0 0 auto;
+}
+
+.compare-marker.up {
+  border-right: 4px solid transparent;
+  border-left: 4px solid transparent;
+  border-bottom: 7px solid #8ee36f;
+}
+
+.compare-marker.down {
+  border-right: 4px solid transparent;
+  border-left: 4px solid transparent;
+  border-top: 7px solid var(--blood);
+}
+
 .compare-name {
   max-width: 48px;
   overflow: hidden;
@@ -1252,9 +1280,34 @@ button {
 
 .option-row {
   display: grid;
-  grid-template-columns: 16px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 4px;
   align-items: center;
+}
+
+button.option-row {
+  width: 100%;
+  border: 1px solid transparent;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.option-row.static {
+  grid-template-columns: 24px minmax(0, 1fr);
+}
+
+.option-row.selectable.selected {
+  border-color: var(--gold);
+  background: color-mix(in srgb, var(--gold) 16%, transparent);
+}
+
+.option-row.capped .compare-name,
+.option-row.capped .v.capc {
+  color: var(--blood);
 }
 
 .option-row .compare-line {
@@ -1267,6 +1320,10 @@ button {
 }
 
 .sin-lock {
+  display: grid;
+  place-items: center;
+  min-height: 16px;
+  border: 1px solid var(--blood);
   color: var(--blood);
   font-size: 6px;
 }
@@ -1340,6 +1397,7 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-wrap: wrap;
   gap: clamp(8px, 2.4vw, 14px);
   width: min(100%, 360px);
 }

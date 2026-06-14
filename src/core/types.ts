@@ -131,6 +131,7 @@ export interface ItemOption {
 
 export interface EquipmentItem {
   id: string;
+  name?: string;
   slot: ItemSlot;
   rarity: ItemRarity;
   itemLevel: number;
