@@ -696,7 +696,7 @@ function advanceWaveIfCleared(state: SimulationState): void {
     const floor = getPlatformById(state.world.platforms, "floor") ?? state.world.platforms[0];
     state.world.wave = null;
     state.world.boss = createBossCombatState(nextStage.bossId, nextStage.id);
-    state.world.monsters = [createBossMonster(nextStage.bossId, floor)];
+    state.world.monsters = [createBossMonster(nextStage.bossId, floor, state.progress.rebirth.count)];
     state.world.player.targetId = null;
     return;
   }
@@ -717,6 +717,7 @@ function advanceWaveIfCleared(state: SimulationState): void {
     state.world.wave,
     () => state.world.nextEntityId++,
     state.world.rng,
+    state.progress.rebirth.count,
   );
   state.world.player.targetId = null;
 }

@@ -3,12 +3,12 @@ import { cloneAltarState } from "./altar";
 import { cloneInventory } from "./inventory";
 import { createDefaultProgress, updateRecordAt } from "./progression";
 import { createInitialSimulation } from "./stage";
-import { combatPowerEstimate, createRecommendedStatDistribution, emptyAllocation } from "./stats";
+import { combatPowerEstimate, emptyAllocation } from "./stats";
 import type { ProgressState, RebirthRecord, SimulationState, StatAllocation } from "./types";
 
-export function rebirthSimulation(input: SimulationState, occurredAt: number): SimulationState {
+export function rebirthSimulation(input: SimulationState, occurredAt: number, ignoreGate = false): SimulationState {
   const previousProgress = input.progress;
-  if (!previousProgress.rebirth.canRebirth) {
+  if (!ignoreGate && !canRebirth(previousProgress)) {
     return input;
   }
 
@@ -19,7 +19,14 @@ export function rebirthSimulation(input: SimulationState, occurredAt: number): S
   const nextProgress = createDefaultProgress(REBIRTH_BALANCE.resetStageId);
 
   nextProgress.classId = previousProgress.classId;
-  nextProgress.statDistribution = createRecommendedStatDistribution(previousProgress.classId);
+  nextProgress.level = previousProgress.level;
+  nextProgress.experience = previousProgress.experience;
+  nextProgress.nextExperience = previousProgress.nextExperience;
+  nextProgress.statDistribution = {
+    assigned: { ...previousProgress.statDistribution.assigned },
+    unspentPoints: previousProgress.statDistribution.unspentPoints,
+    preset: previousProgress.statDistribution.preset,
+  };
   nextProgress.gold = previousProgress.gold;
   nextProgress.crystal = previousProgress.crystal;
   nextProgress.inventory = cloneInventory(previousProgress.inventory);
@@ -61,8 +68,14 @@ export function rebirthSimulation(input: SimulationState, occurredAt: number): S
   return createInitialSimulation(REBIRTH_BALANCE.resetStageId, nextProgress);
 }
 
+export function canRebirth(progress: ProgressState): boolean {
+  return progress.level >= REBIRTH_BALANCE.requiredLevel
+    && Boolean(progress.stageProgress.clearedStages[REBIRTH_BALANCE.requiredStageId]
+      || progress.stageProgress.defeatedBossStages[REBIRTH_BALANCE.requiredStageId]);
+}
+
 export function unlockRebirth(progress: ProgressState): ProgressState {
-  // TODO(Phase 3E): Replace this temporary gate with the first boss Lucian defeat flag.
+  // Debug-only override marker kept for save compatibility; normal rebirth gates use canRebirth().
   return {
     ...progress,
     rebirth: {

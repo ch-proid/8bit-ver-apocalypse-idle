@@ -9,6 +9,7 @@ import {
   spendBloodForElite,
 } from "./altar";
 import { addDropIcon, grantRewards } from "./progression";
+import { rebirthEnemyAttackMultiplier, rebirthEnemyDefenseMultiplier, rebirthEnemyHpMultiplier } from "./rebirthScaling";
 import { getPlatformById, platformCenterX } from "./stage";
 import { applyPlayerStats } from "./stats";
 import type { Monster, Platform, SimulationState } from "./types";
@@ -44,6 +45,8 @@ export function createAltarEliteMonster(state: SimulationState): Monster {
   }
   const level = state.progress.altar.level;
   const stats = altarEliteStatsForLevel(level);
+  const maxHp = Math.max(1, Math.round(stats.maxHp * rebirthEnemyHpMultiplier(state.progress.rebirth.count)));
+  const attack = Math.max(0, Math.round(stats.attack * rebirthEnemyAttackMultiplier(state.progress.rebirth.count)));
   const x = spawnXNearPlayer(platform, state.world.player.position.x, ALTAR_ELITE.width);
   const y = platform.y - ALTAR_ELITE.height;
 
@@ -58,13 +61,13 @@ export function createAltarEliteMonster(state: SimulationState): Monster {
     platformId: platform.id,
     width: ALTAR_ELITE.width,
     height: ALTAR_ELITE.height,
-    hp: stats.maxHp,
-    maxHp: stats.maxHp,
-    defense: eliteDefenseForLevel(level),
+    hp: maxHp,
+    maxHp,
+    defense: eliteDefenseForLevel(level, state.progress.rebirth.count),
     damageReduction: 0,
     accuracy: eliteAccuracyForLevel(level),
     evasion: eliteEvasionForLevel(level),
-    attack: stats.attack,
+    attack,
     experience: stats.experience,
     gold: stats.gold,
     moveSpeed: ALTAR_BALANCE.eliteStats.moveSpeed,
@@ -123,9 +126,12 @@ export function resolveAltarEliteDefeat(state: SimulationState, monster: Monster
   removeAltarElite(state, monster.instanceId);
 }
 
-export function altarElitePreview(level: number): ReturnType<typeof altarEliteStatsForLevel> & { cost: number } {
+export function altarElitePreview(level: number, rebirthCount = 0): ReturnType<typeof altarEliteStatsForLevel> & { cost: number } {
+  const stats = altarEliteStatsForLevel(level);
   return {
-    ...altarEliteStatsForLevel(level),
+    ...stats,
+    maxHp: Math.max(1, Math.round(stats.maxHp * rebirthEnemyHpMultiplier(rebirthCount))),
+    attack: Math.max(0, Math.round(stats.attack * rebirthEnemyAttackMultiplier(rebirthCount))),
     cost: eliteSummonCost({
       blood: 0,
       level,
@@ -162,9 +168,9 @@ function spawnXNearPlayer(platform: Platform, playerX: number, eliteWidth: numbe
   return Math.max(platform.x + inset, Math.min(platform.x + platform.width - eliteWidth - inset, preferred));
 }
 
-function eliteDefenseForLevel(level: number): number {
+function eliteDefenseForLevel(level: number, rebirthCount = 0): number {
   const steps = Math.max(0, level - 1);
-  return Math.round(ALTAR_BALANCE.eliteStats.baseDefense * (1 + steps * ALTAR_BALANCE.eliteStats.defensePerLevel));
+  return Math.round(ALTAR_BALANCE.eliteStats.baseDefense * (1 + steps * ALTAR_BALANCE.eliteStats.defensePerLevel) * rebirthEnemyDefenseMultiplier(rebirthCount));
 }
 
 function eliteAccuracyForLevel(level: number): number {

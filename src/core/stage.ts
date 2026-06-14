@@ -5,6 +5,7 @@ import { STAGE_1, STAGES, type StageDefinition } from "../data/stages";
 import { createBossCombatState, createBossMonster } from "./boss";
 import { createDefaultClassCombatState } from "./class";
 import { createDefaultProgress } from "./progression";
+import { rebirthEnemyAttackMultiplier, rebirthEnemyHpMultiplier } from "./rebirthScaling";
 import { createDefaultRelicCombatState } from "./relics";
 import { createRngState, nextRandom } from "./rng";
 import { applyPlayerStats } from "./stats";
@@ -25,8 +26,8 @@ export function createInitialSimulation(
   const rewardRng = createRngState(seed ^ 0x9e3779b9);
   let nextEntityId = 1;
   const monsters = stage.isBoss
-    ? createStageBossMonsters(stage, platforms)
-    : createStageWaveMonsters(stage, platforms, wave, () => nextEntityId++, rng);
+    ? createStageBossMonsters(stage, platforms, progress.rebirth.count)
+    : createStageWaveMonsters(stage, platforms, wave, () => nextEntityId++, rng, progress.rebirth.count);
   const player = {
     position: {
       x: 28,
@@ -74,11 +75,11 @@ export function createInitialSimulation(
   };
 }
 
-function createStageBossMonsters(stage: StageDefinition, platforms: Platform[]): Monster[] {
+function createStageBossMonsters(stage: StageDefinition, platforms: Platform[], rebirthCount: number): Monster[] {
   const boss = BOSS_BY_STAGE[stage.id];
   if (boss) {
     const floor = getPlatformById(platforms, "floor") ?? platforms[0];
-    return [createBossMonster(boss.id, floor)];
+    return [createBossMonster(boss.id, floor, rebirthCount)];
   }
 
   return [];
@@ -105,6 +106,7 @@ export function createStageWaveMonsters(
   wave: WaveCycleState | null,
   nextId: () => number,
   rng: RngState,
+  rebirthCount = 0,
 ): Monster[] {
   if (!wave?.enabled || stage.isBoss) {
     return [];
@@ -128,7 +130,7 @@ export function createStageWaveMonsters(
     for (let i = 0; i < spawn.count; i += 1) {
       const x = spawnXOnPlatform(platform, definition, rng);
       const y = platform.y - definition.height;
-      const stats = normalMonsterStatsForStage(stage.id, definition);
+      const stats = normalMonsterStatsForStage(stage.id, definition, rebirthCount);
       monsters.push({
         instanceId: `w${wave.cycle}-${wave.currentWaveIndex}-${nextId()}`,
         monsterId: definition.id,
@@ -183,7 +185,7 @@ function spawnXOnPlatform(platform: Platform, definition: MonsterDefinition, rng
   return Math.round((minX + nextRandom(rng) * (maxX - minX)) * 100) / 100;
 }
 
-export function normalMonsterStatsForStage(stageId: number, definition: MonsterDefinition): Pick<Monster, "maxHp" | "attack" | "experience" | "gold"> {
+export function normalMonsterStatsForStage(stageId: number, definition: MonsterDefinition, rebirthCount = 0): Pick<Monster, "maxHp" | "attack" | "experience" | "gold"> {
   const chapter = Math.max(1, STAGES[stageId]?.chapter ?? 1);
   const chapterSteps = chapter - 1;
   const hpScale = 1 + chapterSteps * WAVE_BALANCE.chapterHpMultiplier;
@@ -191,8 +193,8 @@ export function normalMonsterStatsForStage(stageId: number, definition: MonsterD
   const rewardScale = 1 + chapterSteps * WAVE_BALANCE.chapterRewardMultiplier;
 
   return {
-    maxHp: Math.max(1, Math.round(definition.maxHp * hpScale)),
-    attack: Math.max(0, Math.round(definition.attack * attackScale)),
+    maxHp: Math.max(1, Math.round(definition.maxHp * hpScale * rebirthEnemyHpMultiplier(rebirthCount))),
+    attack: Math.max(0, Math.round(definition.attack * attackScale * rebirthEnemyAttackMultiplier(rebirthCount))),
     experience: Math.max(0, Math.round(definition.experience * rewardScale)),
     gold: Math.max(0, Math.round(definition.gold * rewardScale)),
   };

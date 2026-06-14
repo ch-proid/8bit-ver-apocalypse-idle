@@ -548,11 +548,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   debugRebirthNow: (ignoreGate: boolean) => {
     set((state) => {
       const simulation = cloneSimulation(state.simulation);
-      if (ignoreGate) {
-        simulation.progress = unlockRebirth(simulation.progress);
-      }
       return {
-        simulation: rebirthSimulation(simulation, Date.now()),
+        simulation: rebirthSimulation(simulation, Date.now(), ignoreGate),
       };
     });
   },

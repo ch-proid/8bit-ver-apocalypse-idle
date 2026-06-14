@@ -170,16 +170,21 @@ export const STAT_GROWTH = {
 } as const;
 
 export const REBIRTH_BALANCE = {
-  // TODO(Phase 7): Tune so level 40 wall -> rebirth -> fast rerun -> level 80 wall feels clear.
+  // TODO(Phase 7): Retune after level-retained rebirth loop has enough play data.
   resetStageId: PROGRESSION.initialStageId,
+  requiredStageId: 60,
+  requiredLevel: 40,
   maxRecords: 30,
   baseExperienceMultiplier: 1,
-  levelMultiplierDivisor: 220,
-  combatPowerMultiplierDivisor: 2400,
+  levelMultiplierDivisor: 1000,
+  combatPowerMultiplierDivisor: 100000,
   countMultiplierBonus: 0.04,
   permanentStrPerRebirth: 1,
   permanentGritPerRebirth: 1,
   permanentAgiPerRebirth: 1,
+  enemyHpMultiplierPerRebirth: 0.35,
+  enemyAttackMultiplierPerRebirth: 0.2,
+  enemyDefenseMultiplierPerRebirth: 0.12,
 } as const;
 
 export const COMBAT_POWER = {

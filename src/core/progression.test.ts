@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { EXPERIENCE_CURVE, nextExperienceForLevel, PLAYER_BALANCE, STAT_GROWTH } from "../data/balance";
+import { EXPERIENCE_CURVE, nextExperienceForLevel, PLAYER_BALANCE, REBIRTH_BALANCE, STAT_GROWTH } from "../data/balance";
 import { PLAYER_CLASSES } from "../data/classes";
+import { MONSTERS } from "../data/monsters";
+import { createAltarEliteMonster } from "./elites";
 import { createDefaultProgress, gainExperience, normalizeProgress } from "./progression";
-import { calculateRebirthExperienceMultiplier, rebirthSimulation } from "./rebirth";
-import { createInitialSimulation } from "./stage";
+import { calculateRebirthExperienceMultiplier, canRebirth, rebirthSimulation } from "./rebirth";
+import { createInitialSimulation, normalMonsterStatsForStage } from "./stage";
 import {
   applyLevelStatPoints,
   calculatePlayerStats,
@@ -91,20 +93,35 @@ describe("phase 3A progression", () => {
     expect(stats.evasion).toBeCloseTo(PLAYER_BALANCE.evasion * 1.25, 2);
   });
 
-  it("resets run progression on rebirth while preserving gold records and class choice", () => {
+  it("requires level 40 and stage 6-10 clear before rebirth", () => {
+    const state = createInitialSimulation(1);
+    state.progress.level = REBIRTH_BALANCE.requiredLevel - 1;
+    state.progress.stageProgress.clearedStages[REBIRTH_BALANCE.requiredStageId] = true;
+
+    expect(canRebirth(state.progress)).toBe(false);
+
+    state.progress.level = REBIRTH_BALANCE.requiredLevel;
+    expect(canRebirth(state.progress)).toBe(true);
+  });
+
+  it("resets only stage progression on rebirth while preserving level stats resources and records", () => {
     const state = createInitialSimulation(1);
     state.progress.classId = "assassin";
     state.progress.gold = 500;
     state.progress.crystal = 12;
-    state.progress.currentStage = 6;
+    state.progress.currentStage = REBIRTH_BALANCE.requiredStageId;
+    state.progress.stageProgress.unlockedStage = REBIRTH_BALANCE.requiredStageId;
+    state.progress.stageProgress.clearedStages[REBIRTH_BALANCE.requiredStageId] = true;
     state.progress.level = 43;
     state.progress.experience = 777;
     state.progress.nextExperience = nextExperienceForLevel(43);
-    state.progress.statDistribution = applyLevelStatPoints(
+    const distribution = applyLevelStatPoints(
       createDefaultStatDistribution("BAL"),
       STAT_GROWTH.pointsPerLevel * 4,
     );
-    state.progress.rebirth.canRebirth = true;
+    state.progress.statDistribution = distribution;
+
+    expect(canRebirth(state.progress)).toBe(true);
 
     const reborn = rebirthSimulation(state, 123456);
 
@@ -112,16 +129,18 @@ describe("phase 3A progression", () => {
     expect(reborn.progress.gold).toBe(500);
     expect(reborn.progress.crystal).toBe(12);
     expect(reborn.progress.currentStage).toBe(1);
-    expect(reborn.progress.level).toBe(1);
-    expect(reborn.progress.experience).toBe(0);
-    expect(reborn.progress.statDistribution).toEqual(createRecommendedStatDistribution("assassin"));
+    expect(reborn.progress.stageProgress.unlockedStage).toBe(1);
+    expect(reborn.progress.level).toBe(43);
+    expect(reborn.progress.experience).toBe(777);
+    expect(reborn.progress.nextExperience).toBe(nextExperienceForLevel(43));
+    expect(reborn.progress.statDistribution).toEqual(distribution);
     expect(reborn.progress.rebirth.count).toBe(1);
     expect(reborn.progress.rebirth.experienceMultiplier).toBeGreaterThan(1);
     expect(reborn.progress.rebirth.permanentStats.str).toBeGreaterThan(0);
     expect(reborn.progress.records.highestLevel).toEqual({ value: 43, updatedAt: 123456 });
-    expect(reborn.progress.records.highestRebirthStage).toEqual({ value: 6, updatedAt: 123456 });
+    expect(reborn.progress.records.highestRebirthStage).toEqual({ value: REBIRTH_BALANCE.requiredStageId, updatedAt: 123456 });
     expect(reborn.progress.rebirthRecords).toEqual([
-      { run: 1, reachedStage: 6, reachedLevel: 43, at: 123456 },
+      { run: 1, reachedStage: REBIRTH_BALANCE.requiredStageId, reachedLevel: 43, at: 123456 },
     ]);
   });
 
@@ -133,6 +152,30 @@ describe("phase 3A progression", () => {
 
     expect(state.progress.level).toBe(1);
     expect(state.progress.experience).toBe(20);
+  });
+
+  it("scales normal bosses and altar elites by rebirth count", () => {
+    const normalBase = normalMonsterStatsForStage(1, MONSTERS.wildDog, 0);
+    const normalReborn = normalMonsterStatsForStage(1, MONSTERS.wildDog, 3);
+
+    expect(normalReborn.maxHp).toBeGreaterThan(normalBase.maxHp);
+    expect(normalReborn.attack).toBeGreaterThan(normalBase.attack);
+    expect(normalReborn.gold).toBe(normalBase.gold);
+
+    const baseBoss = createInitialSimulation(10);
+    const rebornBossProgress = createDefaultProgress(10);
+    rebornBossProgress.rebirth.count = 3;
+    const rebornBoss = createInitialSimulation(10, rebornBossProgress);
+    expect(rebornBoss.world.monsters[0].maxHp).toBeGreaterThan(baseBoss.world.monsters[0].maxHp);
+    expect(rebornBoss.world.monsters[0].attack).toBeGreaterThan(baseBoss.world.monsters[0].attack);
+
+    const baseEliteState = createInitialSimulation(1);
+    const rebornEliteState = createInitialSimulation(1);
+    rebornEliteState.progress.rebirth.count = 3;
+    const baseElite = createAltarEliteMonster(baseEliteState);
+    const rebornElite = createAltarEliteMonster(rebornEliteState);
+    expect(rebornElite.maxHp).toBeGreaterThan(baseElite.maxHp);
+    expect(rebornElite.attack).toBeGreaterThan(baseElite.attack);
   });
 
   it("migrates missing class and old four-stat progression fields with current defaults", () => {

@@ -40,7 +40,7 @@ export function estimateOfflineHuntRates(progress: ProgressState): OfflineHuntRa
         continue;
       }
 
-      const stats = normalMonsterStatsForStage(stage.id, definition);
+      const stats = normalMonsterStatsForStage(stage.id, definition, progress.rebirth.count);
       waveHp += stats.maxHp * spawn.count;
       waveKills += spawn.count;
       cycleGold += stats.gold * spawn.count;

@@ -15,11 +15,12 @@ import { classCritProfile } from "../core/class";
 import { clampCombatAffixes } from "../core/combat";
 import { calculateCombatAffixStats, calculateEquipmentStats, enhancedBaseValue, equipmentDisplayName } from "../core/equipment";
 import { canRefreshShop, reawakeningCost, shopRefreshRemainingSeconds } from "../core/gold";
+import { canRebirth } from "../core/rebirth";
 import { compareEquipmentCombatScore, createBuildSnapshot, type EquipmentScoreComparison } from "../core/sim";
 import { combatPowerEstimate } from "../core/stats";
 import { equipmentUpgradeCost, equipmentUpgradeFailureChance } from "../core/upgrade";
 import type { ClassId, EquipmentItem, EquipmentStatKey, ItemOption, ItemRarity, ItemSlot, ProgressState, RelicGrade, RelicId, RelicInstance, StageFailureReport, StatKey } from "../core/types";
-import { AFFIX_BALANCE, ALTAR_BALANCE, DAMAGE_FORMULA, EQUIPMENT_BALANCE } from "../data/balance";
+import { AFFIX_BALANCE, ALTAR_BALANCE, DAMAGE_FORMULA, EQUIPMENT_BALANCE, REBIRTH_BALANCE } from "../data/balance";
 import { equipmentIconFor } from "../data/equipmentIcons";
 import { ITEM_SLOTS } from "../data/items";
 import { PLAYER_CLASSES } from "../data/classes";
@@ -177,6 +178,14 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
     classCrit.critChanceCap,
   );
   const combatPower = combatPowerEstimate(progress);
+  const rebirthUnlocked = canRebirth(progress);
+  const rebirthStageCleared = Boolean(
+    progress.stageProgress.clearedStages[REBIRTH_BALANCE.requiredStageId]
+      || progress.stageProgress.defeatedBossStages[REBIRTH_BALANCE.requiredStageId],
+  );
+  const rebirthConditionLabel = rebirthUnlocked
+    ? "달성"
+    : `6-10 ${rebirthStageCleared ? "완료" : "미완"} / LV ${progress.level}/${REBIRTH_BALANCE.requiredLevel}`;
   const autoDistributionEnabled = progress.statDistribution.preset !== "MANUAL";
   const critChanceBase = Math.min(classCrit.critChanceCap, classCrit.critChanceBonus);
   const critChanceTotal = Math.min(classCrit.critChanceCap, combatAffixes.critChance + classCrit.critChanceBonus);
@@ -199,8 +208,8 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
     { label: "피해감소%", value: <SplitValue base={0} extra={combatAffixes.damageReduction} suffix="%" /> },
     { label: "체력회복", value: <SplitValue base={player.hpRegen - directStatBonus.reg} extra={directStatBonus.reg} /> },
   ];
-  const elitePreview = altarElitePreview(progress.altar.level);
-  const nextElitePreview = altarElitePreview(progress.altar.level + 1);
+  const elitePreview = altarElitePreview(progress.altar.level, progress.rebirth.count);
+  const nextElitePreview = altarElitePreview(progress.altar.level + 1, progress.rebirth.count);
   const hasRelicOwnedStats = relicOwnedStats.atk > 0 || relicOwnedStats.hp > 0 || relicOwnedStats.def > 0 || relicOwnedStats.reg > 0;
   const equippedRelic = bestRelicInstance(progress.altar, progress.altar.equippedRelicId);
   const [equipmentPopup, setEquipmentPopup] = useState<EquipmentPopupState | null>(null);
@@ -430,24 +439,23 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
 
       <Panel open={activePanel === "rebirth"} label="환생">
         <div className="statbar rich">
-          <span>현재 {progress.rebirth.count + 1}회차</span>
           <span>환생 {progress.rebirth.count}회</span>
           <span className="bloodc">x{progress.rebirth.experienceMultiplier.toFixed(2)}</span>
         </div>
 
         <Win title="환생">
-          <MenuItem label="현재 회차" value={`${progress.rebirth.count + 1}회차`} />
           <MenuItem label="환생 횟수" value={`${progress.rebirth.count}회`} />
           <MenuItem label="현재 배율" value={`x${progress.rebirth.experienceMultiplier.toFixed(2)}`} valueClassName="bloodc" />
+          <MenuItem label="영구 스탯" value={`힘 +${progress.rebirth.permanentStats.str} / 근성 +${progress.rebirth.permanentStats.grit} / 민첩 +${progress.rebirth.permanentStats.agi}`} />
           <MenuItem
             label="해금 조건"
-            value={progress.rebirth.canRebirth ? "달성" : "루시안 처치 필요"}
-            valueClassName={progress.rebirth.canRebirth ? "goldc kr" : "bloodc kr"}
+            value={rebirthConditionLabel}
+            valueClassName={rebirthUnlocked ? "goldc kr" : "bloodc kr"}
           />
           <button
             type="button"
-            className={progress.rebirth.canRebirth ? "inv-vid" : "inv-vid off"}
-            disabled={!progress.rebirth.canRebirth}
+            className={rebirthUnlocked ? "inv-vid" : "inv-vid off"}
+            disabled={!rebirthUnlocked}
             onClick={rebirthNow}
           >
             <span className="cur">&#9654;</span>환생하기

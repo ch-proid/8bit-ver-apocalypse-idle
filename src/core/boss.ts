@@ -7,6 +7,7 @@ import { rollPlayerEvasion } from "./combat";
 import { rollBossDrop } from "./drop";
 import { addItemToInventory } from "./inventory";
 import { addDropIcon, grantRewards } from "./progression";
+import { rebirthEnemyAttackMultiplier, rebirthEnemyDefenseMultiplier, rebirthEnemyHpMultiplier } from "./rebirthScaling";
 import { clearBossStage, continueAutoChallenge } from "./stageProgress";
 import type { BossCombatState, BossId, Monster, Platform, ProgressState, SimulationState, WorldState } from "./types";
 
@@ -36,8 +37,11 @@ export function createBossCombatState(bossId: BossId, stageId: number): BossComb
   };
 }
 
-export function createBossMonster(bossId: BossId, platform: Platform): Monster {
+export function createBossMonster(bossId: BossId, platform: Platform, rebirthCount = 0): Monster {
   const definition = BOSS_DEFINITIONS[bossId];
+  const maxHp = Math.max(1, Math.round(definition.maxHp * rebirthEnemyHpMultiplier(rebirthCount)));
+  const attack = Math.max(0, Math.round(definition.attack * rebirthEnemyAttackMultiplier(rebirthCount)));
+  const defense = scaledBossDefense(bossId, rebirthCount);
   return {
     instanceId: `boss-${bossId}`,
     monsterId: bossId,
@@ -49,13 +53,13 @@ export function createBossMonster(bossId: BossId, platform: Platform): Monster {
     platformId: platform.id,
     width: 24,
     height: 24,
-    hp: definition.maxHp,
-    maxHp: definition.maxHp,
-    defense: definition.defense,
+    hp: maxHp,
+    maxHp,
+    defense,
     damageReduction: 0,
     accuracy: bossAccuracy(definition.chapter),
     evasion: bossEvasion(definition.chapter),
-    attack: definition.attack,
+    attack,
     experience: definition.experience,
     gold: definition.gold,
     moveSpeed: 0,
@@ -130,10 +134,6 @@ export function resolveBossDefeat(state: SimulationState, boss: Monster): void {
 
   const definition = BOSS_DEFINITIONS[boss.bossId];
   state.progress.altar.bossDefeated[definition.sin] = true;
-
-  if (boss.bossId === "lucian") {
-    state.progress.rebirth.canRebirth = true;
-  }
 
   state.world.boss = null;
   continueAutoChallenge(state.progress);
@@ -274,7 +274,7 @@ function updateAzar(state: SimulationState, bossState: BossCombatState, dt: numb
     bossState.permanentMark = true;
     bossState.playerMarked = true;
     bossState.markTimer = Number.POSITIVE_INFINITY;
-    boss.defense = Math.floor(BOSS_DEFINITIONS.azar.defense * BOSS_BALANCE.azar.phaseTwoDefenseMultiplier);
+    boss.defense = Math.floor(scaledBossDefense("azar", state.progress.rebirth.count) * BOSS_BALANCE.azar.phaseTwoDefenseMultiplier);
     bossState.lastEvent = "AZAR_PHASE_TWO";
     return;
   }
@@ -386,6 +386,8 @@ function summonLucianWraiths(state: SimulationState, count: number): void {
   for (let i = 0; i < toSpawn; i += 1) {
     const x = baseX - 18 + i * 18;
     const y = baseY + 8;
+    const summonHp = Math.max(1, Math.round(BOSS_BALANCE.lucian.wraithHp * rebirthEnemyHpMultiplier(state.progress.rebirth.count)));
+    const summonAttack = Math.max(0, Math.round(BOSS_BALANCE.lucian.wraithAttack * rebirthEnemyAttackMultiplier(state.progress.rebirth.count)));
     state.world.monsters.push({
       instanceId: `lw${state.world.nextEntityId++}`,
       monsterId: definition.id,
@@ -397,13 +399,13 @@ function summonLucianWraiths(state: SimulationState, count: number): void {
       platformId,
       width: definition.width,
       height: definition.height,
-      hp: BOSS_BALANCE.lucian.wraithHp,
-      maxHp: BOSS_BALANCE.lucian.wraithHp,
+      hp: summonHp,
+      maxHp: summonHp,
       defense: 0,
       damageReduction: 0,
       accuracy: definition.accuracy,
       evasion: definition.evasion,
-      attack: BOSS_BALANCE.lucian.wraithAttack,
+      attack: summonAttack,
       experience: BOSS_BALANCE.lucian.wraithExperience,
       gold: BOSS_BALANCE.lucian.wraithGold,
       moveSpeed: definition.moveSpeed,
@@ -464,6 +466,8 @@ function summonMarcelaSeeds(state: SimulationState, count: number): void {
   for (let i = 0; i < toSpawn; i += 1) {
     const x = baseX - 18 + i * 12;
     const y = baseY + 14;
+    const seedHp = Math.max(1, Math.round(BOSS_BALANCE.marcela.seedHp * rebirthEnemyHpMultiplier(state.progress.rebirth.count)));
+    const seedAttack = Math.max(0, Math.round(BOSS_BALANCE.marcela.seedAttack * rebirthEnemyAttackMultiplier(state.progress.rebirth.count)));
     state.world.monsters.push({
       instanceId: `ms${state.world.nextEntityId++}`,
       monsterId: definition.id,
@@ -475,13 +479,13 @@ function summonMarcelaSeeds(state: SimulationState, count: number): void {
       platformId,
       width: definition.width,
       height: definition.height,
-      hp: BOSS_BALANCE.marcela.seedHp,
-      maxHp: BOSS_BALANCE.marcela.seedHp,
+      hp: seedHp,
+      maxHp: seedHp,
       defense: 0,
       damageReduction: 0,
       accuracy: definition.accuracy,
       evasion: definition.evasion,
-      attack: BOSS_BALANCE.marcela.seedAttack,
+      attack: seedAttack,
       experience: 0,
       gold: 0,
       moveSpeed: definition.moveSpeed,
@@ -582,4 +586,8 @@ function bossAccuracy(chapter: number): number {
 
 function bossEvasion(chapter: number): number {
   return BOSS_BALANCE.common.evasionBase + Math.max(0, chapter - 1) * BOSS_BALANCE.common.evasionPerChapter;
+}
+
+function scaledBossDefense(bossId: BossId, rebirthCount: number): number {
+  return Math.max(0, Math.round(BOSS_DEFINITIONS[bossId].defense * rebirthEnemyDefenseMultiplier(rebirthCount)));
 }

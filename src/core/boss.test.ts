@@ -4,6 +4,7 @@ import { BOSS_DEFINITIONS } from "../data/bosses";
 import { STAGES } from "../data/stages";
 import { rollSlotForStage } from "./drop";
 import { createDefaultProgress } from "./progression";
+import { canRebirth } from "./rebirth";
 import { createRngState } from "./rng";
 import { calculateCombatScore, createBuildSnapshot } from "./sim";
 import { createInitialSimulation } from "./stage";
@@ -87,7 +88,7 @@ describe("phase 3E stages and Lucian boss", () => {
     expect(target?.role).toBe("bossSummon");
   });
 
-  it("blocks weak DPS but lets strong DPS kill Lucian and unlock rebirth plus pride gate", () => {
+  it("blocks weak DPS but lets strong DPS kill Lucian and unlock the pride gate only", () => {
     let weak = createLucianState(0, 10);
     for (let i = 0; i < TICK_RATE * 70; i += 1) {
       weak = stepSimulation(weak, FIXED_DELTA);
@@ -99,7 +100,8 @@ describe("phase 3E stages and Lucian boss", () => {
       strong = stepSimulation(strong, FIXED_DELTA);
     }
 
-    expect(strong.progress.rebirth.canRebirth).toBe(true);
+    expect(strong.progress.rebirth.canRebirth).toBe(false);
+    expect(canRebirth(strong.progress)).toBe(false);
     expect(strong.progress.altar.bossDefeated.pride).toBe(true);
     expect(strong.progress.stageProgress.defeatedBossStages[10]).toBe(true);
   });
