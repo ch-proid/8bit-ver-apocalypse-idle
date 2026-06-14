@@ -19,6 +19,13 @@ export interface PlayerSpriteAsset extends PixelSpriteAsset {
   projectileFrameIndex?: number;
 }
 
+export interface StageMapAsset {
+  backgroundPath: string;
+  terrainPath?: string;
+  width: number;
+  height: number;
+}
+
 export const PLAYER_CLASS_ASSETS: Record<ClassId, PlayerSpriteAsset> = {
   assassin: {
     path: "/assets/classes/thief.png",
@@ -65,14 +72,43 @@ export const PLAYER_CLASS_ASSETS: Record<ClassId, PlayerSpriteAsset> = {
   },
 } as const;
 
-export const STAGE_MAP_ASSETS = {
+export const STAGE_MAP_ASSETS: Record<string, StageMapAsset> = {
   stage1: {
     backgroundPath: "/assets/map/Stage01/Stage01_map_bg.png",
     terrainPath: "/assets/map/Stage01/Stage01_map.png",
     width: 320,
     height: 144,
   },
+  stage2: {
+    backgroundPath: "/assets/map/Stage02/Stage02_map_bg.png",
+    terrainPath: "/assets/map/Stage02/Stage02_map.png",
+    width: 320,
+    height: 144,
+  },
+  stage3: {
+    backgroundPath: "/assets/map/Stage03/Stage03_map_bg.png",
+    terrainPath: "/assets/map/Stage03/Stage03_map.png",
+    width: 320,
+    height: 144,
+  },
+  stage4: {
+    backgroundPath: "/assets/map/Stage04/Stage04_map_bg.png",
+    terrainPath: "/assets/map/Stage04/Stage04_map.png",
+    width: 320,
+    height: 144,
+  },
+  stage5: {
+    backgroundPath: "/assets/map/Stage05/Stage05_map_bg.png",
+    terrainPath: "/assets/map/Stage05/Stage05_map.png",
+    width: 320,
+    height: 144,
+  },
 } as const;
+
+export function stageMapAssetForStage(stageId: number): StageMapAsset | null {
+  const chapter = Math.max(1, Math.ceil(stageId / 10));
+  return STAGE_MAP_ASSETS[`stage${chapter}`] ?? null;
+}
 
 export const MONSTER_ASSETS: Record<string, PixelSpriteAsset> = {
   "monster.stage1.wildDog": {

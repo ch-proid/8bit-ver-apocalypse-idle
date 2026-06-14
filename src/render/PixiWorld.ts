@@ -10,7 +10,14 @@ import {
   Texture,
   type ColorSource,
 } from "pixi.js";
-import { MONSTER_ASSETS, PLAYER_CLASS_ASSETS, STAGE_MAP_ASSETS, type PixelSpriteAsset, type PlayerSpriteAsset } from "../data/assets";
+import {
+  MONSTER_ASSETS,
+  PLAYER_CLASS_ASSETS,
+  stageMapAssetForStage,
+  type PixelSpriteAsset,
+  type PlayerSpriteAsset,
+  type StageMapAsset,
+} from "../data/assets";
 import {
   DROP_ICON_FRAMES,
   DROP_ICON_SHEETS,
@@ -80,6 +87,8 @@ export class PixiWorld {
   private dropIconLayer = new Container();
   private stageBackgroundSprite: Sprite | null = null;
   private stageTerrainSprite: Sprite | null = null;
+  private stageMapKey: string | null = null;
+  private loadingStageMapKey: string | null = null;
   private platforms = new Graphics();
   private playerFallback = new Graphics();
   private playerHpBar = new Graphics();
@@ -135,7 +144,6 @@ export class PixiWorld {
     this.world.addChild(this.playerHpBar);
     this.world.addChild(this.dropIconLayer);
 
-    void this.loadStageMap(app);
     void this.loadDropIcons(app);
   }
 
@@ -151,6 +159,8 @@ export class PixiWorld {
     }
     this.stageBackgroundSprite = null;
     this.stageTerrainSprite = null;
+    this.stageMapKey = null;
+    this.loadingStageMapKey = null;
     this.playerSprite = null;
     this.playerClassId = null;
     this.loadingPlayerClassId = null;
@@ -180,6 +190,7 @@ export class PixiWorld {
     }
 
     this.updateDisplayState(simulation);
+    this.requestStageMap(simulation.progress.currentStage);
     this.requestPlayerSprite(simulation.progress.classId);
 
     const dmgMode = options.dmgMode === true;
@@ -238,26 +249,74 @@ export class PixiWorld {
     }
   }
 
-  private async loadStageMap(app: Application): Promise<void> {
+  private requestStageMap(stageId: number): void {
+    const app = this.app;
+    if (!app) {
+      return;
+    }
+
+    const chapter = Math.max(1, Math.ceil(stageId / 10));
+    const mapKey = `stage${chapter}`;
+    if (this.stageMapKey === mapKey || this.loadingStageMapKey === mapKey) {
+      return;
+    }
+
+    const asset = stageMapAssetForStage(stageId);
+    if (!asset) {
+      this.loadingStageMapKey = null;
+      this.clearStageMap(mapKey);
+      return;
+    }
+
+    void this.loadStageMap(app, mapKey, asset);
+  }
+
+  private async loadStageMap(app: Application, mapKey: string, asset: StageMapAsset): Promise<void> {
+    this.loadingStageMapKey = mapKey;
     try {
       const [backgroundTexture, terrainTexture] = await Promise.all([
-        Assets.load<Texture>(STAGE_MAP_ASSETS.stage1.backgroundPath),
-        Assets.load<Texture>(STAGE_MAP_ASSETS.stage1.terrainPath),
+        Assets.load<Texture>(asset.backgroundPath),
+        asset.terrainPath ? Assets.load<Texture>(asset.terrainPath) : Promise.resolve(null),
       ]);
-      if (this.app !== app) {
+      if (this.app !== app || this.loadingStageMapKey !== mapKey) {
         return;
       }
 
+      this.clearStageMap();
       this.stageBackgroundSprite = new Sprite(backgroundTexture);
-      this.stageTerrainSprite = new Sprite(terrainTexture);
+      this.stageTerrainSprite = terrainTexture ? new Sprite(terrainTexture) : null;
       this.stageBackgroundSprite.roundPixels = true;
-      this.stageTerrainSprite.roundPixels = true;
+      this.stageBackgroundSprite.width = asset.width;
+      this.stageBackgroundSprite.height = asset.height;
       this.world.addChildAt(this.stageBackgroundSprite, 0);
-      this.world.addChildAt(this.stageTerrainSprite, 2);
+      if (this.stageTerrainSprite) {
+        this.stageTerrainSprite.roundPixels = true;
+        this.stageTerrainSprite.width = asset.width;
+        this.stageTerrainSprite.height = asset.height;
+        this.world.addChildAt(this.stageTerrainSprite, 2);
+      }
+      this.stageMapKey = mapKey;
     } catch {
-      this.stageBackgroundSprite = null;
-      this.stageTerrainSprite = null;
+      this.clearStageMap(mapKey);
+    } finally {
+      if (this.loadingStageMapKey === mapKey) {
+        this.loadingStageMapKey = null;
+      }
     }
+  }
+
+  private clearStageMap(mapKey: string | null = null): void {
+    if (this.stageBackgroundSprite) {
+      this.world.removeChild(this.stageBackgroundSprite);
+      this.stageBackgroundSprite.destroy();
+    }
+    if (this.stageTerrainSprite) {
+      this.world.removeChild(this.stageTerrainSprite);
+      this.stageTerrainSprite.destroy();
+    }
+    this.stageBackgroundSprite = null;
+    this.stageTerrainSprite = null;
+    this.stageMapKey = mapKey;
   }
 
   private async loadDropIcons(app: Application): Promise<void> {
