@@ -13,7 +13,7 @@ import {
 import { altarElitePreview } from "../core/elites";
 import { classCritProfile } from "../core/class";
 import { clampCombatAffixes } from "../core/combat";
-import { calculateCombatAffixStats, enhancedBaseValue } from "../core/equipment";
+import { calculateCombatAffixStats, calculateEquipmentStats, enhancedBaseValue } from "../core/equipment";
 import { reawakeningCost } from "../core/gold";
 import { compareEquipmentCombatScore, createBuildSnapshot, type EquipmentScoreComparison } from "../core/sim";
 import { combatPowerEstimate } from "../core/stats";
@@ -160,33 +160,44 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
   const skin = SURVIVOR_SKINS.find((entry) => entry.id === currentClassId) ?? SURVIVOR_SKINS[0];
   const classDef = PLAYER_CLASSES[currentClassId];
   const classCrit = classCritProfile(progress);
+  const equipmentStats = calculateEquipmentStats(progress.inventory.equipped);
+  const relicOwnedStats = calculateRelicOwnedStats(progress.altar);
+  const directStatBonus = {
+    atk: equipmentStats.atk + relicOwnedStats.atk,
+    def: equipmentStats.def + relicOwnedStats.def,
+    hp: equipmentStats.hp + relicOwnedStats.hp,
+    reg: equipmentStats.reg + relicOwnedStats.reg,
+  };
   const combatAffixes = clampCombatAffixes(
     calculateCombatAffixStats(progress.inventory.equipped),
     classCrit.critChanceCap,
   );
   const combatPower = combatPowerEstimate(progress);
   const autoDistributionEnabled = progress.statDistribution.preset !== "MANUAL";
+  const critChanceBase = Math.min(classCrit.critChanceCap, classCrit.critChanceBonus);
+  const critChanceTotal = Math.min(classCrit.critChanceCap, combatAffixes.critChance + classCrit.critChanceBonus);
+  const critDamageBase = Math.round(DAMAGE_FORMULA.defaultCritDamage * 100 + classCrit.critDamageBonus);
+  const experienceGainBonus = Math.max(0, Math.round((progress.rebirth.experienceMultiplier - 1) * 100));
   const abilityRows = [
-    { label: "체력", value: formatNumber(player.maxHp) },
-    { label: "공격력", value: formatNumber(player.attack) },
-    { label: "방어력", value: formatNumber(player.defense) },
-    { label: "회피력", value: formatNumber(player.evasion) },
-    { label: "치명확률", value: `${Math.min(classCrit.critChanceCap, combatAffixes.critChance + classCrit.critChanceBonus)}%` },
-    { label: "치명피해", value: `${Math.round(DAMAGE_FORMULA.defaultCritDamage * 100 + combatAffixes.critDamage + classCrit.critDamageBonus)}%` },
-    { label: "데미지증가", value: `${combatAffixes.damageIncrease}%` },
-    { label: "공격속도", value: `${combatAffixes.attackSpeed}%` },
-    { label: "최종피해", value: `${combatAffixes.finalDamage}%` },
-    { label: "방어관통", value: formatNumber(combatAffixes.defPenetration) },
-    { label: "흡혈", value: `${combatAffixes.lifeSteal}%` },
-    { label: "골드획득", value: `${combatAffixes.goldGain}%` },
-    { label: "피해감소", value: `${combatAffixes.damageReduction}%` },
-    { label: "체력회복", value: formatNumber(player.hpRegen) },
-    { label: "공격사거리", value: formatNumber(player.attackRange) },
-    { label: "공격간격", value: `${player.attackCooldown.toFixed(2)}초` },
+    { label: "체력", value: <SplitValue base={player.maxHp - directStatBonus.hp} extra={directStatBonus.hp} /> },
+    { label: "공격력", value: <SplitValue base={player.attack - directStatBonus.atk} extra={directStatBonus.atk} /> },
+    { label: "방어력", value: <SplitValue base={player.defense - directStatBonus.def} extra={directStatBonus.def} /> },
+    { label: "회피력", value: <SplitValue base={player.evasion} /> },
+    { label: "치명확률%", value: <SplitValue base={critChanceBase} extra={critChanceTotal - critChanceBase} suffix="%" /> },
+    { label: "치명피해%", value: <SplitValue base={critDamageBase} extra={combatAffixes.critDamage} suffix="%" /> },
+    { label: "데미지증가%", value: <SplitValue base={0} extra={combatAffixes.damageIncrease} suffix="%" /> },
+    { label: "공격속도%", value: <SplitValue base={0} extra={combatAffixes.attackSpeed} suffix="%" /> },
+    { label: "경험치획득%", value: <SplitValue base={100} extra={experienceGainBonus} suffix="%" /> },
+    { label: "최종피해%", value: <SplitValue base={0} extra={combatAffixes.finalDamage} suffix="%" /> },
+    { label: "방어관통", value: <SplitValue base={0} extra={combatAffixes.defPenetration} /> },
+    { label: "흡혈%", value: <SplitValue base={0} extra={combatAffixes.lifeSteal} suffix="%" /> },
+    { label: "골드획득%", value: <SplitValue base={0} extra={combatAffixes.goldGain} suffix="%" /> },
+    { label: "피해감소%", value: <SplitValue base={0} extra={combatAffixes.damageReduction} suffix="%" /> },
+    { label: "체력회복", value: <SplitValue base={player.hpRegen - directStatBonus.reg} extra={directStatBonus.reg} /> },
   ];
   const elitePreview = altarElitePreview(progress.altar.level);
   const nextElitePreview = altarElitePreview(progress.altar.level + 1);
-  const relicOwnedStats = calculateRelicOwnedStats(progress.altar);
+  const hasRelicOwnedStats = relicOwnedStats.atk > 0 || relicOwnedStats.hp > 0 || relicOwnedStats.def > 0 || relicOwnedStats.reg > 0;
   const equippedRelic = bestRelicInstance(progress.altar, progress.altar.equippedRelicId);
   const [equipmentPopup, setEquipmentPopup] = useState<EquipmentPopupState | null>(null);
   const [relicPopup, setRelicPopup] = useState<RelicPopupState | null>(null);
@@ -343,7 +354,7 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
               <MenuItem
                 key={key}
                 label={STAT_LABELS[key]}
-                value={formatNumber(progress.statDistribution.assigned[key])}
+                value={<SplitValue base={progress.statDistribution.assigned[key]} extra={progress.rebirth.permanentStats[key]} />}
                 action={(
                   <button
                     type="button"
@@ -380,6 +391,19 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
               <MenuItem key={row.label} label={row.label} value={row.value} />
             ))}
           </div>
+        </Win>
+
+        <Win title="유물 능력치">
+          {hasRelicOwnedStats ? (
+            <div className="ability-list">
+              {relicOwnedStats.atk > 0 ? <MenuItem label="공격력" value={<BonusValue value={relicOwnedStats.atk} />} /> : null}
+              {relicOwnedStats.hp > 0 ? <MenuItem label="체력" value={<BonusValue value={relicOwnedStats.hp} />} /> : null}
+              {relicOwnedStats.def > 0 ? <MenuItem label="방어력" value={<BonusValue value={relicOwnedStats.def} />} /> : null}
+              {relicOwnedStats.reg > 0 ? <MenuItem label="체력회복" value={<BonusValue value={relicOwnedStats.reg} />} /> : null}
+            </div>
+          ) : (
+            <p className="empty-note kr">유물을 착용하고 있지 않습니다</p>
+          )}
         </Win>
 
       </Panel>
@@ -635,6 +659,25 @@ function MenuItem({
       <span className={valueClassName ? `v ${valueClassName}` : "v"}>{value}</span>
       {action}
     </div>
+  );
+}
+
+function SplitValue({ base, extra = 0, suffix = "" }: { base: number; extra?: number; suffix?: string }) {
+  const safeBase = Math.max(0, base);
+  const safeExtra = Math.max(0, extra);
+  return (
+    <span className="split-value">
+      <span>{formatNumber(safeBase)}{suffix}</span>
+      {safeExtra > 0 ? <span className="bonus">+{formatNumber(safeExtra)}{suffix}</span> : null}
+    </span>
+  );
+}
+
+function BonusValue({ value, suffix = "" }: { value: number; suffix?: string }) {
+  return (
+    <span className="split-value">
+      <span className="bonus">+{formatNumber(value)}{suffix}</span>
+    </span>
   );
 }
 

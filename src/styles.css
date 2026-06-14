@@ -526,6 +526,18 @@ button {
   white-space: nowrap;
 }
 
+.split-value {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  white-space: nowrap;
+}
+
+.split-value .bonus {
+  color: var(--accent);
+}
+
 .v.thin {
   max-width: 142px;
   overflow: hidden;
@@ -618,9 +630,6 @@ button {
 
 .stat-profile {
   flex: 0 0 auto;
-  position: sticky;
-  top: 0;
-  z-index: 1;
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr);
   gap: 8px;
@@ -646,6 +655,13 @@ button {
 .ability-list {
   display: grid;
   grid-template-columns: 1fr;
+}
+
+.empty-note {
+  margin: 0;
+  color: var(--mid);
+  font-size: 9px;
+  font-weight: 700;
 }
 
 .preset-row {
