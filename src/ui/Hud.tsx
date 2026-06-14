@@ -270,15 +270,16 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
   const gearItems = useMemo(() => progress.inventory.items.slice(0, 24), [progress.inventory.items]);
   const shopCanRefresh = canRefreshShop(progress, world.elapsed);
   const shopRefreshRemain = shopRefreshRemainingSeconds(progress, world.elapsed);
-  const upgradeItemIds = useMemo(() => {
+  const equipmentScoreDeltas = useMemo(() => {
     if (activePanel !== "gear" || gearItems.length <= 0) {
-      return new Set<string>();
+      return new Map<string, number>();
     }
     const snapshot = createBuildSnapshot(progress);
-    return new Set(
-      gearItems
-        .filter((item) => compareEquipmentCombatScore(snapshot, item, { durationSeconds: 8 }).delta > 0)
-        .map((item) => item.id),
+    return new Map(
+      gearItems.map((item) => [
+        item.id,
+        compareEquipmentCombatScore(snapshot, item, { durationSeconds: 8 }).delta,
+      ]),
     );
   }, [activePanel, gearItems, progress]);
   const popupEntry = equipmentPopup ? findEquipmentEntry(progress, equipmentPopup.itemId) : null;
@@ -551,13 +552,17 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
         </div>
 
         <Win title="착용">
-          <div className="slots">
+          <div className="equipment-list equipped-list">
             {ITEM_SLOTS.map((slot) => (
-              <EquipmentSlot
+              <EquipmentListRow
                 key={slot}
                 slot={slot}
                 item={progress.inventory.equipped[slot]}
                 classId={currentClassId}
+                location="equipped"
+                selectionMode={false}
+                selected={false}
+                onToggleSelect={toggleDisassembleItem}
                 onCompare={openEquipmentPopup}
               />
             ))}
@@ -565,22 +570,22 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
         </Win>
 
         <Win title="가방">
-          <div className="grid6">
+          <div className="equipment-list inventory-list">
             {gearItems.map((item) => (
-              <ItemCell
+              <EquipmentListRow
                 key={item.id}
                 item={item}
+                slot={item.slot}
                 classId={currentClassId}
-                isUpgrade={upgradeItemIds.has(item.id)}
+                location="inventory"
+                scoreDelta={equipmentScoreDeltas.get(item.id) ?? 0}
                 selectionMode={disassembleMode}
                 selected={selectedDisassembleIds.includes(item.id)}
                 onToggleSelect={toggleDisassembleItem}
                 onCompare={openEquipmentPopup}
               />
             ))}
-            {Array.from({ length: Math.max(0, 24 - Math.min(24, progress.inventory.items.length)) }).map((_, index) => (
-              <span key={`empty-${index}`} className="cell off" />
-            ))}
+            {gearItems.length <= 0 ? <p className="empty-note kr">媛諛⑹씠 鍮꾩뿀?듬땲??</p> : null}
           </div>
           <div className="gear-actions wide">
             <button type="button" className="inv-vid" onClick={handleDisassembleButton}>
@@ -946,6 +951,75 @@ function ItemCell({
       <b>+{item.upgradeLevel}</b>
       {label ? <small>{label}</small> : null}
     </button>
+  );
+}
+
+function EquipmentListRow({
+  slot,
+  item,
+  classId,
+  location,
+  scoreDelta = 0,
+  selectionMode,
+  selected,
+  onToggleSelect,
+  onCompare,
+}: {
+  slot: ItemSlot;
+  item: EquipmentItem | null;
+  classId: ClassId;
+  location: "equipped" | "inventory";
+  scoreDelta?: number;
+  selectionMode: boolean;
+  selected: boolean;
+  onToggleSelect: (itemId: string) => void;
+  onCompare: (item: EquipmentItem) => void;
+}) {
+  const canOpen = Boolean(item);
+  const rowName = item ? `${equipmentDisplayName(item)} +${item.upgradeLevel}` : `${slotLabel(slot)} 비어 있음`;
+  const delta = Math.round(scoreDelta);
+
+  return (
+    <button
+      type="button"
+      className={`${item ? `equipment-row ${rarityClass(item.rarity)}` : "equipment-row off"}${selected ? " selected" : ""}`}
+      aria-label={rowName}
+      disabled={!canOpen}
+      onClick={() => {
+        if (!item) {
+          return;
+        }
+        if (selectionMode && location === "inventory") {
+          onToggleSelect(item.id);
+          return;
+        }
+        onCompare(item);
+      }}
+    >
+      <span className="equipment-row-icon">
+        <img className="equip-icon" src={equipmentIconFor(classId, slot)} alt="" />
+      </span>
+      <span className="equipment-row-main">
+        <span className="equipment-row-name">{rowName}</span>
+        <small>{item ? equipmentKindLabel(item) : slotLabel(slot)}</small>
+      </span>
+      {selectionMode && location === "inventory" ? <span className="equipment-row-select">{selected ? "◆" : "◇"}</span> : null}
+      <EquipmentScoreDelta delta={location === "inventory" ? delta : 0} hidden={location === "equipped"} />
+    </button>
+  );
+}
+
+function EquipmentScoreDelta({ delta, hidden = false }: { delta: number; hidden?: boolean }) {
+  if (hidden || delta === 0) {
+    return <span className="equipment-row-delta" aria-hidden="true" />;
+  }
+
+  const direction = delta > 0 ? "up" : "down";
+  return (
+    <span className={`equipment-row-delta ${direction}`}>
+      <i className={`compare-marker ${direction}`} aria-hidden="true" />
+      {formatCompact(Math.abs(delta))}
+    </span>
   );
 }
 
