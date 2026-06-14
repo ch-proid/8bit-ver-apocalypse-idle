@@ -220,20 +220,21 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
   const critDamageBonusTotal = Math.round((DAMAGE_FORMULA.defaultCritDamage - 1) * 100 + classCrit.critDamageBonus);
   const abilityRows = [
     { label: "체력", value: formatNumber(player.maxHp) },
+    { label: "체력회복", value: formatNumber(player.hpRegen) },
     { label: "공격력", value: formatNumber(player.attack) },
     { label: "방어력", value: formatNumber(player.defense) },
     { label: "회피력", value: formatNumber(player.evasion) },
     { label: "치명확률%", value: `${formatNumberLike(critChanceTotal)}%` },
     { label: "치명피해%", value: `${formatNumberLike(critDamageBonusTotal + combatAffixes.critDamage)}%` },
     { label: "데미지증가%", value: `${formatNumberLike(combatAffixes.damageIncrease)}%` },
-    { label: "공격속도%", value: `${formatNumberLike(combatAffixes.attackSpeed)}%` },
     { label: "최종피해%", value: `${formatNumberLike(combatAffixes.finalDamage)}%` },
+    { label: "공격속도%", value: `${formatNumberLike(combatAffixes.attackSpeed)}%` },
+    { label: "이동속도", value: formatNumberLike(player.moveSpeed) },
     { label: "방어관통", value: formatNumberLike(combatAffixes.defPenetration) },
     { label: "흡혈%", value: `${formatNumberLike(combatAffixes.lifeSteal)}%` },
+    { label: "피해감소%", value: `${formatNumberLike(combatAffixes.damageReduction)}%` },
     { label: "골드획득%", value: `${formatNumberLike(combatAffixes.goldGain)}%` },
     { label: "경험치획득%", value: `${formatNumberLike(combatAffixes.experienceGain)}%` },
-    { label: "피해감소%", value: `${formatNumberLike(combatAffixes.damageReduction)}%` },
-    { label: "체력회복", value: formatNumber(player.hpRegen) },
   ];
   const elitePreview = altarElitePreview(progress.altar.level, progress.rebirth.count);
   const nextElitePreview = altarElitePreview(progress.altar.level + 1, progress.rebirth.count);
