@@ -1,3 +1,9 @@
+@font-face {
+  font-family: "Galmuri7";
+  src: url("/assets/font/Galmuri7.woff2") format("woff2");
+  font-display: block;
+}
+
 :root {
   --bg: #18212a;
   --mid: #4e6a79;
@@ -16,6 +22,7 @@
   --r-rare: #e0c04a;
   --r-epic: #a45ae0;
   --r-legendary: #e08a3a;
+  --font-pixel: "Galmuri7", "Courier New", ui-monospace, monospace;
 }
 
 * {
@@ -34,7 +41,10 @@ body {
   overflow: hidden;
   background: #0a1208;
   color: var(--light);
-  font-family: "Courier New", ui-monospace, monospace;
+  font-family: var(--font-pixel);
+  -webkit-font-smoothing: none;
+  font-smooth: never;
+  text-rendering: optimizeSpeed;
 }
 
 button,
@@ -49,7 +59,7 @@ button {
 }
 
 .kr {
-  font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  font-family: var(--font-pixel);
 }
 
 .app-shell {

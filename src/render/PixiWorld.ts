@@ -45,6 +45,7 @@ import {
   RENDER_CLOCK,
   STEPPED_MOTION,
 } from "./config";
+import { loadPixelFont } from "./font";
 
 const ENTITY_DISPLAY_INTERVAL = 1 / STEPPED_MOTION.updateRateHz;
 const FLOATING_TEXT_DISPLAY_INTERVAL = 1 / STEPPED_MOTION.floatingTextUpdateRateHz;
@@ -122,6 +123,8 @@ export class PixiWorld {
   private walkFrame: 0 | 1 = 0;
 
   async mount(host: HTMLElement): Promise<void> {
+    await loadPixelFont();
+
     const app = new Application();
     await app.init({
       width: GAMEBOY_SCREEN_WIDTH,
@@ -642,6 +645,7 @@ export class PixiWorld {
 
   private drawFloatingTexts(texts: FloatingText[], dmgMode: boolean): void {
     const colors = renderColors(dmgMode);
+    const textResolution = floatingTextResolution();
     const ids = new Set(texts.map((text) => text.id));
     for (const id of this.floating.keys()) {
       if (!ids.has(id)) {
@@ -657,7 +661,7 @@ export class PixiWorld {
       const item = getOrCreate(this.floating, text.id, () => {
         const created = new Text({
           text: text.value,
-          resolution: FLOATING_TEXT_RENDER.resolution,
+          resolution: textResolution,
           roundPixels: true,
           textureStyle: {
             scaleMode: "nearest",
@@ -676,7 +680,7 @@ export class PixiWorld {
 
       item.text = text.value;
       item.roundPixels = true;
-      item.resolution = FLOATING_TEXT_RENDER.resolution;
+      item.resolution = textResolution;
       item.style.fill = dmgMode ? colors.floatingText : text.color;
       item.alpha = Math.max(0, 1 - text.age / text.ttl);
       const display = this.floatingDisplays.get(text.id)
@@ -955,6 +959,13 @@ function toEntityDisplay(x: number, y: number, direction: -1 | 1, walkFrame: 0 |
     direction,
     walkFrame,
   };
+}
+
+function floatingTextResolution(): number {
+  return Math.max(
+    FLOATING_TEXT_RENDER.resolution,
+    Math.ceil(globalThis.devicePixelRatio || 1),
+  );
 }
 
 function createSpriteFrames(texture: Texture, asset: PixelSpriteAsset): Texture[] {

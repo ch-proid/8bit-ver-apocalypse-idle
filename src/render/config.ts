@@ -5,6 +5,11 @@ export const PIXI_RENDER_OPTIONS = {
   resolution: 1,
 } as const;
 
+export const PIXEL_FONT = {
+  family: "Galmuri7",
+  path: "/assets/font/Galmuri7.woff2",
+} as const;
+
 export const STEPPED_MOTION = {
   stepPx: 2,
   updateRateHz: 8,
@@ -73,7 +78,7 @@ export const PLAYER_HP_BAR_RENDER = {
 } as const;
 
 export const FLOATING_TEXT_RENDER = {
-  fontFamily: "monospace",
+  fontFamily: PIXEL_FONT.family,
   fontSize: 7,
   fontWeight: "700",
   anchor: 0.5,
