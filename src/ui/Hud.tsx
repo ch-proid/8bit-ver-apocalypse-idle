@@ -16,6 +16,7 @@ import { clampCombatAffixes } from "../core/combat";
 import { calculateCombatAffixStats, enhancedBaseValue } from "../core/equipment";
 import { reawakeningCost } from "../core/gold";
 import { compareEquipmentCombatScore, createBuildSnapshot, type EquipmentScoreComparison } from "../core/sim";
+import { combatPowerEstimate } from "../core/stats";
 import { equipmentUpgradeCost, equipmentUpgradeFailureChance } from "../core/upgrade";
 import type { ClassId, EquipmentItem, EquipmentStatKey, ItemRarity, ItemSlot, ProgressState, RelicGrade, RelicId, RelicInstance, StageFailureReport, StatKey } from "../core/types";
 import { ALTAR_BALANCE, DAMAGE_FORMULA, EQUIPMENT_BALANCE } from "../data/balance";
@@ -163,6 +164,7 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
     calculateCombatAffixStats(progress.inventory.equipped),
     classCrit.critChanceCap,
   );
+  const combatPower = combatPowerEstimate(progress);
   const autoDistributionEnabled = progress.statDistribution.preset !== "MANUAL";
   const abilityRows = [
     { label: "체력", value: formatNumber(player.maxHp) },
@@ -329,7 +331,7 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
           <div className="profile-lines">
             <MenuItem label="레벨" value={progress.level} />
             <MenuItem label="닉네임" value={<span className="kr">{DEFAULT_NICKNAME}</span>} />
-            <MenuItem label="전투력" value={formatNumber(progress.records.dummyScore.value)} />
+            <MenuItem label="전투력" value={formatNumber(combatPower)} />
             <MenuItem label="직업" value={<span className="kr">{CLASS_KR_LABELS[currentClassId]}</span>} />
             <MenuItem label="패시브" value={<span className="kr">{CLASS_PASSIVE_KR[currentClassId]}</span>} valueClassName="thin kr" />
           </div>
@@ -410,7 +412,7 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
 
         <Win title="개인 기록">
           <MenuItem label="최고 레벨" value={progress.records.highestLevel.value} />
-          <MenuItem label="최고 전투력" value={formatNumber(progress.records.dummyScore.value)} />
+          <MenuItem label="최고 전투력" value={formatNumber(combatPower)} />
           <MenuItem label="환생 횟수" value={`${progress.rebirth.count}회`} />
         </Win>
       </Panel>
@@ -420,7 +422,7 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
           <span>가방 {progress.inventory.items.length}/{progress.inventory.capacity}</span>
           <IconValue type="gold" value={formatNumber(progress.gold)} />
           <span className="crystal-val">◆ {formatNumber(progress.crystal)}</span>
-          <span>전투력 {formatNumber(progress.records.dummyScore.value)}</span>
+          <span>전투력 {formatNumber(combatPower)}</span>
         </div>
 
         <Win title="착용">
