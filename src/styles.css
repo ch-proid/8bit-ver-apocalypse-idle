@@ -569,6 +569,28 @@ button {
   color: var(--accent);
 }
 
+.equipment-delta-value {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.stat-diff {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.stat-diff.up {
+  color: #8ee36f;
+}
+
+.stat-diff.down {
+  color: var(--blood);
+}
+
 .v.thin {
   max-width: 142px;
   overflow: hidden;

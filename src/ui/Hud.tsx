@@ -1008,6 +1008,7 @@ function EquipmentInfoPopup({
   const canBuy = entry.location === "shop" && Boolean(entry.offerId) && progress.gold >= (entry.price ?? Number.POSITIVE_INFINITY);
   const canEquip = entry.location === "equipped" || (entry.location === "inventory" && canClassEquipItem(currentClassId, candidate));
   const equipBlocked = candidate.slot === "weapon" && !canClassEquipItem(currentClassId, candidate);
+  const compareItem = comparisonItemForEntry(entry, progress);
 
   return (
     <PopupFrame title="장비 정보">
@@ -1023,7 +1024,17 @@ function EquipmentInfoPopup({
 
       <div className="base-stat-list">
         {equipmentBaseStatRows(candidate).map((row) => (
-          <MenuItem key={row.key} label={baseStatLabel(row.key)} value={formatBaseStatValue(row.key, row.value)} />
+          <MenuItem
+            key={row.key}
+            label={baseStatLabel(row.key)}
+            value={(
+              <EquipmentBaseStatValue
+                statKey={row.key}
+                value={row.value}
+                currentValue={compareItem ? baseStatValueForItem(compareItem, row.key) : null}
+              />
+            )}
+          />
         ))}
       </div>
 
@@ -1035,6 +1046,7 @@ function EquipmentInfoPopup({
             option={option}
             index={index}
             staticLabel={option.sin ? "SIN" : undefined}
+            currentValue={compareItem ? optionValueForItem(compareItem, option) : null}
           />
         )) : <MenuItem label="추가효과" value="없음" />}
       </div>
@@ -1209,10 +1221,12 @@ function EquipmentOptionLine({
   option,
   index,
   staticLabel,
+  currentValue = null,
 }: {
   option: ItemOption;
   index: number;
   staticLabel?: string;
+  currentValue?: number | null;
 }) {
   const capped = isOptionAtMax(option);
   return (
@@ -1220,7 +1234,55 @@ function EquipmentOptionLine({
       {staticLabel ? <span className="sin-lock">{staticLabel}</span> : <span>옵션{index + 1}</span>}
       <span className="dots" />
       <span className="compare-name">{affixLabel(option.key)}</span>
-      <span className={capped ? "v capc" : "v"}>{formatAffixValue(option)}</span>
+      <span className={capped ? "v capc" : "v"}>
+        <EquipmentDeltaValue
+          value={formatAffixValue(option)}
+          delta={currentValue === null ? null : option.value - currentValue}
+          deltaFormatter={(value) => formatAffixDelta(option, value)}
+        />
+      </span>
+    </span>
+  );
+}
+
+function EquipmentBaseStatValue({
+  statKey,
+  value,
+  currentValue,
+}: {
+  statKey: EquipmentBaseStatKey;
+  value: number;
+  currentValue: number | null;
+}) {
+  return (
+    <EquipmentDeltaValue
+      value={formatBaseStatValue(statKey, value)}
+      delta={currentValue === null ? null : value - currentValue}
+      deltaFormatter={(delta) => signedBaseDelta(statKey, delta)}
+    />
+  );
+}
+
+function EquipmentDeltaValue({
+  value,
+  delta,
+  deltaFormatter,
+}: {
+  value: string;
+  delta: number | null;
+  deltaFormatter: (delta: number) => string;
+}) {
+  if (delta === null || Math.abs(delta) < 0.0001) {
+    return <span>{value}</span>;
+  }
+
+  const direction = delta > 0 ? "up" : "down";
+  return (
+    <span className="equipment-delta-value">
+      <span>{value}</span>
+      <span className={`stat-diff ${direction}`}>
+        ({deltaFormatter(delta)} <i className={`compare-marker ${direction}`} aria-hidden="true" />)
+      </span>
     </span>
   );
 }
@@ -1368,6 +1430,29 @@ function findEquipmentEntry(progress: ProgressState, itemId: string): EquipmentE
   return offer ? { item: offer.item, location: "shop", offerId: offer.id, price: offer.price } : null;
 }
 
+function comparisonItemForEntry(entry: EquipmentEntry, progress: ProgressState): EquipmentItem | null {
+  if (entry.location === "equipped") {
+    return null;
+  }
+
+  const equipped = progress.inventory.equipped[entry.item.slot];
+  if (!equipped || equipped.id === entry.item.id) {
+    return null;
+  }
+
+  return equipped;
+}
+
+function baseStatValueForItem(item: EquipmentItem, key: EquipmentBaseStatKey): number {
+  return equipmentBaseStatRows(item).find((row) => row.key === key)?.value ?? 0;
+}
+
+function optionValueForItem(item: EquipmentItem, option: ItemOption): number {
+  return item.options
+    .filter((current) => current.key === option.key && current.sin === option.sin)
+    .reduce((sum, current) => sum + current.value, 0);
+}
+
 function percent(value: number, max: number): number {
   if (max <= 0) {
     return 0;
@@ -1429,6 +1514,12 @@ function signedBaseDelta(key: EquipmentBaseStatKey, value: number): string {
 function formatAffixValue(option: ItemOption): string {
   const suffix = option.sin || option.key === "defPenetration" ? "" : "%";
   return `+${formatNumberLike(option.value)}${suffix}`;
+}
+
+function formatAffixDelta(option: ItemOption, value: number): string {
+  const suffix = option.sin || option.key === "defPenetration" ? "" : "%";
+  const sign = value >= 0 ? "+" : "";
+  return `${sign}${formatNumberLike(value)}${suffix}`;
 }
 
 function formatNumberLike(value: number): string {
