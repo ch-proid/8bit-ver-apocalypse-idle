@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { GENERAL_AFFIXES } from "../data/affixes";
-import { FIXED_DELTA, GOLD_BALANCE, PLAYER_BALANCE } from "../data/balance";
+import { EQUIPMENT_BALANCE, FIXED_DELTA, GOLD_BALANCE, PLAYER_BALANCE } from "../data/balance";
 import { generateEquipmentItem } from "./equipment";
-import { cubeSynthesize, rerollItemOptions } from "./gold";
-import { addItemToInventory, equipItem, setAutoSell } from "./inventory";
+import { cubeSynthesize, reawakenItemOptions, reawakeningCost, rerollItemOptions } from "./gold";
+import { addItemToInventory, disassembleItems, equipItem, setAutoSell } from "./inventory";
 import { createDefaultProgress } from "./progression";
 import { createRngState } from "./rng";
 import { createInitialSimulation } from "./stage";
 import { stepSimulation } from "./simulation";
-import { upgradeWeapon, weaponUpgradeCost } from "./upgrade";
+import { equipmentUpgradeFailureChance, upgradeEquipment, upgradeWeapon, weaponUpgradeCost } from "./upgrade";
 import type { EquipmentItem, GeneralAffixKey, ItemRarity, ItemSlot, ProgressState } from "./types";
 
 describe("phase 3B equipment, drops, and gold", () => {
@@ -182,6 +182,82 @@ describe("phase 3B equipment, drops, and gold", () => {
     expect(weapon.maxDmg).toBeGreaterThan(before.max);
     expect(weapon.accuracy).toBeGreaterThan(before.accuracy);
     expect(progress.gold).toBe(10000 - beforeCost);
+  });
+
+  it("upgrades equipment to 15 max and can downgrade on high-level failure without destroying it", () => {
+    const progress = createProgressWithGold(100000);
+    const armor = generateEquipmentItem({
+      id: "armor-upgrade",
+      rng: createRngState(12),
+      stageId: 4,
+      rarity: "rare",
+      slot: "armor",
+      itemLevel: 4,
+    });
+    armor.upgradeLevel = 9;
+    progress.inventory.items.push(armor);
+
+    const failChance = equipmentUpgradeFailureChance(armor);
+    const result = upgradeEquipment(progress, armor.id, createRngState(1972));
+
+    expect(failChance).toBe(EQUIPMENT_BALANCE.enhancement.failureStartChance);
+    expect(result.failed).toBe(true);
+    expect(result.downgraded).toBe(true);
+    expect(armor.upgradeLevel).toBe(8);
+
+    armor.upgradeLevel = EQUIPMENT_BALANCE.enhancement.maxLevel;
+    const capped = upgradeEquipment(progress, armor.id, createRngState(1));
+    expect(capped.success).toBe(false);
+    expect(armor.upgradeLevel).toBe(EQUIPMENT_BALANCE.enhancement.maxLevel);
+  });
+
+  it("reawakens selected general options with gold and crystal while preserving SIN lines", () => {
+    const progress = createProgressWithGold(10000);
+    progress.crystal = 100;
+    const rng = createRngState(99);
+    const item = generateEquipmentItem({
+      id: "reawaken",
+      rng,
+      stageId: 1,
+      rarity: "legendary",
+      slot: "weapon",
+    });
+    progress.inventory.items.push(item);
+    const sinBefore = item.options.filter((option) => option.sin);
+    const generalBefore = item.options.filter((option) => !option.sin).map((option) => ({ ...option }));
+    const allCost = reawakeningCost(item, generalBefore.length);
+    const pinpointCost = reawakeningCost(item, 1);
+
+    const result = reawakenItemOptions(progress, item.id, rng, [0]);
+    const generalAfter = item.options.filter((option) => !option.sin);
+
+    expect(pinpointCost.gold).toBeGreaterThan(allCost.gold);
+    expect(pinpointCost.crystal).toBeGreaterThan(allCost.crystal);
+    expect(result.success).toBe(true);
+    expect(progress.gold).toBe(10000 - pinpointCost.gold);
+    expect(progress.crystal).toBe(100 - pinpointCost.crystal);
+    expect(item.options.filter((option) => option.sin)).toEqual(sinBefore);
+    expect(generalAfter).toHaveLength(generalBefore.length);
+    expect(generalAfter[1]).toEqual(generalBefore[1]);
+  });
+
+  it("disassembles selected unlocked inventory items into crystal and skips locked items", () => {
+    const progress = createProgressWithGold(0);
+    const common = makeItem("dust-common", "common");
+    const rare = makeItem("dust-rare", "rare");
+    const locked = makeItem("locked", "legendary");
+    locked.locked = true;
+    progress.inventory.items = [common, rare, locked];
+
+    const result = disassembleItems(progress, [common.id, rare.id, locked.id]);
+
+    expect(result.itemIds.sort()).toEqual([common.id, rare.id].sort());
+    expect(result.crystal).toBe(
+      EQUIPMENT_BALANCE.disassembleCrystalByRarity.common
+        + EQUIPMENT_BALANCE.disassembleCrystalByRarity.rare,
+    );
+    expect(progress.crystal).toBe(result.crystal);
+    expect(progress.inventory.items.map((item) => item.id)).toEqual([locked.id]);
   });
 
   it("keeps inventory drops deterministic for the same seed over idle simulation", () => {

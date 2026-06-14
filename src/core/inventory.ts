@@ -114,6 +114,38 @@ export function sellInventoryItems(progress: ProgressState, predicate: (item: Eq
   return gold;
 }
 
+export function sellItem(progress: ProgressState, itemId: string): number {
+  const index = progress.inventory.items.findIndex((item) => item.id === itemId);
+  if (index < 0 || progress.inventory.items[index].locked) {
+    return 0;
+  }
+
+  const [item] = progress.inventory.items.splice(index, 1);
+  const gold = calculateItemValue(item);
+  progress.gold += gold;
+  return gold;
+}
+
+export function disassembleItems(progress: ProgressState, itemIds: string[]): { crystal: number; itemIds: string[] } {
+  const selected = new Set(itemIds);
+  const disassembledIds: string[] = [];
+  const kept: EquipmentItem[] = [];
+  let crystal = 0;
+
+  for (const item of progress.inventory.items) {
+    if (selected.has(item.id) && !item.locked) {
+      crystal += EQUIPMENT_BALANCE.disassembleCrystalByRarity[item.rarity];
+      disassembledIds.push(item.id);
+    } else {
+      kept.push(item);
+    }
+  }
+
+  progress.inventory.items = kept;
+  progress.crystal += crystal;
+  return { crystal, itemIds: disassembledIds };
+}
+
 export function sellByRarity(progress: ProgressState, rarity: ItemRarity): number {
   if (rarity === "legendary") {
     return 0;

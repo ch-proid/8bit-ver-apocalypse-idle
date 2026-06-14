@@ -18,6 +18,7 @@ export function createDefaultProgress(stageId: number = PROGRESSION.initialStage
   const classId = normalizeClassId(undefined);
   return {
     gold: 0,
+    crystal: 0,
     experience: 0,
     level: 1,
     classId,
@@ -42,6 +43,7 @@ export function normalizeProgress(input?: Partial<ProgressState>): ProgressState
   const progress: ProgressState = {
     ...defaults,
     ...input,
+    crystal: Math.max(0, Math.floor(input?.crystal ?? defaults.crystal)),
     classId,
     nextExperience: nextExperienceForLevel(input?.level ?? defaults.level),
     statDistribution: normalizeStatDistribution(input?.statDistribution, getPlayerClass(classId).recommendedPreset),
@@ -62,6 +64,7 @@ export function normalizeProgress(input?: Partial<ProgressState>): ProgressState
 export function cloneProgress(progress: ProgressState): ProgressState {
   return {
     ...progress,
+    crystal: progress.crystal,
     statDistribution: {
       assigned: { ...progress.statDistribution.assigned },
       unspentPoints: progress.statDistribution.unspentPoints,

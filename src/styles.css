@@ -716,6 +716,20 @@ button {
   cursor: pointer;
 }
 
+.equip-icon {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.equip-icon.big {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--line);
+  background: var(--ink);
+}
+
 .slot small {
   position: absolute;
   right: 2px;
@@ -737,6 +751,39 @@ button {
   font-weight: 700;
   padding: 0;
   cursor: pointer;
+}
+
+.cell .equip-icon {
+  width: 17px;
+  height: 17px;
+}
+
+.cell.upgrade::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 0;
+  height: 0;
+  border-right: 4px solid transparent;
+  border-left: 4px solid transparent;
+  border-bottom: 7px solid #8ee36f;
+  filter: drop-shadow(0 1px 0 #203414);
+}
+
+.cell.selected {
+  background: color-mix(in srgb, var(--ink) 72%, var(--gold));
+  box-shadow: inset 0 0 0 1px var(--gold);
+}
+
+.checkmark {
+  position: absolute;
+  top: 1px;
+  left: 2px;
+  color: var(--gold);
+  font-size: 8px;
+  font-style: normal;
+  line-height: 1;
 }
 
 .cell small {
@@ -787,6 +834,22 @@ button {
 
 .gear-actions.wide {
   grid-template-columns: 1fr 1fr;
+}
+
+.gear-actions.single {
+  grid-template-columns: 1fr;
+}
+
+.crystal-val {
+  color: #9ed7ff;
+}
+
+.equipment-info-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 6px;
 }
 
 .item-detail {
@@ -1020,6 +1083,20 @@ button {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.popup-menu.four {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.popup-close {
+  width: 100%;
+  margin-top: 5px;
+  border: 1px solid var(--line);
+  background: var(--ink);
+  color: var(--mid);
+  font-family: inherit;
+  font-size: 8px;
+}
+
 .compare-head {
   margin-bottom: 5px;
 }
@@ -1044,6 +1121,33 @@ button {
 
 .sin-line {
   color: var(--blood);
+}
+
+.option-row {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: 4px;
+  align-items: center;
+}
+
+.option-row .compare-line {
+  min-width: 0;
+}
+
+.pbox.selected {
+  color: var(--ink);
+  background: var(--gold);
+}
+
+.sin-lock {
+  color: var(--blood);
+  font-size: 6px;
+}
+
+.cost-lines {
+  margin-top: 5px;
+  padding-top: 4px;
+  border-top: 1px dotted var(--mid);
 }
 
 .return-seq .mi {

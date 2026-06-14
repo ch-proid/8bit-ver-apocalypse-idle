@@ -95,6 +95,7 @@ describe("phase 3A progression", () => {
     const state = createInitialSimulation(1);
     state.progress.classId = "assassin";
     state.progress.gold = 500;
+    state.progress.crystal = 12;
     state.progress.currentStage = 6;
     state.progress.level = 43;
     state.progress.experience = 777;
@@ -109,6 +110,7 @@ describe("phase 3A progression", () => {
 
     expect(reborn.progress.classId).toBe("assassin");
     expect(reborn.progress.gold).toBe(500);
+    expect(reborn.progress.crystal).toBe(12);
     expect(reborn.progress.currentStage).toBe(1);
     expect(reborn.progress.level).toBe(1);
     expect(reborn.progress.experience).toBe(0);
@@ -147,6 +149,7 @@ describe("phase 3A progression", () => {
     });
 
     expect(progress.gold).toBe(25);
+    expect(progress.crystal).toBe(0);
     expect(progress.classId).toBe("knight");
     expect(progress.nextExperience).toBe(nextExperienceForLevel(12));
     expect(progress.statDistribution).toEqual({

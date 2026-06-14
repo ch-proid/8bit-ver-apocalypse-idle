@@ -10,7 +10,8 @@ import { triggerAltarCounter } from "../core/boss";
 import { cloneClassCombatState } from "../core/class";
 import { calculateItemValue, generateEquipmentItem } from "../core/equipment";
 import { startAltarEliteEncounter } from "../core/elites";
-import { addItemToInventory, bestInventoryItemForSlot, createItemId, equipItem } from "../core/inventory";
+import { reawakenItemOptions } from "../core/gold";
+import { addItemToInventory, bestInventoryItemForSlot, createItemId, disassembleItems, equipItem, findItem, sellItem, unequipItem } from "../core/inventory";
 import { cloneProgress, gainExperience, updateRecordAt } from "../core/progression";
 import { cloneRelicCombatState, relicDebugSnapshot } from "../core/relics";
 import { calculateRebirthExperienceMultiplier, rebirthSimulation, unlockRebirth } from "../core/rebirth";
@@ -20,7 +21,7 @@ import { createInitialSimulation } from "../core/stage";
 import { clearBossStage, clearStage, startStage } from "../core/stageProgress";
 import { stepSimulation } from "../core/simulation";
 import { accuracyMultiplier } from "../core/combat";
-import { applyWeaponUpgrade, upgradeWeapon, weaponUpgradeCost } from "../core/upgrade";
+import { applyWeaponUpgrade, equipmentUpgradeCost, upgradeEquipment, upgradeWeapon, weaponUpgradeCost } from "../core/upgrade";
 import {
   applyLevelStatPoints,
   applyPlayerStats,
@@ -46,6 +47,11 @@ interface GameStore {
   setClassId: (classId: ClassId) => void;
   setStatPreset: (preset: StatPreset) => void;
   spendStatPoint: (stat: StatKey) => void;
+  equipOrUnequipItem: (itemId: string) => void;
+  upgradeEquipmentItem: (itemId: string) => void;
+  reawakenEquipmentItem: (itemId: string, selectedGeneralLineIndexes?: number[]) => void;
+  sellEquipmentItem: (itemId: string) => void;
+  disassembleEquipmentItems: (itemIds: string[]) => void;
   unlockRebirthForDebug: () => void;
   rebirthNow: () => void;
   logPhase3ADemo: () => void;
@@ -147,6 +153,61 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const simulation = cloneSimulation(state.simulation);
       simulation.progress.statDistribution = spendStatPoint(simulation.progress.statDistribution, stat);
       applyPlayerStats(simulation.world.player, simulation.progress);
+      return { simulation };
+    });
+  },
+
+  equipOrUnequipItem: (itemId: string) => {
+    set((state) => {
+      const simulation = cloneSimulation(state.simulation);
+      const found = findItem(simulation.progress, itemId);
+      if (!found) {
+        return state;
+      }
+      if (found.location === "equipped") {
+        unequipItem(simulation.progress, simulation.world.player, found.item.slot);
+      } else {
+        equipItem(simulation.progress, simulation.world.player, itemId);
+      }
+      applyPlayerStats(simulation.world.player, simulation.progress);
+      return { simulation };
+    });
+  },
+
+  upgradeEquipmentItem: (itemId: string) => {
+    set((state) => {
+      const simulation = cloneSimulation(state.simulation);
+      const found = findItem(simulation.progress, itemId);
+      if (!found || equipmentUpgradeCost(found.item) <= 0) {
+        return state;
+      }
+      upgradeEquipment(simulation.progress, itemId, simulation.world.rng);
+      applyPlayerStats(simulation.world.player, simulation.progress);
+      return { simulation };
+    });
+  },
+
+  reawakenEquipmentItem: (itemId: string, selectedGeneralLineIndexes?: number[]) => {
+    set((state) => {
+      const simulation = cloneSimulation(state.simulation);
+      reawakenItemOptions(simulation.progress, itemId, simulation.world.rng, selectedGeneralLineIndexes);
+      applyPlayerStats(simulation.world.player, simulation.progress);
+      return { simulation };
+    });
+  },
+
+  sellEquipmentItem: (itemId: string) => {
+    set((state) => {
+      const simulation = cloneSimulation(state.simulation);
+      sellItem(simulation.progress, itemId);
+      return { simulation };
+    });
+  },
+
+  disassembleEquipmentItems: (itemIds: string[]) => {
+    set((state) => {
+      const simulation = cloneSimulation(state.simulation);
+      disassembleItems(simulation.progress, itemIds);
       return { simulation };
     });
   },

@@ -21,6 +21,7 @@ export function rebirthSimulation(input: SimulationState, occurredAt: number): S
   nextProgress.classId = previousProgress.classId;
   nextProgress.statDistribution = createRecommendedStatDistribution(previousProgress.classId);
   nextProgress.gold = previousProgress.gold;
+  nextProgress.crystal = previousProgress.crystal;
   nextProgress.inventory = cloneInventory(previousProgress.inventory);
   nextProgress.reroll = {
     countsByItemId: { ...previousProgress.reroll.countsByItemId },

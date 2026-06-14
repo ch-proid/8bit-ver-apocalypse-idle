@@ -273,6 +273,41 @@ export const EQUIPMENT_BALANCE = {
     accuracyPerLevel: 8,
     damagePercentPerLevel: 4,
   },
+  enhancement: {
+    // TODO(Equipment): Tune after real gear pacing is validated with Chapter 1 farming.
+    maxLevel: 15,
+    baseGoldCost: 90,
+    costGrowth: 1.38,
+    baseStatPercentPerLevel: 5,
+    failureStartLevel: 10,
+    failureStartChance: 0.1,
+    failureChanceStep: 0.05,
+    failureMaxChance: 0.3,
+  },
+  reawakening: {
+    // TODO(Equipment): Rebalance once option desirability is measured from playtests.
+    baseGoldCost: 120,
+    baseCrystalCost: 2,
+    pinpointCostStep: 0.75,
+    affixWeights: {
+      critChance: 8,
+      critDamage: 8,
+      attackSpeed: 8,
+      damageIncrease: 14,
+      finalDamage: 2,
+      defPenetration: 6,
+      lifeSteal: 5,
+      goldGain: 20,
+      damageReduction: 6,
+    },
+  },
+  disassembleCrystalByRarity: {
+    common: 1,
+    magic: 2,
+    rare: 4,
+    epic: 8,
+    legendary: 16,
+  },
 } as const;
 
 export const AFFIX_BALANCE = {

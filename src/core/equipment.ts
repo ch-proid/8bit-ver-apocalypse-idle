@@ -80,6 +80,20 @@ export function rollGeneralOptions(rng: RngState, slot: ItemSlot, rarity: ItemRa
   return options;
 }
 
+export function rollWeightedGeneralOption(rng: RngState, slot: ItemSlot): ItemOption {
+  const allowed = new Set(generalAffixesForSlot(slot));
+  const weights = Object.fromEntries(
+    Object.entries(EQUIPMENT_BALANCE.reawakening.affixWeights)
+      .filter(([key]) => allowed.has(key as GeneralAffixKey)),
+  ) as Record<GeneralAffixKey, number>;
+  const key = pickWeighted(rng, weights);
+  return {
+    key,
+    value: rollAffixValue(rng, key),
+    sin: false,
+  };
+}
+
 export function rollSinOption(rng: RngState, slot: ItemSlot): ItemOption {
   const key = pickOne(rng, sinAffixesForSlot(slot));
   return {
@@ -96,7 +110,7 @@ export function calculateEquipmentStats(equipped: EquippedItems): EquipmentStatA
     if (!item) {
       continue;
     }
-    stats[item.baseStat] += item.baseValue;
+    stats[item.baseStat] += enhancedBaseValue(item);
   }
 
   return stats;
@@ -141,10 +155,8 @@ export function calculateSinAffixStats(equipped: EquippedItems): SinAffixStats {
 export function calculateItemValue(item: EquipmentItem): number {
   const normalized = normalizeEquipmentItem(item);
   const sinBonus = item.options.some((option) => option.sin) ? EQUIPMENT_BALANCE.itemValue.sinOptionBonus : 0;
-  const combatValue = normalized.slot === "weapon"
-    ? normalized.upgradeLevel * EQUIPMENT_BALANCE.itemValue.upgradeWeight
-      + normalized.accuracy * EQUIPMENT_BALANCE.itemValue.accuracyWeight
-    : 0;
+  const combatValue = normalized.upgradeLevel * EQUIPMENT_BALANCE.itemValue.upgradeWeight
+    + (normalized.slot === "weapon" ? normalized.accuracy * EQUIPMENT_BALANCE.itemValue.accuracyWeight : 0);
   return Math.floor(
     normalized.itemLevel * EQUIPMENT_BALANCE.itemValue.levelWeight
     + EQUIPMENT_BALANCE.rarityRanks[normalized.rarity] * EQUIPMENT_BALANCE.itemValue.rarityWeight
@@ -164,7 +176,10 @@ export function cloneItem(item: EquipmentItem): EquipmentItem {
 }
 
 export function normalizeEquipmentItem(item: EquipmentItem): EquipmentItem {
-  const upgradeLevel = Math.max(0, Math.floor((item as Partial<EquipmentItem>).upgradeLevel ?? 0));
+  const upgradeLevel = Math.max(
+    0,
+    Math.min(EQUIPMENT_BALANCE.enhancement.maxLevel, Math.floor((item as Partial<EquipmentItem>).upgradeLevel ?? 0)),
+  );
   const derived = calculateWeaponCombatStats(item.slot, item.rarity, item.itemLevel, item.baseValue, upgradeLevel);
   const raw = item as Partial<EquipmentItem>;
   return {
@@ -173,8 +188,16 @@ export function normalizeEquipmentItem(item: EquipmentItem): EquipmentItem {
     maxDmg: Math.max(safeNumber(raw.maxDmg, derived.maxDmg), safeNumber(raw.minDmg, derived.minDmg)),
     accuracy: safeNumber(raw.accuracy, derived.accuracy),
     upgradeLevel,
+    locked: Boolean(raw.locked),
     options: item.options?.map((option) => ({ ...option })) ?? [],
   };
+}
+
+export function enhancedBaseValue(item: EquipmentItem): number {
+  const normalized = normalizeEquipmentItem(item);
+  const multiplier = 1 + normalized.upgradeLevel * EQUIPMENT_BALANCE.enhancement.baseStatPercentPerLevel / 100;
+  const value = normalized.baseValue * multiplier;
+  return normalized.baseStat === "reg" ? roundTo(value, 2) : Math.max(1, roundTo(value, 2));
 }
 
 export function calculateWeaponCombatStats(

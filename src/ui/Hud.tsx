@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   altarExperienceForLevel,
   bestRelicInstance,
@@ -11,10 +11,13 @@ import {
 import { altarElitePreview } from "../core/elites";
 import { classCritProfile } from "../core/class";
 import { clampCombatAffixes } from "../core/combat";
-import { calculateCombatAffixStats } from "../core/equipment";
+import { calculateCombatAffixStats, enhancedBaseValue } from "../core/equipment";
+import { reawakeningCost } from "../core/gold";
 import { compareEquipmentCombatScore, createBuildSnapshot, type EquipmentScoreComparison } from "../core/sim";
+import { equipmentUpgradeCost, equipmentUpgradeFailureChance } from "../core/upgrade";
 import type { ClassId, EquipmentItem, EquipmentStatKey, ItemRarity, ItemSlot, ProgressState, RelicGrade, RelicId, StageFailureReport, StatKey } from "../core/types";
-import { ALTAR_BALANCE, DAMAGE_FORMULA } from "../data/balance";
+import { ALTAR_BALANCE, DAMAGE_FORMULA, EQUIPMENT_BALANCE } from "../data/balance";
+import { equipmentIconFor } from "../data/equipmentIcons";
 import { ITEM_SLOTS } from "../data/items";
 import { PLAYER_CLASSES } from "../data/classes";
 import { RELIC_GRADES, RELIC_IDS, RELICS } from "../data/relics";
@@ -104,9 +107,12 @@ const AFFIX_KR_LABELS: Record<string, string> = {
 };
 
 interface EquipmentPopupState {
-  candidate: EquipmentItem;
-  current: EquipmentItem | null;
-  comparison: EquipmentScoreComparison;
+  itemId: string;
+}
+
+interface EquipmentEntry {
+  item: EquipmentItem;
+  location: "inventory" | "equipped" | "shop";
 }
 
 export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect }: HudProps) {
@@ -116,7 +122,11 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
   const offlineReward = useGameStore((state) => state.lastOfflineReward);
   const spendPoint = useGameStore((state) => state.spendStatPoint);
   const setPreset = useGameStore((state) => state.setStatPreset);
-  const equipBestItems = useGameStore((state) => state.equipBestItems);
+  const equipOrUnequipItem = useGameStore((state) => state.equipOrUnequipItem);
+  const upgradeEquipmentItem = useGameStore((state) => state.upgradeEquipmentItem);
+  const reawakenEquipmentItem = useGameStore((state) => state.reawakenEquipmentItem);
+  const sellEquipmentItem = useGameStore((state) => state.sellEquipmentItem);
+  const disassembleEquipmentItems = useGameStore((state) => state.disassembleEquipmentItems);
   const summonEliteNow = useGameStore((state) => state.summonEliteNow);
   const levelUpAltarNow = useGameStore((state) => state.levelUpAltarNow);
   const rebirthNow = useGameStore((state) => state.rebirthNow);
@@ -153,17 +163,13 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
     { label: "공격사거리", value: formatNumber(player.attackRange) },
     { label: "공격간격", value: `${player.attackCooldown.toFixed(2)}초` },
   ];
-  const highlightedItem = progress.inventory.equipped.weapon
-    ?? progress.inventory.equipped.armor
-    ?? progress.inventory.equipped.helmet
-    ?? progress.inventory.equipped.accessory
-    ?? progress.inventory.items[0]
-    ?? null;
   const elitePreview = altarElitePreview(progress.altar.level);
   const nextElitePreview = altarElitePreview(progress.altar.level + 1);
   const relicOwnedStats = calculateRelicOwnedStats(progress.altar);
   const equippedRelic = bestRelicInstance(progress.altar, progress.altar.equippedRelicId);
   const [equipmentPopup, setEquipmentPopup] = useState<EquipmentPopupState | null>(null);
+  const [disassembleMode, setDisassembleMode] = useState(false);
+  const [selectedDisassembleIds, setSelectedDisassembleIds] = useState<string[]>([]);
   const [dismissedFailureKey, setDismissedFailureKey] = useState<string | null>(null);
   const [claimedOfflineKey, setClaimedOfflineKey] = useState<string | null>(null);
   const [voiceLine, setVoiceLine] = useState<string | null>(null);
@@ -183,6 +189,19 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
   const showOfflinePopup = Boolean(offlineReward && offlineKey !== claimedOfflineKey);
   const isOverdrive = world.relicCombat.isOverdrive;
   const isTelegraphing = Boolean(world.boss?.isTelegraphing);
+  const gearItems = useMemo(() => progress.inventory.items.slice(0, 24), [progress.inventory.items]);
+  const upgradeItemIds = useMemo(() => {
+    if (activePanel !== "gear" || gearItems.length <= 0) {
+      return new Set<string>();
+    }
+    const snapshot = createBuildSnapshot(progress);
+    return new Set(
+      gearItems
+        .filter((item) => compareEquipmentCombatScore(snapshot, item, { durationSeconds: 8 }).delta > 0)
+        .map((item) => item.id),
+    );
+  }, [activePanel, gearItems, progress]);
+  const popupEntry = equipmentPopup ? findEquipmentEntry(progress, equipmentPopup.itemId) : null;
 
   useEffect(() => {
     if (!flashKind) {
@@ -236,11 +255,26 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
   }
 
   function openEquipmentPopup(item: EquipmentItem): void {
-    setEquipmentPopup({
-      candidate: item,
-      current: progress.inventory.equipped[item.slot],
-      comparison: compareEquipmentCombatScore(createBuildSnapshot(progress), item),
-    });
+    setEquipmentPopup({ itemId: item.id });
+  }
+
+  function toggleDisassembleItem(itemId: string): void {
+    setSelectedDisassembleIds((ids) => (
+      ids.includes(itemId) ? ids.filter((id) => id !== itemId) : [...ids, itemId]
+    ));
+  }
+
+  function handleDisassembleButton(): void {
+    if (!disassembleMode) {
+      setDisassembleMode(true);
+      setSelectedDisassembleIds([]);
+      return;
+    }
+    if (selectedDisassembleIds.length > 0) {
+      disassembleEquipmentItems(selectedDisassembleIds);
+    }
+    setSelectedDisassembleIds([]);
+    setDisassembleMode(false);
   }
 
   return (
@@ -357,6 +391,7 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
         <div className="statbar rich">
           <span>가방 {progress.inventory.items.length}/{progress.inventory.capacity}</span>
           <IconValue type="gold" value={formatNumber(progress.gold)} />
+          <span className="crystal-val">◆ {formatNumber(progress.crystal)}</span>
           <span>전투력 {formatNumber(progress.records.dummyScore.value)}</span>
         </div>
 
@@ -367,34 +402,37 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
                 key={slot}
                 slot={slot}
                 item={progress.inventory.equipped[slot]}
+                classId={currentClassId}
                 onCompare={openEquipmentPopup}
               />
             ))}
           </div>
         </Win>
 
-        <Win title="장비 정보">
-          <ItemDetail item={highlightedItem} />
-          <div className="gear-actions wide">
-            <button type="button" className="inv-vid off">옵션변경</button>
-            <button type="button" className="inv-vid off">강화</button>
-          </div>
-        </Win>
-
         <Win title="가방">
           <div className="grid6">
-            {progress.inventory.items.slice(0, 24).map((item) => (
-              <ItemCell key={item.id} item={item} onCompare={openEquipmentPopup} />
+            {gearItems.map((item) => (
+              <ItemCell
+                key={item.id}
+                item={item}
+                classId={currentClassId}
+                isUpgrade={upgradeItemIds.has(item.id)}
+                selectionMode={disassembleMode}
+                selected={selectedDisassembleIds.includes(item.id)}
+                onToggleSelect={toggleDisassembleItem}
+                onCompare={openEquipmentPopup}
+              />
             ))}
             {Array.from({ length: Math.max(0, 24 - Math.min(24, progress.inventory.items.length)) }).map((_, index) => (
               <span key={`empty-${index}`} className="cell off" />
             ))}
           </div>
-          <div className="gear-actions">
-            <button type="button" className="inv-vid off">합성</button>
-            <button type="button" className="inv-vid off">판매</button>
-            <button type="button" className="inv-vid" onClick={equipBestItems}>자동착용</button>
+          <div className="gear-actions single">
+            <button type="button" className="inv-vid" onClick={handleDisassembleButton}>
+              <span className="cur">&#9654;</span>{disassembleMode ? selectedDisassembleIds.length > 0 ? `분해 실행 ${selectedDisassembleIds.length}` : "분해 취소" : "분해"}
+            </button>
           </div>
+          {disassembleMode ? <p className="tiny dim kr">분해할 장비를 선택하세요. 장착/잠금 장비는 제외됩니다.</p> : null}
         </Win>
 
         <Win title="상점">
@@ -403,7 +441,12 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
               <ItemCell
                 key={offer.id}
                 item={offer.item}
+                classId={currentClassId}
                 label={<IconValue type="gold" value={formatCompact(offer.price)} compact />}
+                isUpgrade={false}
+                selectionMode={false}
+                selected={false}
+                onToggleSelect={toggleDisassembleItem}
                 onCompare={openEquipmentPopup}
               />
             ))}
@@ -494,10 +537,22 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
         />
       ) : null}
 
-      {equipmentPopup ? (
-        <EquipmentComparePopup
-          popup={equipmentPopup}
+      {equipmentPopup && popupEntry ? (
+        <EquipmentInfoPopup
+          entry={popupEntry}
+          progress={progress}
+          currentClassId={currentClassId}
           onClose={() => setEquipmentPopup(null)}
+          onEquipToggle={(itemId) => {
+            equipOrUnequipItem(itemId);
+            setEquipmentPopup(null);
+          }}
+          onUpgrade={(itemId) => upgradeEquipmentItem(itemId)}
+          onSell={(itemId) => {
+            sellEquipmentItem(itemId);
+            setEquipmentPopup(null);
+          }}
+          onReawaken={(itemId, selectedLines) => reawakenEquipmentItem(itemId, selectedLines)}
         />
       ) : null}
 
@@ -566,10 +621,12 @@ function IconValue({ type, value, compact = false }: { type: "gold" | "blood"; v
 function EquipmentSlot({
   slot,
   item,
+  classId,
   onCompare,
 }: {
   slot: ItemSlot;
   item: EquipmentItem | null;
+  classId: ClassId;
   onCompare: (item: EquipmentItem) => void;
 }) {
   return (
@@ -580,55 +637,44 @@ function EquipmentSlot({
       disabled={!item}
       onClick={() => item ? onCompare(item) : undefined}
     >
-      <span>{slotIcon(slot)}</span>
+      <img className="equip-icon" src={equipmentIconFor(classId, slot)} alt="" />
       <small>{item ? `+${item.upgradeLevel}` : slotLabel(slot)}</small>
     </button>
   );
 }
 
-function ItemCell({ item, label, onCompare }: { item: EquipmentItem; label?: ReactNode; onCompare: (item: EquipmentItem) => void }) {
+function ItemCell({
+  item,
+  classId,
+  label,
+  isUpgrade,
+  selectionMode,
+  selected,
+  onToggleSelect,
+  onCompare,
+}: {
+  item: EquipmentItem;
+  classId: ClassId;
+  label?: ReactNode;
+  isUpgrade: boolean;
+  selectionMode: boolean;
+  selected: boolean;
+  onToggleSelect: (itemId: string) => void;
+  onCompare: (item: EquipmentItem) => void;
+}) {
   return (
     <button
       type="button"
-      className={`cell ${rarityClass(item.rarity)}`}
+      className={`cell ${rarityClass(item.rarity)}${isUpgrade ? " upgrade" : ""}${selected ? " selected" : ""}`}
       title={`${rarityLabel(item.rarity)} ${slotLabel(item.slot)}`}
-      aria-label={`${rarityLabel(item.rarity)} ${slotLabel(item.slot)} 비교`}
-      onClick={() => onCompare(item)}
+      aria-label={`${rarityLabel(item.rarity)} ${slotLabel(item.slot)} 정보`}
+      onClick={() => selectionMode ? onToggleSelect(item.id) : onCompare(item)}
     >
-      <b>{statLabel(item.baseStat)}</b>
+      {selectionMode ? <i className="checkmark">{selected ? "✓" : ""}</i> : null}
+      <img className="equip-icon" src={equipmentIconFor(classId, item.slot)} alt="" />
+      <b>+{item.upgradeLevel}</b>
       {label ? <small>{label}</small> : null}
     </button>
-  );
-}
-
-function ItemDetail({ item }: { item: EquipmentItem | null }) {
-  if (!item) {
-    return (
-      <>
-        <MenuItem label="선택" value="없음" />
-        <p className="tiny dim kr">장비 칸을 눌러 비교</p>
-      </>
-    );
-  }
-
-  return (
-    <div className="item-detail">
-      <MenuItem label="종류" value={`${rarityLabel(item.rarity)} ${slotLabel(item.slot)}`} valueClassName={rarityClass(item.rarity)} />
-      <MenuItem label="기본" value={`${statLabel(item.baseStat)} ${formatNumber(item.baseValue)}`} />
-      <MenuItem label="피해" value={`${formatNumber(item.minDmg)}-${formatNumber(item.maxDmg)}`} />
-      <MenuItem label="명중" value={formatNumber(item.accuracy)} />
-      <MenuItem label="강화" value={`+${item.upgradeLevel}`} />
-      <div className="option-list">
-        {item.options.length > 0 ? item.options.map((option, index) => (
-          <MenuItem
-            key={`${option.key}-${index}`}
-            label={option.sin ? "죄옵션" : `옵션${index + 1}`}
-            value={`${affixLabel(option.key)} +${formatNumber(option.value)}`}
-            valueClassName={option.sin ? "bloodc" : undefined}
-          />
-        )) : <MenuItem label="옵션" value="없음" />}
-      </div>
-    </div>
   );
 }
 
@@ -702,43 +748,127 @@ function ChallengeFailurePopup({ failure, onClose }: { failure: StageFailureRepo
   );
 }
 
-function EquipmentComparePopup({ popup, onClose }: { popup: EquipmentPopupState; onClose: () => void }) {
-  const { candidate, current, comparison } = popup;
+function EquipmentInfoPopup({
+  entry,
+  progress,
+  currentClassId,
+  onClose,
+  onEquipToggle,
+  onUpgrade,
+  onSell,
+  onReawaken,
+}: {
+  entry: EquipmentEntry;
+  progress: ProgressState;
+  currentClassId: ClassId;
+  onClose: () => void;
+  onEquipToggle: (itemId: string) => void;
+  onUpgrade: (itemId: string) => void;
+  onSell: (itemId: string) => void;
+  onReawaken: (itemId: string, selectedGeneralLineIndexes?: number[]) => void;
+}) {
+  const [selectedReawakenLines, setSelectedReawakenLines] = useState<number[]>([]);
+  const candidate = entry.item;
+  const current = progress.inventory.equipped[candidate.slot];
+  const comparison = compareEquipmentCombatScore(createBuildSnapshot(progress), candidate, { durationSeconds: 8 });
   const deltaClass = comparison.delta >= 0 ? "goldc" : "bloodc";
+  const generalOptionCount = candidate.options.filter((option) => !option.sin).length;
+  const reawakenSelectedCount = selectedReawakenLines.length > 0 ? selectedReawakenLines.length : generalOptionCount;
+  const reawakenCostValue = reawakeningCost(candidate, reawakenSelectedCount);
+  const upgradeCostValue = equipmentUpgradeCost(candidate);
+  const failChance = equipmentUpgradeFailureChance(candidate);
+  const canMutate = entry.location !== "shop";
+  const canUpgrade = canMutate && upgradeCostValue > 0 && progress.gold >= upgradeCostValue;
+  const canReawaken = canMutate
+    && generalOptionCount > 0
+    && progress.gold >= reawakenCostValue.gold
+    && progress.crystal >= reawakenCostValue.crystal;
+  const canSell = entry.location === "inventory";
+  let generalIndex = -1;
+
+  function toggleLine(index: number): void {
+    setSelectedReawakenLines((lines) => (
+      lines.includes(index) ? lines.filter((line) => line !== index) : [...lines, index].sort((a, b) => a - b)
+    ));
+  }
+
   return (
-    <PopupFrame title="장비 비교">
+    <PopupFrame title="장비 정보">
+      <div className="equipment-info-head">
+        <img className="equip-icon big" src={equipmentIconFor(currentClassId, candidate.slot)} alt="" />
+        <div>
+          <MenuItem label="이름" value={equipmentName(candidate)} valueClassName={rarityClass(candidate.rarity)} />
+          <MenuItem label="위치" value={entry.location === "equipped" ? "장착중" : entry.location === "inventory" ? "가방" : "상점"} />
+        </div>
+      </div>
+
       <div className="compare-head">
         <MenuItem label="현재" value={current ? `${rarityLabel(current.rarity)} ${slotLabel(current.slot)}` : "없음"} />
-        <MenuItem label="후보" value={`${rarityLabel(candidate.rarity)} ${slotLabel(candidate.slot)}`} valueClassName={rarityClass(candidate.rarity)} />
+        <MenuItem label="선택" value={`${rarityLabel(candidate.rarity)} ${slotLabel(candidate.slot)}`} valueClassName={rarityClass(candidate.rarity)} />
         <MenuItem label="전투력" value={`${signedNumber(comparison.delta)} / ${signedPercent(comparison.deltaPercent)}`} valueClassName={deltaClass} />
       </div>
 
       <div className="compare-lines">
-        <CompareLine label="기본" current={current?.baseValue ?? 0} candidate={candidate.baseValue} />
+        <CompareLine label="기본" name={statLabel(candidate.baseStat)} current={current ? enhancedBaseValue(current) : 0} candidate={enhancedBaseValue(candidate)} />
         <CompareLine label="피해" current={current ? Math.round((current.minDmg + current.maxDmg) / 2) : 0} candidate={Math.round((candidate.minDmg + candidate.maxDmg) / 2)} />
         <CompareLine label="명중" current={current?.accuracy ?? 0} candidate={candidate.accuracy} />
+        <MenuItem label="강화" value={`+${candidate.upgradeLevel}/${EQUIPMENT_BALANCE.enhancement.maxLevel}`} />
         {candidate.options.length > 0 ? candidate.options.map((option, index) => {
+          if (!option.sin) {
+            generalIndex += 1;
+          }
+          const lineIndex = generalIndex;
           const currentValue = current?.options.find((entry) => entry.key === option.key && entry.sin === option.sin)?.value ?? 0;
           return (
-            <CompareLine
-              key={`${option.key}-${index}`}
-              label={option.sin ? "죄옵션" : `옵션${index + 1}`}
-              name={affixLabel(option.key)}
-              current={currentValue}
-              candidate={option.value}
-              sin={option.sin}
-            />
+            <div key={`${option.key}-${index}`} className="option-row">
+              {!option.sin ? (
+                <button
+                  type="button"
+                  className={selectedReawakenLines.includes(lineIndex) ? "pbox selected" : "pbox"}
+                  onClick={() => toggleLine(lineIndex)}
+                  aria-label={`옵션 ${lineIndex + 1} 재각성 선택`}
+                >
+                  {selectedReawakenLines.includes(lineIndex) ? "✓" : ""}
+                </button>
+              ) : <span className="pbox sin-lock">SIN</span>}
+              <CompareLine
+                label={option.sin ? "죄옵션" : `옵션${lineIndex + 1}`}
+                name={affixLabel(option.key)}
+                current={currentValue}
+                candidate={option.value}
+                sin={option.sin}
+              />
+            </div>
           );
         }) : <MenuItem label="옵션" value="없음" />}
       </div>
 
-      <div className="popup-menu three">
-        <button type="button" className="inv-vid" onClick={onClose}>
-          <span className="cur">&#9654;</span>착용
-        </button>
-        <button type="button" className="inv-vid off" onClick={onClose}>옵션변경</button>
-        <button type="button" className="inv-vid off" onClick={onClose}>판매</button>
+      <div className="cost-lines">
+        <MenuItem label="강화 비용" value={upgradeCostValue > 0 ? `${formatNumber(upgradeCostValue)}G / 실패 ${Math.round(failChance * 100)}%` : "최대"} />
+        <MenuItem label="재각성 비용" value={`${formatNumber(reawakenCostValue.gold)}G / ◆${formatNumber(reawakenCostValue.crystal)}`} />
       </div>
+
+      <div className="popup-menu four">
+        <button
+          type="button"
+          className={canMutate ? "inv-vid" : "inv-vid off"}
+          disabled={!canMutate}
+          onClick={() => onEquipToggle(candidate.id)}
+        >
+          <span className="cur">&#9654;</span>{entry.location === "equipped" ? "해제" : "장착"}
+        </button>
+        <button type="button" className={canUpgrade ? "inv-vid" : "inv-vid off"} disabled={!canUpgrade} onClick={() => onUpgrade(candidate.id)}>강화</button>
+        <button type="button" className={canSell ? "inv-vid" : "inv-vid off"} disabled={!canSell} onClick={() => onSell(candidate.id)}>판매</button>
+        <button
+          type="button"
+          className={canReawaken ? "inv-vid" : "inv-vid off"}
+          disabled={!canReawaken}
+          onClick={() => onReawaken(candidate.id, selectedReawakenLines.length > 0 ? selectedReawakenLines : undefined)}
+        >
+          재각성
+        </button>
+      </div>
+      <button type="button" className="popup-close" onClick={onClose}>닫기</button>
     </PopupFrame>
   );
 }
@@ -829,6 +959,22 @@ function RelicCard({
   );
 }
 
+function findEquipmentEntry(progress: ProgressState, itemId: string): EquipmentEntry | null {
+  const inventoryItem = progress.inventory.items.find((item) => item.id === itemId);
+  if (inventoryItem) {
+    return { item: inventoryItem, location: "inventory" };
+  }
+
+  for (const item of Object.values(progress.inventory.equipped)) {
+    if (item?.id === itemId) {
+      return { item, location: "equipped" };
+    }
+  }
+
+  const offer = progress.shop.offers.find((entry) => entry.item.id === itemId);
+  return offer ? { item: offer.item, location: "shop" } : null;
+}
+
 function percent(value: number, max: number): number {
   if (max <= 0) {
     return 0;
@@ -866,6 +1012,10 @@ function statLabel(stat: EquipmentStatKey): string {
 
 function rarityLabel(rarity: RelicGrade): string {
   return RARITY_KR_LABELS[rarity];
+}
+
+function equipmentName(item: EquipmentItem): string {
+  return `${rarityLabel(item.rarity)} ${slotLabel(item.slot)} +${item.upgradeLevel}`;
 }
 
 function affixLabel(key: string): string {

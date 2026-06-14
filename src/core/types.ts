@@ -141,6 +141,7 @@ export interface EquipmentItem {
   accuracy: number;
   upgradeLevel: number;
   options: ItemOption[];
+  locked?: boolean;
 }
 
 export type EquippedItems = Record<ItemSlot, EquipmentItem | null>;
@@ -330,6 +331,7 @@ export interface DropIconEvent {
 
 export interface ProgressState {
   gold: number;
+  crystal: number;
   experience: number;
   level: number;
   classId: ClassId;

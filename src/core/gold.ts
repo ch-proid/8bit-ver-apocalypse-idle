@@ -1,6 +1,6 @@
-import { GOLD_BALANCE } from "../data/balance";
+import { EQUIPMENT_BALANCE, GOLD_BALANCE } from "../data/balance";
 import { ITEM_SLOTS } from "../data/items";
-import { calculateItemValue, cloneItem, generateEquipmentItem, nextRarity, rollGeneralOptions } from "./equipment";
+import { calculateItemValue, cloneItem, generateEquipmentItem, nextRarity, rollGeneralOptions, rollWeightedGeneralOption } from "./equipment";
 import { addItemToInventory, createItemId, findItem } from "./inventory";
 import { chance, pickOne } from "./rng";
 import type { EquipmentItem, ItemRarity, ProgressState, RerollState, RngState, ShopOffer, ShopState } from "./types";
@@ -90,6 +90,73 @@ export function rerollItemOptions(progress: ProgressState, itemId: string, rng: 
   return { success: true, cost };
 }
 
+export interface ReawakenCost {
+  gold: number;
+  crystal: number;
+}
+
+export interface ReawakenResult extends ReawakenCost {
+  success: boolean;
+  rerolledLines: number[];
+}
+
+export function reawakenItemOptions(
+  progress: ProgressState,
+  itemId: string,
+  rng: RngState,
+  selectedGeneralLineIndexes?: number[],
+): ReawakenResult {
+  const found = findItem(progress, itemId);
+  if (!found) {
+    return { success: false, gold: 0, crystal: 0, rerolledLines: [] };
+  }
+
+  const generalOptions = found.item.options.filter((option) => !option.sin);
+  if (generalOptions.length <= 0) {
+    return { success: false, gold: 0, crystal: 0, rerolledLines: [] };
+  }
+
+  const selected = normalizeSelectedLines(selectedGeneralLineIndexes, generalOptions.length);
+  const cost = reawakeningCost(found.item, selected.length);
+  if (progress.gold < cost.gold || progress.crystal < cost.crystal) {
+    return { success: false, ...cost, rerolledLines: selected };
+  }
+
+  progress.gold -= cost.gold;
+  progress.crystal -= cost.crystal;
+
+  let generalCursor = 0;
+  const selectedSet = new Set(selected);
+  found.item.options = found.item.options.map((option) => {
+    if (option.sin) {
+      return { ...option };
+    }
+    const index = generalCursor;
+    generalCursor += 1;
+    return selectedSet.has(index)
+      ? rollWeightedGeneralOption(rng, found.item.slot)
+      : { ...option };
+  });
+
+  return { success: true, ...cost, rerolledLines: selected };
+}
+
+export function reawakeningCost(item: EquipmentItem, selectedLineCount?: number): ReawakenCost {
+  const generalLineCount = Math.max(0, item.options.filter((option) => !option.sin).length);
+  if (generalLineCount <= 0) {
+    return { gold: 0, crystal: 0 };
+  }
+
+  const selected = Math.max(1, Math.min(generalLineCount, Math.floor(selectedLineCount ?? generalLineCount)));
+  const multiplier = 1 + (generalLineCount - selected) * EQUIPMENT_BALANCE.reawakening.pinpointCostStep;
+  const rarityMultiplier = 1 + EQUIPMENT_BALANCE.rarityRanks[item.rarity] * 0.35;
+  const levelMultiplier = 1 + Math.max(0, item.itemLevel - 1) * 0.03;
+  return {
+    gold: Math.floor(EQUIPMENT_BALANCE.reawakening.baseGoldCost * multiplier * rarityMultiplier * levelMultiplier),
+    crystal: Math.max(1, Math.ceil(EQUIPMENT_BALANCE.reawakening.baseCrystalCost * multiplier * rarityMultiplier)),
+  };
+}
+
 export function refreshShop(progress: ProgressState, rng: RngState, elapsedSeconds: number, paid: boolean): boolean {
   if (paid) {
     if (progress.gold < GOLD_BALANCE.shopRefreshGoldCost) {
@@ -137,6 +204,19 @@ export function buyShopOffer(progress: ProgressState, offerId: string): boolean 
 
 export function rerollCost(previousRerolls: number): number {
   return Math.floor(GOLD_BALANCE.rerollBaseCost * Math.pow(GOLD_BALANCE.rerollCostGrowth, previousRerolls));
+}
+
+function normalizeSelectedLines(selected: number[] | undefined, total: number): number[] {
+  if (!selected || selected.length <= 0) {
+    return Array.from({ length: total }, (_, index) => index);
+  }
+
+  const normalized = Array.from(new Set(
+    selected
+      .map((index) => Math.floor(index))
+      .filter((index) => index >= 0 && index < total),
+  )).sort((a, b) => a - b);
+  return normalized.length > 0 ? normalized : Array.from({ length: total }, (_, index) => index);
 }
 
 export function shopPrice(item: EquipmentItem): number {
