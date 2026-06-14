@@ -1109,8 +1109,8 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: clamp(10px, 3.4vw, 18px);
-  width: min(100%, 320px);
+  gap: clamp(8px, 2.4vw, 14px);
+  width: min(100%, 360px);
 }
 
 .pbtn {
@@ -1121,7 +1121,7 @@ button {
   color: var(--silk);
   font-size: 8px;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0;
   text-shadow: 0 1px 0 rgba(141, 184, 110, 0.35);
 }
 

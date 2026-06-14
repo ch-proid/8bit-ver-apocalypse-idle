@@ -24,7 +24,7 @@ import { DebugPanel } from "./DebugPanel";
 import { formatDuration, formatNumber } from "./format";
 import { SurvivorSprite } from "./SurvivorSprite";
 
-export type HudPanelId = "stat" | "gear" | "altar";
+export type HudPanelId = "stat" | "gear" | "altar" | "rebirth";
 
 interface HudProps {
   activePanel: HudPanelId | null;
@@ -318,23 +318,38 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
           </div>
         </Win>
 
+      </Panel>
+
+      <Panel open={activePanel === "rebirth"} label="환생">
+        <div className="statbar rich">
+          <span>현재 {progress.rebirth.count + 1}회차</span>
+          <span>환생 {progress.rebirth.count}회</span>
+          <span className="bloodc">x{progress.rebirth.experienceMultiplier.toFixed(2)}</span>
+        </div>
+
         <Win title="환생">
-          <MenuItem label="경험 배율" value={`x${progress.rebirth.experienceMultiplier.toFixed(2)}`} valueClassName="bloodc" />
-          <MenuItem label="환생 횟수" value={progress.rebirth.count} />
+          <MenuItem label="현재 회차" value={`${progress.rebirth.count + 1}회차`} />
+          <MenuItem label="환생 횟수" value={`${progress.rebirth.count}회`} />
+          <MenuItem label="현재 배율" value={`x${progress.rebirth.experienceMultiplier.toFixed(2)}`} valueClassName="bloodc" />
+          <MenuItem
+            label="해금 조건"
+            value={progress.rebirth.canRebirth ? "달성" : "루시안 처치 필요"}
+            valueClassName={progress.rebirth.canRebirth ? "goldc kr" : "bloodc kr"}
+          />
           <button
             type="button"
             className={progress.rebirth.canRebirth ? "inv-vid" : "inv-vid off"}
             disabled={!progress.rebirth.canRebirth}
             onClick={rebirthNow}
           >
-            <span className="cur">&#9654;</span>환생
+            <span className="cur">&#9654;</span>환생하기
           </button>
         </Win>
 
-        <Win title="기록">
+        <Win title="개인 기록">
           <MenuItem label="최고 레벨" value={progress.records.highestLevel.value} />
           <MenuItem label="최고 전투력" value={formatNumber(progress.records.dummyScore.value)} />
-          <MenuItem label="환생 스테이지" value={progress.records.highestRebirthStage.value} />
+          <MenuItem label="환생 횟수" value={`${progress.rebirth.count}회`} />
         </Win>
       </Panel>
 

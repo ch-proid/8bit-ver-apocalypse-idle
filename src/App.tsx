@@ -154,6 +154,7 @@ export default function App() {
             <TabButton active={activePanel === "stat"} label="스탯" onClick={() => togglePanel("stat")} />
             <TabButton active={activePanel === "gear"} label="장비" onClick={() => togglePanel("gear")} />
             <TabButton active={activePanel === "altar"} label="제단" onClick={() => togglePanel("altar")} />
+            <TabButton active={activePanel === "rebirth"} label="환생" onClick={() => togglePanel("rebirth")} />
             {DEBUG_PANEL_ENABLED ? (
               <TabButton active={debugOpen} label="개발" onClick={toggleDebug} />
             ) : null}
