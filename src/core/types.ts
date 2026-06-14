@@ -17,8 +17,11 @@ export type PlayerAiState = "IDLE" | "MOVE" | "ATTACK";
 export type ClassId = "assassin" | "knight" | "mage";
 export type StatKey = "str" | "grit" | "agi";
 export type EquipmentStatKey = "atk" | "def" | "hp" | "reg";
+export type EquipmentBaseStatKey = EquipmentStatKey | "accuracy" | "critChance";
 export type StatPreset = "STR" | "BAL" | "GRIT" | "AGI" | "MANUAL";
 export type ItemSlot = "weapon" | "helmet" | "armor" | "accessory";
+export type WeaponType = "dagger" | "sword" | "greatsword" | "staff";
+export type EquipmentKind = WeaponType | "helmet" | "hood" | "hat" | "cap" | "armor" | "leather" | "robe" | "cuirass" | "ring";
 export type ItemRarity = "common" | "magic" | "rare" | "epic" | "legendary";
 export type RelicGrade = ItemRarity;
 export type GeneralAffixKey =
@@ -65,6 +68,8 @@ export interface EquipmentStatAllocation {
   hp: number;
   reg: number;
 }
+
+export type EquipmentBaseStats = Partial<Record<EquipmentBaseStatKey, number>>;
 
 export interface StatDistributionState {
   assigned: StatAllocation;
@@ -133,10 +138,13 @@ export interface EquipmentItem {
   id: string;
   name?: string;
   slot: ItemSlot;
+  kind?: EquipmentKind;
+  weaponType?: WeaponType;
   rarity: ItemRarity;
   itemLevel: number;
   baseStat: EquipmentStatKey;
   baseValue: number;
+  baseStats?: EquipmentBaseStats;
   minDmg: number;
   maxDmg: number;
   accuracy: number;

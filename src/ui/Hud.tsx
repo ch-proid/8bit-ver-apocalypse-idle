@@ -13,13 +13,21 @@ import {
 import { altarElitePreview } from "../core/elites";
 import { classCritProfile } from "../core/class";
 import { clampCombatAffixes } from "../core/combat";
-import { calculateCombatAffixStats, calculateEquipmentStats, enhancedBaseValue, equipmentDisplayName } from "../core/equipment";
+import {
+  calculateCombatAffixStats,
+  calculateEquipmentStats,
+  canClassEquipItem,
+  cloneItem,
+  equipmentBaseStatRows,
+  equipmentDisplayName,
+  equipmentKindLabel,
+} from "../core/equipment";
 import { canRefreshShop, reawakeningCost, shopRefreshRemainingSeconds } from "../core/gold";
 import { canRebirth } from "../core/rebirth";
-import { compareEquipmentCombatScore, createBuildSnapshot, type EquipmentScoreComparison } from "../core/sim";
+import { compareEquipmentCombatScore, createBuildSnapshot } from "../core/sim";
 import { combatPowerEstimate } from "../core/stats";
-import { equipmentUpgradeCost, equipmentUpgradeFailureChance } from "../core/upgrade";
-import type { ClassId, EquipmentItem, EquipmentStatKey, ItemOption, ItemRarity, ItemSlot, ProgressState, RelicGrade, RelicId, RelicInstance, StageFailureReport, StatKey } from "../core/types";
+import { applyWeaponUpgrade, equipmentUpgradeCost, equipmentUpgradeFailureChance } from "../core/upgrade";
+import type { ClassId, EquipmentBaseStatKey, EquipmentItem, ItemOption, ItemRarity, ItemSlot, ProgressState, RelicGrade, RelicId, RelicInstance, StageFailureReport, StatKey } from "../core/types";
 import { AFFIX_BALANCE, ALTAR_BALANCE, DAMAGE_FORMULA, EQUIPMENT_BALANCE, REBIRTH_BALANCE } from "../data/balance";
 import { equipmentIconFor } from "../data/equipmentIcons";
 import { ITEM_SLOTS } from "../data/items";
@@ -94,11 +102,13 @@ const RARITY_KR_LABELS: Record<ItemRarity, string> = {
   epic: "영웅",
   legendary: "전설",
 };
-const EQUIPMENT_STAT_KR_LABELS: Record<EquipmentStatKey, string> = {
-  atk: "공격",
-  def: "방어",
+const EQUIPMENT_STAT_KR_LABELS: Record<EquipmentBaseStatKey, string> = {
+  atk: "공격력",
+  def: "방어력",
   hp: "체력",
-  reg: "회복",
+  reg: "체력재생",
+  accuracy: "명중",
+  critChance: "치명확률",
 };
 const AFFIX_KR_LABELS: Record<string, string> = {
   critChance: "치명확률",
@@ -216,6 +226,8 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
   const hasRelicOwnedStats = relicOwnedStats.atk > 0 || relicOwnedStats.hp > 0 || relicOwnedStats.def > 0 || relicOwnedStats.reg > 0;
   const equippedRelic = bestRelicInstance(progress.altar, progress.altar.equippedRelicId);
   const [equipmentPopup, setEquipmentPopup] = useState<EquipmentPopupState | null>(null);
+  const [equipmentUpgradePopup, setEquipmentUpgradePopup] = useState<EquipmentPopupState | null>(null);
+  const [equipmentReawakenPopup, setEquipmentReawakenPopup] = useState<EquipmentPopupState | null>(null);
   const [relicPopup, setRelicPopup] = useState<RelicPopupState | null>(null);
   const [disassembleMode, setDisassembleMode] = useState(false);
   const [selectedDisassembleIds, setSelectedDisassembleIds] = useState<string[]>([]);
@@ -253,6 +265,8 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
     );
   }, [activePanel, gearItems, progress]);
   const popupEntry = equipmentPopup ? findEquipmentEntry(progress, equipmentPopup.itemId) : null;
+  const upgradePopupEntry = equipmentUpgradePopup ? findEquipmentEntry(progress, equipmentUpgradePopup.itemId) : null;
+  const reawakenPopupEntry = equipmentReawakenPopup ? findEquipmentEntry(progress, equipmentReawakenPopup.itemId) : null;
   const popupRelic = relicPopup ? progress.altar.owned[relicPopup.relicId]?.[relicPopup.grade] ?? null : null;
 
   useEffect(() => {
@@ -661,7 +675,10 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
             equipOrUnequipItem(itemId);
             setEquipmentPopup(null);
           }}
-          onUpgrade={(itemId) => upgradeEquipmentItem(itemId)}
+          onUpgrade={(itemId) => {
+            setEquipmentPopup(null);
+            setEquipmentUpgradePopup({ itemId });
+          }}
           onSell={(itemId) => {
             sellEquipmentItem(itemId);
             setEquipmentPopup(null);
@@ -670,7 +687,36 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
             buyShopOfferNow(offerId);
             setEquipmentPopup(null);
           }}
-          onReawaken={(itemId, selectedLines) => reawakenEquipmentItem(itemId, selectedLines)}
+          onReawaken={(itemId) => {
+            setEquipmentPopup(null);
+            setEquipmentReawakenPopup({ itemId });
+          }}
+        />
+      ) : null}
+
+      {equipmentUpgradePopup && upgradePopupEntry ? (
+        <EquipmentUpgradePopup
+          entry={upgradePopupEntry}
+          progress={progress}
+          currentClassId={currentClassId}
+          onClose={() => setEquipmentUpgradePopup(null)}
+          onUpgrade={(itemId) => {
+            upgradeEquipmentItem(itemId);
+            setEquipmentUpgradePopup(null);
+          }}
+        />
+      ) : null}
+
+      {equipmentReawakenPopup && reawakenPopupEntry ? (
+        <EquipmentReawakenPopup
+          entry={reawakenPopupEntry}
+          progress={progress}
+          currentClassId={currentClassId}
+          onClose={() => setEquipmentReawakenPopup(null)}
+          onReawaken={(itemId, selectedLines) => {
+            reawakenEquipmentItem(itemId, selectedLines);
+            setEquipmentReawakenPopup(null);
+          }}
         />
       ) : null}
 
@@ -950,102 +996,54 @@ function EquipmentInfoPopup({
   onUpgrade: (itemId: string) => void;
   onSell: (itemId: string) => void;
   onBuy: (offerId: string) => void;
-  onReawaken: (itemId: string, selectedGeneralLineIndexes?: number[]) => void;
+  onReawaken: (itemId: string) => void;
 }) {
-  const [selectedReawakenLines, setSelectedReawakenLines] = useState<number[]>([]);
   const candidate = entry.item;
-  const current = progress.inventory.equipped[candidate.slot];
-  const comparison = compareEquipmentCombatScore(createBuildSnapshot(progress), candidate, { durationSeconds: 8 });
-  const deltaClass = comparison.delta >= 0 ? "goldc" : "bloodc";
   const generalOptionCount = candidate.options.filter((option) => !option.sin).length;
-  const reawakenSelectedCount = selectedReawakenLines.length > 0 ? selectedReawakenLines.length : generalOptionCount;
-  const reawakenCostValue = reawakeningCost(candidate, reawakenSelectedCount);
   const upgradeCostValue = equipmentUpgradeCost(candidate);
-  const failChance = equipmentUpgradeFailureChance(candidate);
   const canMutate = entry.location !== "shop";
-  const canUpgrade = canMutate && upgradeCostValue > 0 && progress.gold >= upgradeCostValue;
-  const canReawaken = canMutate
-    && generalOptionCount > 0
-    && progress.gold >= reawakenCostValue.gold
-    && progress.crystal >= reawakenCostValue.crystal;
+  const canUpgrade = canMutate && upgradeCostValue > 0;
+  const canReawaken = canMutate && generalOptionCount > 0;
   const canSell = entry.location === "inventory";
   const canBuy = entry.location === "shop" && Boolean(entry.offerId) && progress.gold >= (entry.price ?? Number.POSITIVE_INFINITY);
-  let generalIndex = -1;
-
-  function toggleLine(index: number): void {
-    setSelectedReawakenLines((lines) => (
-      lines.includes(index) ? lines.filter((line) => line !== index) : [...lines, index].sort((a, b) => a - b)
-    ));
-  }
+  const canEquip = entry.location === "equipped" || (entry.location === "inventory" && canClassEquipItem(currentClassId, candidate));
+  const equipBlocked = candidate.slot === "weapon" && !canClassEquipItem(currentClassId, candidate);
 
   return (
     <PopupFrame title="장비 정보">
       <div className="equipment-info-head">
         <img className="equip-icon big" src={equipmentIconFor(currentClassId, candidate.slot)} alt="" />
-        <div>
-          <MenuItem label="이름" value={equipmentName(candidate)} valueClassName={rarityClass(candidate.rarity)} />
-          <MenuItem label="위치" value={entry.location === "equipped" ? "장착중" : entry.location === "inventory" ? "가방" : "상점"} />
+        <div className="item-detail">
+          <div className={`equipment-name ${rarityClass(candidate.rarity)}`}>{equipmentDisplayName(candidate)}</div>
+          <div className="tiny dim kr">{rarityLabel(candidate.rarity)} / {equipmentKindLabel(candidate)}</div>
           {entry.location === "shop" ? <MenuItem label="가격" value={<IconValue type="gold" value={formatNumber(entry.price ?? 0)} compact />} /> : null}
+          {equipBlocked ? <p className="equip-blocked kr">착용 불가(직업)</p> : null}
         </div>
       </div>
 
-      <div className="compare-head">
-        <MenuItem label="현재" value={current ? `${rarityLabel(current.rarity)} ${slotLabel(current.slot)}` : "없음"} />
-        <MenuItem label="선택" value={`${rarityLabel(candidate.rarity)} ${slotLabel(candidate.slot)}`} valueClassName={rarityClass(candidate.rarity)} />
-        <MenuItem label="전투력" value={`${signedNumber(comparison.delta)} / ${signedPercent(comparison.deltaPercent)}`} valueClassName={deltaClass} />
+      <div className="base-stat-list">
+        {equipmentBaseStatRows(candidate).map((row) => (
+          <MenuItem key={row.key} label={baseStatLabel(row.key)} value={formatBaseStatValue(row.key, row.value)} />
+        ))}
       </div>
 
-      <div className="compare-lines">
-        <CompareLine label="기본" name={statLabel(candidate.baseStat)} current={current ? enhancedBaseValue(current) : 0} candidate={enhancedBaseValue(candidate)} />
-        <CompareLine label="피해" current={current ? Math.round((current.minDmg + current.maxDmg) / 2) : 0} candidate={Math.round((candidate.minDmg + candidate.maxDmg) / 2)} />
-        <CompareLine label="명중" current={current?.accuracy ?? 0} candidate={candidate.accuracy} />
-        <MenuItem label="강화" value={`+${candidate.upgradeLevel}/${EQUIPMENT_BALANCE.enhancement.maxLevel}`} />
-        {candidate.options.length > 0 ? candidate.options.map((option, index) => {
-          if (!option.sin) {
-            generalIndex += 1;
-          }
-          const lineIndex = generalIndex;
-          const currentValue = current?.options.find((entry) => entry.key === option.key && entry.sin === option.sin)?.value ?? 0;
-          const capped = isOptionAtMax(option);
-          const line = (
-            <CompareLine
-              label={option.sin ? "죄옵션" : `옵션${lineIndex + 1}`}
-              name={affixLabel(option.key)}
-              current={currentValue}
-              candidate={option.value}
-              sin={option.sin}
-              capped={capped}
-            />
-          );
-          return option.sin ? (
-            <div key={`${option.key}-${index}`} className={capped ? "option-row static capped" : "option-row static"}>
-              <span className="sin-lock">SIN</span>
-              {line}
-            </div>
-          ) : (
-            <button
-              key={`${option.key}-${index}`}
-              type="button"
-              className={`${selectedReawakenLines.includes(lineIndex) ? "option-row selectable selected" : "option-row selectable"}${capped ? " capped" : ""}`}
-              onClick={() => toggleLine(lineIndex)}
-              aria-label={`옵션 ${lineIndex + 1} 재각성 선택`}
-            >
-              {line}
-            </button>
-          );
-        }) : <MenuItem label="옵션" value="없음" />}
-      </div>
-
-      <div className="cost-lines">
-        <MenuItem label="강화 비용" value={upgradeCostValue > 0 ? `${formatNumber(upgradeCostValue)}G / 실패 ${Math.round(failChance * 100)}%` : "최대"} />
-        <MenuItem label="재각성 비용" value={`${formatNumber(reawakenCostValue.gold)}G / ◆${formatNumber(reawakenCostValue.crystal)}`} />
+      <div className="effect-divider kr">─추가효과─</div>
+      <div className="option-lines">
+        {candidate.options.length > 0 ? candidate.options.map((option, index) => (
+          <EquipmentOptionLine
+            key={`${option.key}-${index}`}
+            option={option}
+            index={index}
+            staticLabel={option.sin ? "SIN" : undefined}
+          />
+        )) : <MenuItem label="추가효과" value="없음" />}
       </div>
 
       <div className="popup-menu four">
         <button
           type="button"
-          className={entry.location === "shop" ? canBuy ? "inv-vid" : "inv-vid off" : canMutate ? "inv-vid" : "inv-vid off"}
-          disabled={entry.location === "shop" ? !canBuy : !canMutate}
+          className={entry.location === "shop" ? canBuy ? "inv-vid" : "inv-vid off" : canEquip ? "inv-vid" : "inv-vid off"}
+          disabled={entry.location === "shop" ? !canBuy : !canEquip}
           onClick={() => entry.location === "shop" && entry.offerId ? onBuy(entry.offerId) : onEquipToggle(candidate.id)}
         >
           <span className="cur">&#9654;</span>{entry.location === "shop" ? "구매" : entry.location === "equipped" ? "해제" : "장착"}
@@ -1056,7 +1054,7 @@ function EquipmentInfoPopup({
           type="button"
           className={canReawaken ? "inv-vid" : "inv-vid off"}
           disabled={!canReawaken}
-          onClick={() => onReawaken(candidate.id, selectedReawakenLines.length > 0 ? selectedReawakenLines : undefined)}
+          onClick={() => onReawaken(candidate.id)}
         >
           재각성
         </button>
@@ -1066,30 +1064,163 @@ function EquipmentInfoPopup({
   );
 }
 
-function CompareLine({
-  label,
-  name,
-  current,
-  candidate,
-  sin = false,
-  capped = false,
+function EquipmentUpgradePopup({
+  entry,
+  progress,
+  currentClassId,
+  onClose,
+  onUpgrade,
 }: {
-  label: string;
-  name?: string;
-  current: number;
-  candidate: number;
-  sin?: boolean;
-  capped?: boolean;
+  entry: EquipmentEntry;
+  progress: ProgressState;
+  currentClassId: ClassId;
+  onClose: () => void;
+  onUpgrade: (itemId: string) => void;
 }) {
-  const direction = candidate > current ? "up" : candidate < current ? "down" : "same";
-  const valueClassName = capped ? "capc" : direction === "up" ? "goldc" : direction === "down" ? "bloodc" : "";
+  const item = entry.item;
+  const next = cloneItem(item);
+  if (next.upgradeLevel < EQUIPMENT_BALANCE.enhancement.maxLevel) {
+    applyWeaponUpgrade(next);
+  }
+  const currentRows = equipmentBaseStatRows(item);
+  const nextRows = equipmentBaseStatRows(next);
+  const rowKeys = Array.from(new Set([...currentRows, ...nextRows].map((row) => row.key)));
+  const cost = equipmentUpgradeCost(item);
+  const failChance = equipmentUpgradeFailureChance(item);
+  const failPercent = Math.round(failChance * 100);
+  const canUpgrade = entry.location !== "shop" && cost > 0 && progress.gold >= cost;
+
   return (
-    <span className={sin ? "mi compare-line sin-line" : "mi compare-line"}>
-      <span>{label}</span>
+    <PopupFrame title="강화">
+      <div className="equipment-info-head">
+        <img className="equip-icon big" src={equipmentIconFor(currentClassId, item.slot)} alt="" />
+        <div className="item-detail">
+          <div className={`equipment-name ${rarityClass(item.rarity)}`}>{equipmentDisplayName(item)}</div>
+          <div className="tiny dim kr">{item.upgradeLevel}강 → {Math.min(EQUIPMENT_BALANCE.enhancement.maxLevel, item.upgradeLevel + 1)}강</div>
+        </div>
+      </div>
+      <div className="upgrade-lines">
+        {rowKeys.map((key) => {
+          const current = currentRows.find((row) => row.key === key)?.value ?? 0;
+          const target = nextRows.find((row) => row.key === key)?.value ?? current;
+          return (
+            <MenuItem
+              key={key}
+              label={baseStatLabel(key)}
+              value={`${formatBaseStatValue(key, current)} → ${formatBaseStatValue(key, target)}(${signedBaseDelta(key, target - current)})`}
+              valueClassName={target > current ? "goldc" : ""}
+            />
+          );
+        })}
+      </div>
+      <div className="cost-lines">
+        <MenuItem label="성공확률" value={`${100 - failPercent}%`} />
+        <MenuItem label="실패확률" value={`${failPercent}%`} />
+        <MenuItem label="하락확률" value={`${failPercent}%`} valueClassName={failPercent > 0 ? "bloodc" : ""} />
+      </div>
+      <div className="popup-menu two">
+        <button type="button" className={canUpgrade ? "inv-vid" : "inv-vid off"} disabled={!canUpgrade} onClick={() => onUpgrade(item.id)}>
+          <span className="cur">&#9654;</span>강화 <IconValue type="gold" value={formatNumber(cost)} compact />
+        </button>
+        <button type="button" className="inv-vid off" onClick={onClose}>닫기</button>
+      </div>
+    </PopupFrame>
+  );
+}
+
+function EquipmentReawakenPopup({
+  entry,
+  progress,
+  currentClassId,
+  onClose,
+  onReawaken,
+}: {
+  entry: EquipmentEntry;
+  progress: ProgressState;
+  currentClassId: ClassId;
+  onClose: () => void;
+  onReawaken: (itemId: string, selectedGeneralLineIndexes?: number[]) => void;
+}) {
+  const [selectedLines, setSelectedLines] = useState<number[]>([]);
+  const item = entry.item;
+  const generalOptions = item.options.filter((option) => !option.sin);
+  const sinOptions = item.options.filter((option) => option.sin);
+  const maxLines = EQUIPMENT_BALANCE.generalOptionLines[item.rarity];
+  const selectedCount = selectedLines.length > 0 ? selectedLines.length : generalOptions.length;
+  const cost = reawakeningCost(item, selectedCount);
+  const canReawaken = entry.location !== "shop"
+    && generalOptions.length > 0
+    && progress.gold >= cost.gold
+    && progress.crystal >= cost.crystal;
+
+  function toggleLine(index: number): void {
+    setSelectedLines((lines) => (
+      lines.includes(index) ? lines.filter((line) => line !== index) : [...lines, index].sort((a, b) => a - b)
+    ));
+  }
+
+  return (
+    <PopupFrame title="재각성">
+      <div className="equipment-info-head">
+        <img className="equip-icon big" src={equipmentIconFor(currentClassId, item.slot)} alt="" />
+        <div className="item-detail">
+          <div className={`equipment-name ${rarityClass(item.rarity)}`}>{equipmentDisplayName(item)}</div>
+          <div className="tiny dim kr">추가효과 선택</div>
+        </div>
+      </div>
+      <div className="effect-divider kr">─추가효과─</div>
+      <div className="option-lines">
+        {Array.from({ length: maxLines }).map((_, index) => {
+          const option = generalOptions[index];
+          if (!option) {
+            return <div key={`empty-${index}`} className="option-row empty"><span>빈칸</span><span className="dots" /></div>;
+          }
+          return (
+            <button
+              key={`${option.key}-${index}`}
+              type="button"
+              className={`${selectedLines.includes(index) ? "option-row selectable selected" : "option-row selectable"}${isOptionAtMax(option) ? " capped" : ""}`}
+              onClick={() => toggleLine(index)}
+            >
+              <EquipmentOptionLine option={option} index={index} />
+            </button>
+          );
+        })}
+        {sinOptions.map((option, index) => (
+          <EquipmentOptionLine key={`${option.key}-${index}`} option={option} index={index} staticLabel="SIN" />
+        ))}
+      </div>
+      <div className="popup-menu two">
+        <button
+          type="button"
+          className={canReawaken ? "inv-vid" : "inv-vid off"}
+          disabled={!canReawaken}
+          onClick={() => onReawaken(item.id, selectedLines.length > 0 ? selectedLines : undefined)}
+        >
+          <span className="cur">&#9654;</span>재각성 <IconValue type="gold" value={formatNumber(cost.gold)} compact /> <span className="crystal-val">◆ {formatNumber(cost.crystal)}</span>
+        </button>
+        <button type="button" className="inv-vid off" onClick={onClose}>닫기</button>
+      </div>
+    </PopupFrame>
+  );
+}
+
+function EquipmentOptionLine({
+  option,
+  index,
+  staticLabel,
+}: {
+  option: ItemOption;
+  index: number;
+  staticLabel?: string;
+}) {
+  const capped = isOptionAtMax(option);
+  return (
+    <span className={`${option.sin ? "mi option-line sin-line" : "mi option-line"}${capped ? " capped" : ""}`}>
+      {staticLabel ? <span className="sin-lock">{staticLabel}</span> : <span>옵션{index + 1}</span>}
       <span className="dots" />
-      <span className="compare-name">{name ?? ""}</span>
-      {direction !== "same" ? <span className={`compare-marker ${direction}`} aria-hidden="true" /> : null}
-      <span className={valueClassName ? `v ${valueClassName}` : "v"}>{formatNumber(current)}→{formatNumber(candidate)}</span>
+      <span className="compare-name">{affixLabel(option.key)}</span>
+      <span className={capped ? "v capc" : "v"}>{formatAffixValue(option)}</span>
     </span>
   );
 }
@@ -1268,7 +1399,7 @@ function slotLabel(slot: ItemSlot): string {
   return SLOT_KR_LABELS[slot];
 }
 
-function statLabel(stat: EquipmentStatKey): string {
+function baseStatLabel(stat: EquipmentBaseStatKey): string {
   return EQUIPMENT_STAT_KR_LABELS[stat];
 }
 
@@ -1276,12 +1407,32 @@ function rarityLabel(rarity: RelicGrade): string {
   return RARITY_KR_LABELS[rarity];
 }
 
-function equipmentName(item: EquipmentItem): string {
-  return `${equipmentDisplayName(item)} +${item.upgradeLevel}`;
-}
-
 function affixLabel(key: string): string {
   return AFFIX_KR_LABELS[key] ?? key;
+}
+
+function formatBaseStatValue(key: EquipmentBaseStatKey, value: number): string {
+  if (key === "critChance") {
+    return `${formatNumberLike(value)}%`;
+  }
+  if (key === "reg" || key === "atk" || key === "def" || key === "hp" || key === "accuracy") {
+    return formatNumberLike(value);
+  }
+  return formatNumber(value);
+}
+
+function signedBaseDelta(key: EquipmentBaseStatKey, value: number): string {
+  const sign = value >= 0 ? "+" : "";
+  return `${sign}${formatBaseStatValue(key, value)}`;
+}
+
+function formatAffixValue(option: ItemOption): string {
+  const suffix = option.sin || option.key === "defPenetration" ? "" : "%";
+  return `+${formatNumberLike(option.value)}${suffix}`;
+}
+
+function formatNumberLike(value: number): string {
+  return Number.isInteger(value) ? formatNumber(value) : value.toFixed(2).replace(/\.?0+$/, "");
 }
 
 function isOptionAtMax(option: ItemOption): boolean {
@@ -1321,15 +1472,6 @@ function countHighGradeRelics(progress: ProgressState): number {
     }
   }
   return count;
-}
-
-function signedNumber(value: number): string {
-  return `${value >= 0 ? "+" : ""}${formatNumber(value)}`;
-}
-
-function signedPercent(value: number): string {
-  const rounded = Math.round(value * 10) / 10;
-  return `${rounded >= 0 ? "+" : ""}${rounded.toFixed(1)}%`;
 }
 
 function starText(stars: number): string {

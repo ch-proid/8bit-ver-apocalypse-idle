@@ -5,9 +5,9 @@ export const ITEM_RARITIES: ItemRarity[] = ["common", "magic", "rare", "epic", "
 
 export const ITEM_SLOT_BASE_STAT: Record<ItemSlot, EquipmentStatKey> = {
   weapon: "atk",
-  helmet: "hp",
-  armor: "def",
-  accessory: "reg",
+  helmet: "def",
+  armor: "hp",
+  accessory: "atk",
 };
 
 export const NEXT_RARITY: Partial<Record<ItemRarity, ItemRarity>> = {

@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { GENERAL_AFFIXES } from "../data/affixes";
 import { EQUIPMENT_BALANCE, FIXED_DELTA, GOLD_BALANCE, PLAYER_BALANCE } from "../data/balance";
-import { equipmentDisplayName, generateEquipmentItem, rarityWeightsForStage } from "./equipment";
+import {
+  calculateCombatAffixStats,
+  calculateEquipmentStats,
+  canClassEquipItem,
+  equipmentBaseStatRows,
+  equipmentDisplayName,
+  generateEquipmentItem,
+  rarityWeightsForStage,
+} from "./equipment";
 import { equipmentDropChance } from "./drop";
 import { buyShopOffer, canRefreshShop, cubeSynthesize, refreshShop, reawakenItemOptions, reawakeningCost, rerollItemOptions, shopRefreshRemainingSeconds } from "./gold";
 import { addItemToInventory, disassembleItems, equipItem, setAutoSell } from "./inventory";
@@ -92,11 +100,52 @@ describe("phase 3B equipment, drops, and gold", () => {
       stageId: 3,
       rarity: "rare",
       slot: "armor",
+      kind: "robe",
     });
 
-    expect(item.name).toMatch(/^희귀의 .+ (갑옷|가죽옷|로브|흉갑)$/);
-    expect(equipmentDisplayName({ ...item, name: undefined })).toBe("희귀의 갑옷");
+    expect(item.name).toMatch(/^희귀의 .+ 로브$/);
+    expect(equipmentDisplayName({ ...item, name: undefined })).toBe("희귀의 로브");
     expect(equipmentDisplayName(item)).toBe(item.name);
+  });
+
+  it("uses the revised base stat package for each equipment slot", () => {
+    const rng = createRngState(208);
+    const weapon = generateEquipmentItem({ id: "base-weapon", rng, stageId: 1, rarity: "rare", slot: "weapon", itemLevel: 5, kind: "dagger" });
+    const helmet = generateEquipmentItem({ id: "base-helmet", rng, stageId: 1, rarity: "rare", slot: "helmet", itemLevel: 5 });
+    const armor = generateEquipmentItem({ id: "base-armor", rng, stageId: 1, rarity: "rare", slot: "armor", itemLevel: 5 });
+    const ring = generateEquipmentItem({ id: "base-ring", rng, stageId: 1, rarity: "rare", slot: "accessory", itemLevel: 5 });
+    const equipped = { weapon, helmet, armor, accessory: ring };
+    const directStats = calculateEquipmentStats(equipped);
+    const combatStats = calculateCombatAffixStats(equipped);
+
+    expect(equipmentBaseStatRows(weapon).map((row) => row.key)).toEqual(["atk", "accuracy"]);
+    expect(equipmentBaseStatRows(helmet).map((row) => row.key)).toEqual(["def"]);
+    expect(equipmentBaseStatRows(armor).map((row) => row.key)).toEqual(["hp", "reg"]);
+    expect(equipmentBaseStatRows(ring).map((row) => row.key)).toEqual(["atk", "critChance"]);
+    expect(directStats.atk).toBeGreaterThan(0);
+    expect(directStats.def).toBeGreaterThan(0);
+    expect(directStats.hp).toBeGreaterThan(0);
+    expect(directStats.reg).toBeGreaterThan(0);
+    expect(combatStats.critChance).toBeGreaterThan(0);
+  });
+
+  it("drops every weapon type but only equips the current class allowlist", () => {
+    const rng = createRngState(209);
+    const dagger = generateEquipmentItem({ id: "dagger", rng, stageId: 1, rarity: "rare", slot: "weapon", kind: "dagger" });
+    const sword = generateEquipmentItem({ id: "sword", rng, stageId: 1, rarity: "rare", slot: "weapon", kind: "sword" });
+    const greatsword = generateEquipmentItem({ id: "greatsword", rng, stageId: 1, rarity: "rare", slot: "weapon", kind: "greatsword" });
+    const staff = generateEquipmentItem({ id: "staff", rng, stageId: 1, rarity: "rare", slot: "weapon", kind: "staff" });
+    const state = createInitialSimulation(1);
+    state.progress.classId = "assassin";
+    state.progress.inventory.items = [staff, dagger];
+
+    expect(canClassEquipItem("assassin", dagger)).toBe(true);
+    expect(canClassEquipItem("assassin", staff)).toBe(false);
+    expect(canClassEquipItem("knight", sword)).toBe(true);
+    expect(canClassEquipItem("knight", greatsword)).toBe(true);
+    expect(canClassEquipItem("mage", staff)).toBe(true);
+    expect(equipItem(state.progress, state.world.player, staff.id)).toBe(false);
+    expect(state.progress.inventory.items.some((item) => item.id === staff.id)).toBe(true);
   });
 
   it("refreshes shop twice per day and buys deterministic offers", () => {
@@ -205,6 +254,7 @@ describe("phase 3B equipment, drops, and gold", () => {
       rarity: "rare",
       slot: "weapon",
       itemLevel: 3,
+      kind: "sword",
     });
     state.progress.inventory.items.push(item);
 

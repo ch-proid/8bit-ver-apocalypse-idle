@@ -221,9 +221,16 @@ export const EQUIPMENT_BALANCE = {
   itemLevelPerStage: 1,
   slotBaseValues: {
     weapon: 3,
-    helmet: 18,
-    armor: 2,
-    accessory: 0.2,
+    helmet: 1.4,
+    armor: 18,
+    accessory: 0.8,
+  },
+  slotBaseStats: {
+    // TODO(Equipment): Tune base stat weights after class-specific weapon pools settle.
+    weapon: { atk: 3 },
+    helmet: { def: 1.4 },
+    armor: { hp: 18, reg: 0.025 },
+    accessory: { atk: 0.8, critChance: 0.06 },
   },
   rarityMultipliers: {
     common: 1,

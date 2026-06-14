@@ -1,6 +1,6 @@
 import { EQUIPMENT_BALANCE } from "../data/balance";
 import { ITEM_RARITIES } from "../data/items";
-import { calculateItemValue, cloneEquipped, cloneItem } from "./equipment";
+import { calculateItemValue, canClassEquipItem, cloneEquipped, cloneItem } from "./equipment";
 import { applyPlayerStats } from "./stats";
 import type {
   AutoSellSettings,
@@ -70,6 +70,10 @@ export function addItemToInventory(progress: ProgressState, item: EquipmentItem)
 export function equipItem(progress: ProgressState, player: Player, itemId: string): boolean {
   const index = progress.inventory.items.findIndex((item) => item.id === itemId);
   if (index < 0) {
+    return false;
+  }
+
+  if (!canClassEquipItem(progress.classId, progress.inventory.items[index])) {
     return false;
   }
 
@@ -193,6 +197,9 @@ export function bestInventoryItemForSlot(progress: ProgressState, slot: keyof Eq
 
   for (const item of progress.inventory.items) {
     if (item.slot !== slot) {
+      continue;
+    }
+    if (!canClassEquipItem(progress.classId, item)) {
       continue;
     }
     const value = calculateItemValue(item);

@@ -1,10 +1,24 @@
 import { GENERAL_AFFIXES, SIN_AFFIXES } from "../data/affixes";
 import { AFFIX_BALANCE, EQUIPMENT_BALANCE } from "../data/balance";
-import { EQUIPMENT_NAME_ADJECTIVES, EQUIPMENT_RARITY_NAME_PREFIX, EQUIPMENT_SLOT_NAME_POOL } from "../data/equipmentNames";
+import {
+  EQUIPMENT_KIND_LABELS,
+  EQUIPMENT_NAME_ADJECTIVES,
+  EQUIPMENT_RARITY_NAME_PREFIX,
+  EQUIPMENT_SLOT_KIND_POOL,
+  WEAPON_TYPE_CLASS_ALLOWLIST,
+  WEAPON_TYPES,
+} from "../data/equipmentNames";
 import { ITEM_RARITIES, ITEM_SLOT_BASE_STAT, ITEM_SLOTS } from "../data/items";
 import { chance, pickOne, pickWeighted, randomInt } from "./rng";
 import type {
+  ClassId,
+  CombatAffixStats,
+  EquipmentBaseStatKey,
+  EquipmentBaseStats,
+  EquipmentKind,
   EquipmentItem,
+  EquipmentStatAllocation,
+  EquipmentStatKey,
   EquippedItems,
   GeneralAffixKey,
   ItemOption,
@@ -12,9 +26,8 @@ import type {
   ItemSlot,
   RngState,
   SinAffixKey,
-  CombatAffixStats,
   SinAffixStats,
-  EquipmentStatAllocation,
+  WeaponType,
 } from "./types";
 
 export interface GenerateEquipmentInput {
@@ -25,6 +38,8 @@ export interface GenerateEquipmentInput {
   slot?: ItemSlot;
   rarity?: ItemRarity;
   itemLevel?: number;
+  kind?: EquipmentKind;
+  weaponType?: WeaponType;
   forceSin?: boolean;
 }
 
@@ -32,8 +47,11 @@ export function generateEquipmentItem(input: GenerateEquipmentInput): EquipmentI
   const slot = input.slot ?? pickOne(input.rng, ITEM_SLOTS);
   const rarity = input.rarity ?? rollRarityForStage(input.rng, input.stageId, input.rebirthCount ?? 0);
   const itemLevel = input.itemLevel ?? itemLevelForStage(input.stageId);
+  const kind = normalizeEquipmentKind(slot, input.kind ?? input.weaponType ?? pickOne(input.rng, EQUIPMENT_SLOT_KIND_POOL[slot]));
+  const weaponType = slot === "weapon" ? normalizeWeaponType({ slot, kind, weaponType: input.weaponType }) : undefined;
+  const baseStats = calculateBaseStats(slot, rarity, itemLevel);
   const baseStat = ITEM_SLOT_BASE_STAT[slot];
-  const baseValue = calculateBaseValue(slot, rarity, itemLevel);
+  const baseValue = baseStats[baseStat] ?? calculateBaseValue(slot, rarity, itemLevel);
   const options = rollGeneralOptions(input.rng, slot, rarity);
 
   if (shouldAttachSinOption(input.rng, rarity, input.forceSin)) {
@@ -43,12 +61,15 @@ export function generateEquipmentItem(input: GenerateEquipmentInput): EquipmentI
 
   return {
     id: input.id,
-    name: rollEquipmentName(input.rng, rarity, slot),
+    name: rollEquipmentName(input.rng, rarity, kind),
     slot,
+    kind,
+    weaponType,
     rarity,
     itemLevel,
     baseStat,
     baseValue,
+    baseStats,
     ...weaponStats,
     options,
   };
@@ -123,7 +144,11 @@ export function calculateEquipmentStats(equipped: EquippedItems): EquipmentStatA
     if (!item) {
       continue;
     }
-    stats[item.baseStat] += enhancedBaseValue(item);
+    const baseStats = enhancedBaseStats(item);
+    stats.atk += baseStats.atk ?? 0;
+    stats.def += baseStats.def ?? 0;
+    stats.hp += baseStats.hp ?? 0;
+    stats.reg += baseStats.reg ?? 0;
   }
 
   return stats;
@@ -136,6 +161,8 @@ export function calculateCombatAffixStats(equipped: EquippedItems): CombatAffixS
     if (!item) {
       continue;
     }
+    const baseStats = enhancedBaseStats(item);
+    stats.critChance += baseStats.critChance ?? 0;
     for (const option of item.options) {
       if (option.sin || !(option.key in stats)) {
         continue;
@@ -193,11 +220,23 @@ export function normalizeEquipmentItem(item: EquipmentItem): EquipmentItem {
     0,
     Math.min(EQUIPMENT_BALANCE.enhancement.maxLevel, Math.floor((item as Partial<EquipmentItem>).upgradeLevel ?? 0)),
   );
-  const derived = calculateWeaponCombatStats(item.slot, item.rarity, item.itemLevel, item.baseValue, upgradeLevel);
   const raw = item as Partial<EquipmentItem>;
+  const kind = normalizeEquipmentKind(item.slot, raw.kind ?? raw.weaponType ?? inferKindFromName(item));
+  const weaponType = item.slot === "weapon" ? normalizeWeaponType({ slot: item.slot, kind, weaponType: raw.weaponType }) : undefined;
+  const baseStat = normalizeBaseStat(item.slot, raw.baseStat);
+  const fallbackBaseStats = calculateBaseStats(item.slot, item.rarity, item.itemLevel);
+  const fallbackBaseValue = fallbackBaseStats[baseStat] ?? calculateBaseValue(item.slot, item.rarity, item.itemLevel);
+  const baseValue = safeNumber(raw.baseValue, fallbackBaseValue);
+  const derived = calculateWeaponCombatStats(item.slot, item.rarity, item.itemLevel, baseValue, upgradeLevel);
+  const baseStats = normalizeBaseStats({ ...item, baseValue }, derived.accuracy);
   return {
     ...item,
-    name: normalizeEquipmentName(item),
+    name: normalizeEquipmentName({ ...item, kind }),
+    kind,
+    weaponType,
+    baseStat,
+    baseValue,
+    baseStats,
     minDmg: safeNumber(raw.minDmg, derived.minDmg),
     maxDmg: Math.max(safeNumber(raw.maxDmg, derived.maxDmg), safeNumber(raw.minDmg, derived.minDmg)),
     accuracy: safeNumber(raw.accuracy, derived.accuracy),
@@ -213,9 +252,48 @@ export function equipmentDisplayName(item: EquipmentItem): string {
 
 export function enhancedBaseValue(item: EquipmentItem): number {
   const normalized = normalizeEquipmentItem(item);
-  const multiplier = 1 + normalized.upgradeLevel * EQUIPMENT_BALANCE.enhancement.baseStatPercentPerLevel / 100;
-  const value = normalized.baseValue * multiplier;
+  const value = enhancedBaseStats(normalized)[normalized.baseStat] ?? normalized.baseValue;
   return normalized.baseStat === "reg" ? roundTo(value, 2) : Math.max(1, roundTo(value, 2));
+}
+
+export function enhancedBaseStats(item: EquipmentItem): EquipmentBaseStats {
+  const normalized = normalizeEquipmentItem(item);
+  const multiplier = 1 + normalized.upgradeLevel * EQUIPMENT_BALANCE.enhancement.baseStatPercentPerLevel / 100;
+  const stats = normalizeBaseStats(normalized, normalized.accuracy);
+  const enhanced: EquipmentBaseStats = {};
+
+  for (const [key, value] of Object.entries(stats) as Array<[EquipmentBaseStatKey, number]>) {
+    if (key === "accuracy") {
+      enhanced.accuracy = normalized.accuracy;
+      continue;
+    }
+    const scaled = value * multiplier;
+    enhanced[key] = key === "reg" || key === "critChance"
+      ? roundTo(scaled, 2)
+      : Math.max(1, roundTo(scaled, 2));
+  }
+
+  return enhanced;
+}
+
+export function equipmentBaseStatRows(item: EquipmentItem): Array<{ key: EquipmentBaseStatKey; value: number }> {
+  const stats = enhancedBaseStats(item);
+  return (["atk", "def", "hp", "reg", "accuracy", "critChance"] as EquipmentBaseStatKey[])
+    .filter((key) => (stats[key] ?? 0) > 0)
+    .map((key) => ({ key, value: stats[key] ?? 0 }));
+}
+
+export function canClassEquipItem(classId: ClassId, item: EquipmentItem): boolean {
+  const normalized = normalizeEquipmentItem(item);
+  if (normalized.slot !== "weapon") {
+    return true;
+  }
+  return Boolean(normalized.weaponType && WEAPON_TYPE_CLASS_ALLOWLIST[classId].includes(normalized.weaponType));
+}
+
+export function equipmentKindLabel(item: EquipmentItem): string {
+  const normalized = normalizeEquipmentItem(item);
+  return EQUIPMENT_KIND_LABELS[normalized.kind ?? fallbackKindForSlot(normalized.slot)];
 }
 
 export function calculateWeaponCombatStats(
@@ -293,10 +371,9 @@ function calculateBaseValue(slot: ItemSlot, rarity: ItemRarity, itemLevel: numbe
   return slot === "accessory" ? roundTo(raw, 2) : Math.max(1, Math.floor(raw));
 }
 
-function rollEquipmentName(rng: RngState, rarity: ItemRarity, slot: ItemSlot): string {
+function rollEquipmentName(rng: RngState, rarity: ItemRarity, kind: EquipmentKind): string {
   const adjective = pickOne(rng, EQUIPMENT_NAME_ADJECTIVES);
-  const slotName = pickOne(rng, EQUIPMENT_SLOT_NAME_POOL[slot]);
-  return `${EQUIPMENT_RARITY_NAME_PREFIX[rarity]}의 ${adjective} ${slotName}`;
+  return `${EQUIPMENT_RARITY_NAME_PREFIX[rarity]}의 ${adjective} ${EQUIPMENT_KIND_LABELS[kind]}`;
 }
 
 function normalizeEquipmentName(item: EquipmentItem): string {
@@ -305,8 +382,80 @@ function normalizeEquipmentName(item: EquipmentItem): string {
     return rawName;
   }
 
-  const fallbackSlotName = EQUIPMENT_SLOT_NAME_POOL[item.slot][0];
-  return `${EQUIPMENT_RARITY_NAME_PREFIX[item.rarity]}의 ${fallbackSlotName}`;
+  const fallbackKind = item.kind ?? fallbackKindForSlot(item.slot);
+  return `${EQUIPMENT_RARITY_NAME_PREFIX[item.rarity]}의 ${EQUIPMENT_KIND_LABELS[fallbackKind]}`;
+}
+
+function calculateBaseStats(slot: ItemSlot, rarity: ItemRarity, itemLevel: number): EquipmentBaseStats {
+  const config = EQUIPMENT_BALANCE.slotBaseStats[slot] as EquipmentBaseStats;
+  const multiplier = itemLevel * EQUIPMENT_BALANCE.rarityMultipliers[rarity];
+  const stats: EquipmentBaseStats = {};
+
+  for (const [key, value] of Object.entries(config) as Array<[EquipmentBaseStatKey, number]>) {
+    const raw = value * multiplier;
+    stats[key] = key === "reg" || key === "critChance" ? roundTo(raw, 2) : Math.max(1, Math.floor(raw));
+  }
+
+  return stats;
+}
+
+function normalizeBaseStats(item: EquipmentItem, fallbackAccuracy: number): EquipmentBaseStats {
+  const generated = calculateBaseStats(item.slot, item.rarity, item.itemLevel);
+  const rawStats = (item as Partial<EquipmentItem>).baseStats;
+  const stats: EquipmentBaseStats = { ...generated };
+
+  if (rawStats) {
+    for (const key of ["atk", "def", "hp", "reg", "critChance"] as EquipmentBaseStatKey[]) {
+      const value = rawStats[key];
+      if (typeof value === "number" && Number.isFinite(value)) {
+        stats[key] = value;
+      }
+    }
+  }
+
+  if (item.slot === "weapon") {
+    stats.accuracy = safeNumber(rawStats?.accuracy, fallbackAccuracy);
+  }
+
+  return stats;
+}
+
+function normalizeBaseStat(slot: ItemSlot, value: EquipmentStatKey | undefined): EquipmentStatKey {
+  if (value === "atk" || value === "def" || value === "hp" || value === "reg") {
+    return value;
+  }
+  return ITEM_SLOT_BASE_STAT[slot];
+}
+
+function normalizeEquipmentKind(slot: ItemSlot, value: EquipmentKind | WeaponType | undefined): EquipmentKind {
+  const allowed = EQUIPMENT_SLOT_KIND_POOL[slot];
+  return allowed.includes(value as EquipmentKind) ? value as EquipmentKind : fallbackKindForSlot(slot);
+}
+
+function normalizeWeaponType(input: { slot: ItemSlot; kind?: EquipmentKind; weaponType?: WeaponType }): WeaponType | undefined {
+  if (input.slot !== "weapon") {
+    return undefined;
+  }
+  if (WEAPON_TYPES.includes(input.weaponType as WeaponType)) {
+    return input.weaponType;
+  }
+  return WEAPON_TYPES.includes(input.kind as WeaponType) ? input.kind as WeaponType : "sword";
+}
+
+function fallbackKindForSlot(slot: ItemSlot): EquipmentKind {
+  return EQUIPMENT_SLOT_KIND_POOL[slot][0];
+}
+
+function inferKindFromName(item: EquipmentItem): EquipmentKind | undefined {
+  const rawName = (item as Partial<EquipmentItem>).name ?? "";
+  const labels = (Object.entries(EQUIPMENT_KIND_LABELS) as Array<[EquipmentKind, string]>)
+    .sort((a, b) => b[1].length - a[1].length);
+  for (const [kind, label] of labels) {
+    if (rawName.includes(label)) {
+      return kind;
+    }
+  }
+  return undefined;
 }
 
 function safeNumber(value: unknown, fallback: number): number {
