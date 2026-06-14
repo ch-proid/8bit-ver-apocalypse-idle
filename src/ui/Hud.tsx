@@ -217,14 +217,14 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
   const rebirthLevelReached = progress.level >= REBIRTH_BALANCE.requiredLevel;
   const autoDistributionEnabled = progress.statDistribution.preset !== "MANUAL";
   const critChanceTotal = Math.min(classCrit.critChanceCap, combatAffixes.critChance + classCrit.critChanceBonus);
-  const critDamageBase = Math.round(DAMAGE_FORMULA.defaultCritDamage * 100 + classCrit.critDamageBonus);
+  const critDamageBonusTotal = Math.round((DAMAGE_FORMULA.defaultCritDamage - 1) * 100 + classCrit.critDamageBonus);
   const abilityRows = [
     { label: "체력", value: formatNumber(player.maxHp) },
     { label: "공격력", value: formatNumber(player.attack) },
     { label: "방어력", value: formatNumber(player.defense) },
     { label: "회피력", value: formatNumber(player.evasion) },
     { label: "치명확률%", value: `${formatNumberLike(critChanceTotal)}%` },
-    { label: "치명피해%", value: `${formatNumberLike(critDamageBase + combatAffixes.critDamage)}%` },
+    { label: "치명피해%", value: `${formatNumberLike(critDamageBonusTotal + combatAffixes.critDamage)}%` },
     { label: "데미지증가%", value: `${formatNumberLike(combatAffixes.damageIncrease)}%` },
     { label: "공격속도%", value: `${formatNumberLike(combatAffixes.attackSpeed)}%` },
     { label: "최종피해%", value: `${formatNumberLike(combatAffixes.finalDamage)}%` },
