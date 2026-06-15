@@ -26,8 +26,9 @@
   --r-legendary: #e08a3a;
   --font-pixel: "Galmuri7", "Courier New", ui-monospace, monospace;
   --font-title: 14px;
-  --font-body: 14px;
-  --font-support: 7px;
+  --font-body: 7px;
+  --font-small: 7px;
+  --font-support: var(--font-small);
 }
 
 * {
@@ -1982,7 +1983,7 @@ button.option-row {
 }
 
 .win-t {
-  top: -11px;
+  top: -10px;
   font-size: var(--font-title) !important;
 }
 
@@ -2005,4 +2006,104 @@ button.option-row {
 .class-card p,
 .speaker span {
   font-size: var(--font-support) !important;
+}
+
+.lcd-hud,
+.statbar,
+.mi,
+.inv-vid,
+.pbox,
+.slot,
+.cell,
+.relic-name-line,
+.merchant-line,
+.popup-voice,
+.voice-line,
+.class-card,
+.class-card p {
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.statbar,
+.mi {
+  min-height: 14px;
+  align-items: center;
+}
+
+.mi {
+  gap: 3px;
+  padding: 1px 0;
+}
+
+.mi-fill,
+.split-value,
+.equipment-delta-value,
+.equipment-row-name,
+.equipment-row-main,
+.equipment-row-main small,
+.slot,
+.cell {
+  min-width: 0;
+}
+
+.dots {
+  min-width: 4px;
+  transform: translateY(-2px);
+}
+
+.v {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.v.thin,
+.v.thin.kr {
+  max-width: 100%;
+  white-space: normal;
+}
+
+.preset-row {
+  min-height: 17px;
+  gap: 3px;
+  line-height: 1.2;
+}
+
+.pbox,
+.inv-vid {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 18px;
+  height: auto;
+  padding: 2px 4px;
+  line-height: 1.15;
+  white-space: normal;
+  overflow: hidden;
+  text-align: center;
+}
+
+.pbox.add {
+  min-width: 16px;
+  padding-inline: 3px;
+}
+
+.pbox.auto {
+  min-width: 58px;
+  max-width: 100%;
+}
+
+.inv-vid {
+  min-height: 22px;
+}
+
+.tiny,
+.empty-note,
+.equipment-row-main small,
+.merchant-line,
+.popup-voice,
+.voice-line,
+.class-card p {
+  line-height: 1.25;
 }
