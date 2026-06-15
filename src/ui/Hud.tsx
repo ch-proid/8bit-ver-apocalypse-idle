@@ -390,6 +390,32 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
     }
   }
 
+  function handleReawakenEquipment(itemId: string, selectedLines?: number[]): void {
+    const beforeProgress = useGameStore.getState().simulation.progress;
+    const beforeEntry = findEquipmentEntry(beforeProgress, itemId);
+
+    if (!beforeEntry || beforeEntry.location === "shop") {
+      showUpgradeToast("재각성 불가", "warn");
+      return;
+    }
+
+    const generalOptionCount = beforeEntry.item.options.filter((option) => !option.sin).length;
+    if (generalOptionCount <= 0) {
+      showUpgradeToast("옵션 없음", "warn");
+      return;
+    }
+
+    const selectedCount = selectedLines && selectedLines.length > 0 ? selectedLines.length : generalOptionCount;
+    const cost = reawakeningCost(beforeEntry.item, selectedCount);
+    if (beforeProgress.gold < cost.gold || beforeProgress.crystal < cost.crystal) {
+      showUpgradeToast("재화 부족", "warn");
+      return;
+    }
+
+    reawakenEquipmentItem(itemId, selectedLines);
+    showUpgradeToast("재각성 완료", "success");
+  }
+
   function openEquipmentPopup(item: EquipmentItem): void {
     setEquipmentPopup({ itemId: item.id });
   }
@@ -800,11 +826,9 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
           entry={reawakenPopupEntry}
           progress={progress}
           currentClassId={currentClassId}
+          toast={upgradeToast}
           onClose={() => setEquipmentReawakenPopup(null)}
-          onReawaken={(itemId, selectedLines) => {
-            reawakenEquipmentItem(itemId, selectedLines);
-            setEquipmentReawakenPopup(null);
-          }}
+          onReawaken={handleReawakenEquipment}
         />
       ) : null}
 
@@ -1294,12 +1318,14 @@ function EquipmentReawakenPopup({
   entry,
   progress,
   currentClassId,
+  toast,
   onClose,
   onReawaken,
 }: {
   entry: EquipmentEntry;
   progress: ProgressState;
   currentClassId: ClassId;
+  toast: UpgradeToastState | null;
   onClose: () => void;
   onReawaken: (itemId: string, selectedGeneralLineIndexes?: number[]) => void;
 }) {
@@ -1323,6 +1349,7 @@ function EquipmentReawakenPopup({
 
   return (
     <PopupFrame title="재각성">
+      {toast ? <div key={toast.id} className={`upgrade-toast ${toast.tone}`} role="status">{toast.message}</div> : null}
       <div className="equipment-info-head">
         <img className="equip-icon big" src={equipmentIconFor(currentClassId, item.slot)} alt="" />
         <div className="item-detail">
@@ -1356,7 +1383,6 @@ function EquipmentReawakenPopup({
         <button
           type="button"
           className={canReawaken ? "inv-vid" : "inv-vid off"}
-          disabled={!canReawaken}
           onClick={() => onReawaken(item.id, selectedLines.length > 0 ? selectedLines : undefined)}
         >
           <span className="cur">&#9654;</span>재각성 <IconValue type="gold" value={formatNumber(cost.gold)} compact /> <span className="crystal-val">◆ {formatNumber(cost.crystal)}</span>

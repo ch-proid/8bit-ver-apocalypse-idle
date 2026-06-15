@@ -1,6 +1,8 @@
 @font-face {
   font-family: "Galmuri7";
   src: url("/assets/font/Galmuri7.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
   font-display: block;
 }
 
@@ -23,6 +25,9 @@
   --r-epic: #a45ae0;
   --r-legendary: #e08a3a;
   --font-pixel: "Galmuri7", "Courier New", ui-monospace, monospace;
+  --font-title: 14px;
+  --font-body: 14px;
+  --font-support: 7px;
 }
 
 * {
@@ -42,6 +47,8 @@ body {
   background: #0a1208;
   color: var(--light);
   font-family: var(--font-pixel);
+  font-weight: 400;
+  font-synthesis: none;
   -webkit-font-smoothing: none;
   font-smooth: never;
   text-rendering: optimizeSpeed;
@@ -1939,4 +1946,63 @@ button.option-row {
   .deck {
     min-height: 145px;
   }
+}
+
+/* Galmuri7 is a thin 7px-grid pixel font. Keep weights normal and sizes on 7px steps. */
+.console,
+.console *,
+.popup-layer,
+.popup-layer *,
+.class-select,
+.class-select *,
+.debug-panel,
+.debug-panel * {
+  font-weight: 400 !important;
+  font-synthesis: none;
+}
+
+.lcd-hud,
+.statbar,
+.mi,
+.inv-vid,
+.pbox,
+.altar-ball,
+.equipment-row-name,
+.equipment-row-delta,
+.slot,
+.cell,
+.relic-name-line,
+.merchant-line,
+.popup-voice,
+.voice-line,
+.upgrade-toast,
+.class-card,
+.class-card b {
+  font-size: var(--font-body) !important;
+}
+
+.win-t {
+  top: -11px;
+  font-size: var(--font-title) !important;
+}
+
+.bezel-top,
+.dmg-sw,
+.lcd-exp b,
+.altar-ball small,
+.tiny,
+.empty-note,
+.v.thin,
+.cur,
+.equipment-row-main small,
+.equipment-row-select,
+.slot small,
+.cell small,
+.checkmark,
+.compare-name,
+.popup-close,
+.deck-label,
+.class-card p,
+.speaker span {
+  font-size: var(--font-support) !important;
 }
