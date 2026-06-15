@@ -25,7 +25,7 @@ export function createDefaultInventory(): InventoryState {
 export function normalizeInventory(input?: Partial<InventoryState>): InventoryState {
   const defaults = createDefaultInventory();
   return {
-    capacity: input?.capacity ?? defaults.capacity,
+    capacity: normalizeInventoryCapacity(input?.capacity),
     nextItemId: input?.nextItemId ?? defaults.nextItemId,
     items: input?.items?.map(cloneItem) ?? defaults.items,
     equipped: normalizeEquipped(input?.equipped),
@@ -35,6 +35,35 @@ export function normalizeInventory(input?: Partial<InventoryState>): InventorySt
       legendary: false,
     },
   };
+}
+
+export function inventoryExpansionCost(inventory: Pick<InventoryState, "capacity">): number {
+  const config = EQUIPMENT_BALANCE.inventoryExpansion;
+  const capacity = normalizeInventoryCapacity(inventory.capacity);
+  if (capacity >= config.maxCapacity) {
+    return 0;
+  }
+
+  const expansionCount = Math.max(
+    0,
+    Math.floor((capacity - EQUIPMENT_BALANCE.inventoryCapacity) / config.step),
+  );
+  return Math.floor(config.baseCost * Math.pow(config.costGrowth, expansionCount));
+}
+
+export function expandInventory(progress: ProgressState): boolean {
+  const config = EQUIPMENT_BALANCE.inventoryExpansion;
+  const cost = inventoryExpansionCost(progress.inventory);
+  if (cost <= 0 || progress.gold < cost) {
+    return false;
+  }
+
+  progress.gold -= cost;
+  progress.inventory.capacity = Math.min(
+    config.maxCapacity,
+    normalizeInventoryCapacity(progress.inventory.capacity) + config.step,
+  );
+  return true;
 }
 
 export function createEmptyEquipped(): EquippedItems {
@@ -237,6 +266,14 @@ function addWithOverflowSale(progress: ProgressState, incoming: EquipmentItem): 
 
 function shouldAutoSell(settings: AutoSellSettings, rarity: ItemRarity): boolean {
   return rarity !== "legendary" && settings[rarity];
+}
+
+function normalizeInventoryCapacity(capacity?: number): number {
+  const config = EQUIPMENT_BALANCE.inventoryExpansion;
+  return Math.max(
+    EQUIPMENT_BALANCE.inventoryCapacity,
+    Math.min(config.maxCapacity, Math.floor(capacity ?? EQUIPMENT_BALANCE.inventoryCapacity)),
+  );
 }
 
 function createDefaultAutoSellSettings(): AutoSellSettings {

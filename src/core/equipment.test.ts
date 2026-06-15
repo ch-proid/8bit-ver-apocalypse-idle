@@ -20,7 +20,7 @@ import {
 } from "./equipment";
 import { equipmentDropChance, onlineLowRarityEquipmentDropChance, rollMonsterDrop } from "./drop";
 import { buyShopOffer, canRefreshShop, cubeSynthesize, refreshShop, reawakenItemOptions, reawakeningCost, rerollItemOptions, shopRefreshRemainingSeconds } from "./gold";
-import { addItemToInventory, disassembleItems, equipItem, setAutoSell } from "./inventory";
+import { addItemToInventory, disassembleItems, equipItem, expandInventory, inventoryExpansionCost, normalizeInventory, setAutoSell } from "./inventory";
 import { createDefaultProgress } from "./progression";
 import { createRngState } from "./rng";
 import { createInitialSimulation } from "./stage";
@@ -360,6 +360,33 @@ describe("phase 3B equipment, drops, and gold", () => {
     const autoSold = addItemToInventory(progress, makeItem("auto", "common"));
     expect(autoSold.kept).toBe(false);
     expect(progress.inventory.items.map((item) => item.id).sort()).toEqual(["high", "incoming"]);
+  });
+
+  it("expands inventory by eight slots with escalating gold cost and save migration defaults", () => {
+    const progress = createProgressWithGold(10000);
+    const baseCapacity = EQUIPMENT_BALANCE.inventoryCapacity;
+    const firstCost = inventoryExpansionCost(progress.inventory);
+
+    expect(progress.inventory.capacity).toBe(baseCapacity);
+    expect(firstCost).toBe(EQUIPMENT_BALANCE.inventoryExpansion.baseCost);
+    expect(expandInventory(progress)).toBe(true);
+    expect(progress.inventory.capacity).toBe(baseCapacity + EQUIPMENT_BALANCE.inventoryExpansion.step);
+    expect(progress.gold).toBe(10000 - firstCost);
+
+    const secondCost = inventoryExpansionCost(progress.inventory);
+    expect(secondCost).toBeGreaterThan(firstCost);
+    progress.gold = secondCost - 1;
+    expect(expandInventory(progress)).toBe(false);
+    expect(progress.inventory.capacity).toBe(baseCapacity + EQUIPMENT_BALANCE.inventoryExpansion.step);
+
+    progress.gold = 1_000_000_000;
+    while (expandInventory(progress)) {
+      // Exhaust the configured cap deterministically.
+    }
+    expect(progress.inventory.capacity).toBe(EQUIPMENT_BALANCE.inventoryExpansion.maxCapacity);
+    expect(inventoryExpansionCost(progress.inventory)).toBe(0);
+
+    expect(normalizeInventory({}).capacity).toBe(baseCapacity);
   });
 
   it("updates player stats immediately when equipment changes", () => {

@@ -22,6 +22,7 @@ import {
   equipmentKindLabel,
 } from "../core/equipment";
 import { canRefreshShop, reawakeningCost, shopRefreshRemainingSeconds } from "../core/gold";
+import { inventoryExpansionCost } from "../core/inventory";
 import { canRebirth } from "../core/rebirth";
 import { compareEquipmentCombatScore, createBuildSnapshot } from "../core/sim";
 import { combatPowerEstimate } from "../core/stats";
@@ -182,6 +183,7 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
   const reawakenEquipmentItem = useGameStore((state) => state.reawakenEquipmentItem);
   const sellEquipmentItem = useGameStore((state) => state.sellEquipmentItem);
   const disassembleEquipmentItems = useGameStore((state) => state.disassembleEquipmentItems);
+  const expandInventoryCapacity = useGameStore((state) => state.expandInventoryCapacity);
   const refreshShopNow = useGameStore((state) => state.refreshShopNow);
   const buyShopOfferNow = useGameStore((state) => state.buyShopOfferNow);
   const summonEliteNow = useGameStore((state) => state.summonEliteNow);
@@ -210,6 +212,8 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
     classCrit.critChanceCap,
   );
   const combatPower = combatPowerEstimate(progress);
+  const inventoryExpandCost = inventoryExpansionCost(progress.inventory);
+  const inventoryMaxCapacity = EQUIPMENT_BALANCE.inventoryExpansion.maxCapacity;
   const rebirthUnlocked = canRebirth(progress);
   const rebirthStageCleared = Boolean(
     progress.stageProgress.clearedStages[REBIRTH_BALANCE.requiredStageId]
@@ -268,7 +272,7 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
   const showOfflinePopup = Boolean(offlineReward && offlineKey !== claimedOfflineKey);
   const isOverdrive = world.relicCombat.isOverdrive;
   const isTelegraphing = Boolean(world.boss?.isTelegraphing);
-  const gearItems = useMemo(() => progress.inventory.items.slice(0, 24), [progress.inventory.items]);
+  const gearItems = useMemo(() => progress.inventory.items, [progress.inventory.items]);
   const shopCanRefresh = canRefreshShop(progress, world.elapsed);
   const shopRefreshRemain = shopRefreshRemainingSeconds(progress, world.elapsed);
   const equipmentScoreDeltas = useMemo(() => {
@@ -407,6 +411,20 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
     }
     setSelectedDisassembleIds([]);
     setDisassembleMode(false);
+  }
+
+  function handleExpandInventory(): void {
+    if (inventoryExpandCost <= 0 || progress.inventory.capacity >= inventoryMaxCapacity) {
+      showUpgradeToast("최대 칸", "warn");
+      return;
+    }
+    if (progress.gold < inventoryExpandCost) {
+      showUpgradeToast("골드 부족", "warn");
+      return;
+    }
+
+    expandInventoryCapacity();
+    showUpgradeToast("+8칸", "success");
   }
 
   function selectBulkDisassembleItems(): void {
@@ -588,14 +606,25 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
             ))}
             {gearItems.length <= 0 ? <p className="empty-note kr">媛諛⑹씠 鍮꾩뿀?듬땲??</p> : null}
           </div>
-          <div className="gear-actions wide">
+          <div className="gear-actions inventory-actions">
             <button type="button" className="inv-vid" onClick={handleDisassembleButton}>
               <span className="cur">&#9654;</span>{disassembleMode ? selectedDisassembleIds.length > 0 ? `분해 실행 ${selectedDisassembleIds.length}` : "분해 취소" : "분해"}
+            </button>
+            <button
+              type="button"
+              className={inventoryExpandCost > 0 && progress.gold >= inventoryExpandCost ? "inv-vid" : "inv-vid off"}
+              onClick={handleExpandInventory}
+            >
+              칸 확장 {progress.inventory.capacity}/{inventoryMaxCapacity}
+              {inventoryExpandCost > 0 ? (
+                <> <IconValue type="gold" value={formatCompact(inventoryExpandCost)} compact /></>
+              ) : null}
             </button>
             <button type="button" className="inv-vid off" onClick={selectBulkDisassembleItems}>
               일괄 분해
             </button>
           </div>
+          {upgradeToast ? <div key={upgradeToast.id} className={`upgrade-toast panel-toast ${upgradeToast.tone}`} role="status">{upgradeToast.message}</div> : null}
           {disassembleMode ? <p className="tiny dim kr">분해할 장비를 선택하세요. 장착/잠금 장비는 제외됩니다.</p> : null}
         </Win>
       </Panel>

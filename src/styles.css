@@ -1086,6 +1086,10 @@ button {
   grid-template-columns: 1fr 1fr;
 }
 
+.gear-actions.inventory-actions {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .gear-actions.single {
   grid-template-columns: 1fr;
 }
@@ -1421,6 +1425,10 @@ button {
 
 .upgrade-toast.warn {
   color: var(--gold);
+}
+
+.upgrade-toast.panel-toast {
+  top: 34px;
 }
 
 @keyframes upgrade-toast-pop {

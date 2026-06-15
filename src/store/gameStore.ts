@@ -11,7 +11,7 @@ import { cloneClassCombatState } from "../core/class";
 import { calculateItemValue, generateEquipmentItem } from "../core/equipment";
 import { startAltarEliteEncounter } from "../core/elites";
 import { buyShopOffer, reawakenItemOptions, refreshShop } from "../core/gold";
-import { addItemToInventory, bestInventoryItemForSlot, createItemId, disassembleItems, equipItem, findItem, sellItem, unequipItem } from "../core/inventory";
+import { addItemToInventory, bestInventoryItemForSlot, createItemId, disassembleItems, equipItem, expandInventory, findItem, sellItem, unequipItem } from "../core/inventory";
 import { cloneProgress, gainExperience, updateRecordAt } from "../core/progression";
 import { cloneRelicCombatState, relicDebugSnapshot } from "../core/relics";
 import { rebirthSimulation, unlockRebirth } from "../core/rebirth";
@@ -53,6 +53,7 @@ interface GameStore {
   reawakenEquipmentItem: (itemId: string, selectedGeneralLineIndexes?: number[]) => void;
   sellEquipmentItem: (itemId: string) => void;
   disassembleEquipmentItems: (itemIds: string[]) => void;
+  expandInventoryCapacity: () => void;
   refreshShopNow: () => void;
   buyShopOfferNow: (offerId: string) => void;
   unlockRebirthForDebug: () => void;
@@ -212,6 +213,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set((state) => {
       const simulation = cloneSimulation(state.simulation);
       disassembleItems(simulation.progress, itemIds);
+      return { simulation };
+    });
+  },
+
+  expandInventoryCapacity: () => {
+    set((state) => {
+      const simulation = cloneSimulation(state.simulation);
+      expandInventory(simulation.progress);
       return { simulation };
     });
   },

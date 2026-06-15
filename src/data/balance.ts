@@ -212,6 +212,12 @@ export const RNG_BALANCE = {
 export const EQUIPMENT_BALANCE = {
   // TODO(Phase 7): Common gear is intentionally frequent; high rarity is driven by stage/rebirth weights.
   inventoryCapacity: 60,
+  inventoryExpansion: {
+    step: 8,
+    maxCapacity: 220,
+    baseCost: 250,
+    costGrowth: 1.45,
+  },
   dropChance: {
     base: 0.006,
     perChapter: 0.0012,
