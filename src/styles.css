@@ -161,7 +161,8 @@ button {
   }
 }
 
-.dmg-sw {
+.dmg-sw,
+.audio-sw {
   min-width: 32px;
   height: 14px;
   border: 1px solid var(--shell-lo);
@@ -172,9 +173,15 @@ button {
   cursor: pointer;
 }
 
-.dmg-sw.on {
+.dmg-sw.on,
+.audio-sw.on {
   border-color: var(--light);
   color: var(--light);
+}
+
+.audio-sw.muted {
+  border-color: #3a1216;
+  color: #7b3038;
 }
 
 .screen {
@@ -1989,6 +1996,7 @@ button.option-row {
 
 .bezel-top,
 .dmg-sw,
+.audio-sw,
 .lcd-exp b,
 .altar-ball small,
 .tiny,

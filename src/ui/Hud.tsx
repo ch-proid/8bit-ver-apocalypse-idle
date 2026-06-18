@@ -34,6 +34,7 @@ import { ITEM_SLOTS } from "../data/items";
 import { PLAYER_CLASSES } from "../data/classes";
 import { RELIC_GRADES, RELIC_IDS, RELICS } from "../data/relics";
 import { SURVIVOR_SKINS } from "../data/sprites/survivors";
+import { gameAudio } from "../runtime/audio";
 import { useGameStore } from "../store/gameStore";
 import { DebugPanel } from "./DebugPanel";
 import { formatDuration, formatNumber } from "./format";
@@ -363,16 +364,19 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
 
     if (!beforeEntry || beforeEntry.location === "shop") {
       showUpgradeToast("강화 불가", "warn");
+      gameAudio.play("upgradeFail");
       return;
     }
 
     const cost = equipmentUpgradeCost(beforeEntry.item);
     if (cost <= 0) {
       showUpgradeToast("최대 강화", "warn");
+      gameAudio.play("upgradeFail");
       return;
     }
     if (beforeProgress.gold < cost) {
       showUpgradeToast("골드 부족", "warn");
+      gameAudio.play("upgradeFail");
       return;
     }
 
@@ -383,10 +387,13 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
 
     if (afterLevel > beforeLevel) {
       showUpgradeToast("성공", "success");
+      gameAudio.play("upgradeSuccess");
     } else if (afterLevel < beforeLevel) {
       showUpgradeToast("하락", "down");
+      gameAudio.play("upgradeFail");
     } else {
       showUpgradeToast("실패", "fail");
+      gameAudio.play("upgradeFail");
     }
   }
 
@@ -396,12 +403,14 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
 
     if (!beforeEntry || beforeEntry.location === "shop") {
       showUpgradeToast("재각성 불가", "warn");
+      gameAudio.play("upgradeFail");
       return;
     }
 
     const generalOptionCount = beforeEntry.item.options.filter((option) => !option.sin).length;
     if (generalOptionCount <= 0) {
       showUpgradeToast("옵션 없음", "warn");
+      gameAudio.play("upgradeFail");
       return;
     }
 
@@ -409,11 +418,13 @@ export function Hud({ activePanel, currentClassId, debugOpen, onOpenClassSelect 
     const cost = reawakeningCost(beforeEntry.item, selectedCount);
     if (beforeProgress.gold < cost.gold || beforeProgress.crystal < cost.crystal) {
       showUpgradeToast("재화 부족", "warn");
+      gameAudio.play("upgradeFail");
       return;
     }
 
     reawakenEquipmentItem(itemId, selectedLines);
     showUpgradeToast("재각성 완료", "success");
+    gameAudio.play("upgradeSuccess");
   }
 
   function openEquipmentPopup(item: EquipmentItem): void {

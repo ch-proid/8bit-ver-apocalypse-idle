@@ -3,6 +3,7 @@ import { eliteSummonCost } from "./core/altar";
 import type { ClassId } from "./core/types";
 import { FIXED_DELTA } from "./data/balance";
 import { SURVIVOR_SKINS } from "./data/sprites/survivors";
+import { createSimulationAudioObserver, gameAudio } from "./runtime/audio";
 import { FixedStepLoop } from "./runtime/gameLoop";
 import { useGameStore } from "./store/gameStore";
 import { GameCanvas } from "./ui/GameCanvas";
@@ -41,6 +42,7 @@ export default function App() {
   const [activePanel, setActivePanel] = useState<HudPanelId | null>(null);
   const [debugOpen, setDebugOpen] = useState(false);
   const [dmgMode, setDmgMode] = useState(false);
+  const [audioMuted, setAudioMuted] = useState(() => gameAudio.isMuted());
   const [classSelectOpen, setClassSelectOpen] = useState(false);
   const [savedClassId, setSavedClassId] = useState<ClassId | null>(() => loadSavedClassId());
   const [selectedClassIndex, setSelectedClassIndex] = useState(() => {
@@ -59,6 +61,28 @@ export default function App() {
   useEffect(() => {
     void hydrate();
   }, [hydrate]);
+
+  useEffect(() => gameAudio.installUnlockListeners(), []);
+
+  useEffect(() => gameAudio.subscribe(setAudioMuted), []);
+
+  useEffect(() => {
+    const observer = createSimulationAudioObserver();
+    observer(useGameStore.getState().simulation);
+    return useGameStore.subscribe((state) => observer(state.simulation));
+  }, []);
+
+  useEffect(() => {
+    const playButtonCue = (event: MouseEvent) => {
+      const target = event.target;
+      if (target instanceof Element && target.closest("button")) {
+        gameAudio.play("button");
+      }
+    };
+
+    document.addEventListener("click", playButtonCue, true);
+    return () => document.removeEventListener("click", playButtonCue, true);
+  }, []);
 
   useEffect(() => {
     const loop = new FixedStepLoop(FIXED_DELTA, (dt) => {
@@ -124,6 +148,14 @@ export default function App() {
                 onClick={() => setDmgMode((value) => !value)}
               >
                 흑백
+              </button>
+              <button
+                type="button"
+                className={audioMuted ? "audio-sw muted" : "audio-sw on"}
+                aria-label={audioMuted ? "사운드 켜기" : "사운드 끄기"}
+                onClick={() => gameAudio.toggleMuted()}
+              >
+                SND
               </button>
             </div>
           </div>
