@@ -1,8 +1,8 @@
 import { EQUIPMENT_BALANCE, GOLD_BALANCE } from "../data/balance";
 import { ITEM_SLOTS } from "../data/items";
-import { calculateItemValue, cloneItem, generateEquipmentItem, nextRarity, rollGeneralOptions, rollWeightedGeneralOption } from "./equipment";
+import { calculateItemValue, cloneItem, generateEquipmentItem, nextRarity, rarityWeightsForStage, rollGeneralOptions, rollWeightedGeneralOption } from "./equipment";
 import { addItemToInventory, createItemId, findItem } from "./inventory";
-import { chance, pickOne } from "./rng";
+import { chance, pickOne, pickWeighted } from "./rng";
 import type { EquipmentItem, ItemRarity, ProgressState, RerollState, RngState, ShopOffer, ShopState } from "./types";
 
 export function createDefaultRerollState(): RerollState {
@@ -176,6 +176,7 @@ export function refreshShop(progress: ProgressState, rng: RngState, elapsedSecon
       stageId: progress.currentStage,
       rebirthCount: progress.rebirth.count,
       classId: progress.classId,
+      rarity: rollShopRarity(progress, rng),
       forceSin: i === 0 && shouldForceSinOffer(rng),
     });
     offers.push({
@@ -188,6 +189,14 @@ export function refreshShop(progress: ProgressState, rng: RngState, elapsedSecon
   progress.shop.offers = offers;
   progress.shop.refreshedAt = elapsedSeconds;
   return true;
+}
+
+export function shopRarityWeights(progress: ProgressState): Record<ItemRarity, number> {
+  return rarityWeightsForStage(progress.currentStage, progress.rebirth.count);
+}
+
+export function rollShopRarity(progress: ProgressState, rng: RngState): ItemRarity {
+  return pickWeighted(rng, shopRarityWeights(progress));
 }
 
 export function canRefreshShop(progress: ProgressState, elapsedSeconds: number): boolean {

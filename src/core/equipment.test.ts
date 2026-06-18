@@ -19,9 +19,9 @@ import {
   unlockedEquipmentRarities,
 } from "./equipment";
 import { equipmentDropChance, onlineLowRarityEquipmentDropChance, rollMonsterDrop } from "./drop";
-import { buyShopOffer, canRefreshShop, cubeSynthesize, refreshShop, reawakenItemOptions, reawakeningCost, rerollItemOptions, shopRefreshRemainingSeconds } from "./gold";
+import { buyShopOffer, canRefreshShop, cubeSynthesize, refreshShop, reawakenItemOptions, reawakeningCost, rerollItemOptions, shopRarityWeights, shopRefreshRemainingSeconds } from "./gold";
 import { addItemToInventory, disassembleItems, equipItem, expandInventory, inventoryExpansionCost, normalizeInventory, setAutoSell } from "./inventory";
-import { createDefaultProgress } from "./progression";
+import { createDefaultProgress, normalizeProgress } from "./progression";
 import { createRngState } from "./rng";
 import { createInitialSimulation } from "./stage";
 import { stepSimulation } from "./simulation";
@@ -325,6 +325,46 @@ describe("phase 3B equipment, drops, and gold", () => {
     expect(bought).toBe(true);
     expect(progress.inventory.items.some((item) => item.id === offer.item.id)).toBe(true);
     expect(progress.shop.offers.some((entry) => entry.id === offer.id)).toBe(false);
+  });
+
+  it("uses current obtainable rarity gates for shop stock and preserves stock in normalized saves", () => {
+    const progress = createProgressWithGold(100000);
+    progress.currentStage = 60;
+    progress.rebirth.count = 0;
+    const lockedWeights = shopRarityWeights(progress);
+
+    expect(lockedWeights.common).toBeGreaterThan(0);
+    expect(lockedWeights.magic).toBeGreaterThan(0);
+    expect(lockedWeights.rare).toBe(0);
+    expect(lockedWeights.epic).toBe(0);
+    expect(lockedWeights.legendary).toBe(0);
+    expect(refreshShop(progress, createRngState(404), 3600, false)).toBe(true);
+    expect(progress.shop.offers).toHaveLength(GOLD_BALANCE.shopSlots);
+    expect(new Set(progress.shop.offers.map((offer) => offer.item.rarity))).toEqual(new Set(["common", "magic"]));
+
+    progress.rebirth.count = 8;
+    const unlockedWeights = shopRarityWeights(progress);
+    expect(unlockedWeights.rare).toBeGreaterThan(0);
+    expect(unlockedWeights.epic).toBeGreaterThan(0);
+    expect(unlockedWeights.legendary).toBeGreaterThan(0);
+
+    const restored = normalizeProgress(progress);
+    expect(restored.shop.refreshedAt).toBe(3600);
+    expect(restored.shop.nextOfferId).toBe(progress.shop.nextOfferId);
+    expect(restored.shop.offers).toHaveLength(progress.shop.offers.length);
+    expect(restored.shop.offers.map((offer) => ({
+      id: offer.id,
+      price: offer.price,
+      itemId: offer.item.id,
+      name: offer.item.name,
+      rarity: offer.item.rarity,
+    }))).toEqual(progress.shop.offers.map((offer) => ({
+      id: offer.id,
+      price: offer.price,
+      itemId: offer.item.id,
+      name: offer.item.name,
+      rarity: offer.item.rarity,
+    })));
   });
 
   it("raises equipment drop chance and high-rarity relative weights with stage and rebirth", () => {
