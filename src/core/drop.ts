@@ -14,6 +14,7 @@ export function rollMonsterDrop(progress: ProgressState, rng: RngState): Equipme
       rng,
       stageId: progress.currentStage,
       rebirthCount: progress.rebirth.count,
+      classId: progress.classId,
       slot: rollSlotForStage(progress, rng),
     });
   }
@@ -31,6 +32,7 @@ export function rollMonsterDrop(progress: ProgressState, rng: RngState): Equipme
     rng,
     stageId: progress.currentStage,
     rebirthCount: progress.rebirth.count,
+    classId: progress.classId,
     rarity,
     slot: rollSlotForStage(progress, rng),
   });
@@ -42,6 +44,7 @@ export function rollGuaranteedDrop(progress: ProgressState, rng: RngState): Equi
     rng,
     stageId: progress.currentStage,
     rebirthCount: progress.rebirth.count,
+    classId: progress.classId,
     slot: rollSlotForStage(progress, rng),
   });
 }
@@ -52,6 +55,7 @@ export function rollBossDrop(progress: ProgressState, rng: RngState, _bossId: Bo
     rng,
     stageId: progress.currentStage,
     rebirthCount: progress.rebirth.count,
+    classId: progress.classId,
     slot: rollSlotForStage(progress, rng),
     forceSin: true,
   });

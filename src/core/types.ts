@@ -32,6 +32,13 @@ export type GeneralAffixKey =
   | "hpRegen"
   | "accuracy"
   | "evasion"
+  | "moveSpeed"
+  | "strFlat"
+  | "gritFlat"
+  | "agiFlat"
+  | "strPercent"
+  | "gritPercent"
+  | "agiPercent"
   | "critChance"
   | "critDamage"
   | "attackSpeed"
@@ -39,6 +46,7 @@ export type GeneralAffixKey =
   | "finalDamage"
   | "additionalDamage"
   | "defPenetration"
+  | "defPenetrationPercent"
   | "lifeSteal"
   | "goldGain"
   | "experienceGain"
@@ -79,6 +87,13 @@ export interface EquipmentStatAllocation {
   reg: number;
   accuracy: number;
   evasion: number;
+  moveSpeed: number;
+  str: number;
+  grit: number;
+  agi: number;
+  strPercent: number;
+  gritPercent: number;
+  agiPercent: number;
 }
 
 export type EquipmentBaseStats = Partial<Record<EquipmentBaseStatKey, number>>;
@@ -203,6 +218,7 @@ export interface CombatAffixStats {
   finalDamage: number;
   additionalDamage: number;
   defPenetration: number;
+  defPenetrationPercent: number;
   lifeSteal: number;
   goldGain: number;
   experienceGain: number;

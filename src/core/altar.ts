@@ -356,6 +356,13 @@ export function calculateRelicOwnedStats(altar: AltarState): EquipmentStatAlloca
     reg: 0,
     accuracy: 0,
     evasion: 0,
+    moveSpeed: 0,
+    str: 0,
+    grit: 0,
+    agi: 0,
+    strPercent: 0,
+    gritPercent: 0,
+    agiPercent: 0,
   };
 }
 

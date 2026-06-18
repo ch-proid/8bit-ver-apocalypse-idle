@@ -1,4 +1,4 @@
-import { GENERAL_AFFIXES, SIN_AFFIXES } from "../data/affixes";
+import { GENERAL_AFFIXES, GENERAL_AFFIX_TIER_WEIGHTS, SIN_AFFIXES } from "../data/affixes";
 import { AFFIX_BALANCE, EQUIPMENT_BALANCE } from "../data/balance";
 import {
   EQUIPMENT_KIND_LABELS,
@@ -11,6 +11,7 @@ import {
   WEAPON_TYPES,
 } from "../data/equipmentNames";
 import { ITEM_RARITIES, ITEM_SLOT_BASE_STAT, ITEM_SLOTS } from "../data/items";
+import { defaultClassId } from "./class";
 import { chance, pickOne, pickWeighted, randomInt } from "./rng";
 import type {
   ClassId,
@@ -42,6 +43,7 @@ export interface GenerateEquipmentInput {
   itemLevel?: number;
   kind?: EquipmentKind;
   weaponType?: WeaponType;
+  classId?: ClassId;
   forceSin?: boolean;
 }
 
@@ -49,9 +51,10 @@ export function generateEquipmentItem(input: GenerateEquipmentInput): EquipmentI
   const slot = input.slot ?? pickOne(input.rng, ITEM_SLOTS);
   const rarity = input.rarity ?? rollRarityForStage(input.rng, input.stageId, input.rebirthCount ?? 0);
   const itemLevel = input.itemLevel ?? itemLevelForStage(input.stageId);
+  const classId = input.classId ?? defaultClassId();
   const kind = normalizeEquipmentKind(slot, input.kind ?? input.weaponType ?? pickOne(input.rng, EQUIPMENT_SLOT_KIND_POOL[slot]));
   const weaponType = slot === "weapon" ? normalizeWeaponType({ slot, kind, weaponType: input.weaponType }) : undefined;
-  const baseStats = calculateBaseStats(slot, rarity, itemLevel);
+  const baseStats = calculateBaseStats(slot, rarity, itemLevel, classId);
   const baseStat = ITEM_SLOT_BASE_STAT[slot];
   const baseValue = baseStats[baseStat] ?? calculateBaseValue(slot, rarity, itemLevel);
   const options = rollGeneralOptions(input.rng, slot, rarity);
@@ -405,8 +408,21 @@ function normalizeEquipmentName(item: EquipmentItem): string {
   return `${EQUIPMENT_RARITY_NAME_PREFIX[item.rarity]}의 ${EQUIPMENT_KIND_LABELS[fallbackKind]}`;
 }
 
-function calculateBaseStats(slot: ItemSlot, rarity: ItemRarity, itemLevel: number): EquipmentBaseStats {
-  const config = EQUIPMENT_BALANCE.slotBaseStats[slot] as EquipmentBaseStats;
+function slotBaseStatsForClass(slot: ItemSlot, classId: ClassId): EquipmentBaseStats {
+  const config = EQUIPMENT_BALANCE.slotBaseStats[slot];
+  if (slot === "helmet" || slot === "armor") {
+    return { ...(config as Record<ClassId, EquipmentBaseStats>)[classId] };
+  }
+  return { ...(config as EquipmentBaseStats) };
+}
+
+function calculateBaseStats(
+  slot: ItemSlot,
+  rarity: ItemRarity,
+  itemLevel: number,
+  classId: ClassId = defaultClassId(),
+): EquipmentBaseStats {
+  const config = slotBaseStatsForClass(slot, classId);
   const multiplier = itemLevel * EQUIPMENT_BALANCE.rarityMultipliers[rarity];
   const stats: EquipmentBaseStats = {};
 
@@ -504,8 +520,7 @@ export function generalAffixWeightsForSlot(slot: ItemSlot): Record<GeneralAffixK
 }
 
 export function generalAffixWeight(key: GeneralAffixKey): number {
-  const tier = EQUIPMENT_BALANCE.generalAffixTiers[key];
-  return EQUIPMENT_BALANCE.generalAffixTierWeights[tier];
+  return GENERAL_AFFIX_TIER_WEIGHTS[GENERAL_AFFIXES[key].tier];
 }
 
 function sinAffixesForSlot(slot: ItemSlot): SinAffixKey[] {
@@ -538,6 +553,7 @@ function createEmptyCombatAffixStats(): CombatAffixStats {
     finalDamage: 0,
     additionalDamage: 0,
     defPenetration: 0,
+    defPenetrationPercent: 0,
     lifeSteal: 0,
     goldGain: 0,
     experienceGain: 0,
@@ -554,6 +570,13 @@ function createEmptyEquipmentStats(): EquipmentStatAllocation {
     reg: 0,
     accuracy: 0,
     evasion: 0,
+    moveSpeed: 0,
+    str: 0,
+    grit: 0,
+    agi: 0,
+    strPercent: 0,
+    gritPercent: 0,
+    agiPercent: 0,
   };
 }
 
@@ -579,6 +602,27 @@ function applyGeneralStatOption(stats: EquipmentStatAllocation, option: ItemOpti
       break;
     case "evasion":
       stats.evasion += option.value;
+      break;
+    case "moveSpeed":
+      stats.moveSpeed += option.value;
+      break;
+    case "strFlat":
+      stats.str += option.value;
+      break;
+    case "gritFlat":
+      stats.grit += option.value;
+      break;
+    case "agiFlat":
+      stats.agi += option.value;
+      break;
+    case "strPercent":
+      stats.strPercent += option.value;
+      break;
+    case "gritPercent":
+      stats.gritPercent += option.value;
+      break;
+    case "agiPercent":
+      stats.agiPercent += option.value;
       break;
     default:
       break;

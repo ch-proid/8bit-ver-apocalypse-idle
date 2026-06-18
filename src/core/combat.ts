@@ -131,7 +131,7 @@ export function calculateDamage(input: DamageInput): DamageResult {
 
   const afterDamageIncrease = afterAccuracy * (1 + (affixes.damageIncrease + (input.damageIncreaseBonus ?? 0)) / 100);
   const penetration = affixes.defPenetration;
-  const effectiveDefense = Math.max(0, input.defenderDefense - penetration);
+  const effectiveDefense = Math.max(0, (input.defenderDefense - penetration) * (1 - affixes.defPenetrationPercent / 100));
   const afterDefense = afterDamageIncrease
     * (1 - effectiveDefense / (effectiveDefense + DAMAGE_FORMULA.defenseScale));
   const critical = input.forceCritical ?? rollCritical(
@@ -187,6 +187,7 @@ export function clampCombatAffixes(
     finalDamage: Math.max(0, affixes.finalDamage),
     additionalDamage: Math.max(0, affixes.additionalDamage),
     defPenetration: Math.max(0, affixes.defPenetration),
+    defPenetrationPercent: clamp(affixes.defPenetrationPercent, 0, 100),
     lifeSteal: clamp(affixes.lifeSteal, 0, DAMAGE_FORMULA.lifeStealCap),
     goldGain: Math.max(0, affixes.goldGain),
     experienceGain: Math.max(0, affixes.experienceGain),

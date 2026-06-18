@@ -63,6 +63,7 @@ export function cubeSynthesize(progress: ProgressState, rarity: ItemRarity, rng:
     rarity: resultRarity,
     slot: pickOne(rng, ITEM_SLOTS),
     itemLevel,
+    classId: progress.classId,
   });
   addItemToInventory(progress, result);
   return result;
@@ -173,6 +174,8 @@ export function refreshShop(progress: ProgressState, rng: RngState, elapsedSecon
       id: createItemId(progress.inventory),
       rng,
       stageId: progress.currentStage,
+      rebirthCount: progress.rebirth.count,
+      classId: progress.classId,
       forceSin: i === 0 && shouldForceSinOffer(rng),
     });
     offers.push({

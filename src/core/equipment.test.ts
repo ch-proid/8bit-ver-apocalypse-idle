@@ -77,6 +77,48 @@ describe("phase 3B equipment, drops, and gold", () => {
     }
   });
 
+  it("classifies general affixes into the integrated four-tier table", () => {
+    const byTier = Object.values(GENERAL_AFFIXES).reduce((tiers, affix) => {
+      tiers[affix.tier].push(affix.key);
+      return tiers;
+    }, { surplus: [], main: [], rare: [], ultraRare: [] } as Record<keyof typeof EQUIPMENT_BALANCE.generalAffixTierWeights, GeneralAffixKey[]>);
+
+    expect(byTier.surplus.sort()).toEqual([
+      "accuracy",
+      "damageReduction",
+      "defenseFlat",
+      "evasion",
+      "hpFlat",
+      "hpRegen",
+    ].sort());
+    expect(byTier.main.sort()).toEqual([
+      "additionalDamage",
+      "agiFlat",
+      "attackFlat",
+      "defPenetration",
+      "goldGain",
+      "gritFlat",
+      "lifeSteal",
+      "moveSpeed",
+      "strFlat",
+    ].sort());
+    expect(byTier.rare.sort()).toEqual([
+      "attackPercent",
+      "attackSpeed",
+      "critChance",
+      "damageIncrease",
+      "defPenetrationPercent",
+    ].sort());
+    expect(byTier.ultraRare.sort()).toEqual([
+      "agiPercent",
+      "critDamage",
+      "experienceGain",
+      "finalDamage",
+      "gritPercent",
+      "strPercent",
+    ].sort());
+  });
+
   it("uses four-tier weighted general affixes for initial drops and reawakening", () => {
     const dropRng = createRngState(9101);
     const dropDistribution = countAffixTiers(() => {
@@ -226,6 +268,24 @@ describe("phase 3B equipment, drops, and gold", () => {
     expect(directStats.evasion).toBeGreaterThanOrEqual(0);
     expect(directStats.accuracy).toBeGreaterThanOrEqual(0);
     expect(combatStats.critChance).toBeGreaterThan(0);
+  });
+
+  it("uses class-specific helmet and armor base stats", () => {
+    const itemLevel = 10;
+    const rarity: ItemRarity = "common";
+    const knightHelmet = generateEquipmentItem({ id: "knight-helmet", rng: createRngState(2101), stageId: 1, rarity, slot: "helmet", itemLevel, classId: "knight" });
+    const mageHelmet = generateEquipmentItem({ id: "mage-helmet", rng: createRngState(2102), stageId: 1, rarity, slot: "helmet", itemLevel, classId: "mage" });
+    const assassinHelmet = generateEquipmentItem({ id: "assassin-helmet", rng: createRngState(2103), stageId: 1, rarity, slot: "helmet", itemLevel, classId: "assassin" });
+    const knightArmor = generateEquipmentItem({ id: "knight-armor", rng: createRngState(2104), stageId: 1, rarity, slot: "armor", itemLevel, classId: "knight" });
+    const mageArmor = generateEquipmentItem({ id: "mage-armor", rng: createRngState(2105), stageId: 1, rarity, slot: "armor", itemLevel, classId: "mage" });
+    const assassinArmor = generateEquipmentItem({ id: "assassin-armor", rng: createRngState(2106), stageId: 1, rarity, slot: "armor", itemLevel, classId: "assassin" });
+
+    expect(equipmentBaseStatRows(knightHelmet)).toEqual([{ key: "def", value: 18 }]);
+    expect(equipmentBaseStatRows(mageHelmet)).toEqual([{ key: "def", value: 9 }]);
+    expect(equipmentBaseStatRows(assassinHelmet)).toEqual([{ key: "def", value: 10 }]);
+    expect(equipmentBaseStatRows(knightArmor)).toEqual([{ key: "hp", value: 220 }, { key: "reg", value: 0.15 }]);
+    expect(equipmentBaseStatRows(mageArmor)).toEqual([{ key: "hp", value: 200 }, { key: "reg", value: 0.25 }]);
+    expect(equipmentBaseStatRows(assassinArmor)).toEqual([{ key: "hp", value: 140 }, { key: "reg", value: 0.4 }]);
   });
 
   it("drops every weapon type but only equips the current class allowlist", () => {
@@ -571,7 +631,7 @@ function countAffixTiers(
 
   for (let i = 0; i < iterations; i += 1) {
     for (const key of roll()) {
-      const tier = EQUIPMENT_BALANCE.generalAffixTiers[key];
+      const tier = GENERAL_AFFIXES[key].tier;
       byTier[tier] += 1;
       byKey[key] = (byKey[key] ?? 0) + 1;
       total += 1;

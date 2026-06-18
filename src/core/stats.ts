@@ -115,9 +115,10 @@ export function resetStatDistribution(preset?: StatPreset): StatDistributionStat
 export function calculatePlayerStats(progress: ProgressState): PlayerStats {
   const classDefinition = getPlayerClass(progress.classId);
   const levelSteps = Math.max(0, progress.level - 1);
-  const statPoints = progress.statDistribution.assigned;
   const equipmentStats = calculateEquipmentStats(progress.inventory.equipped);
   const relicStats = calculateRelicOwnedStats(progress.altar);
+  const combinedBonusStats = mergeEquipmentStats(equipmentStats, relicStats);
+  const statPoints = applyStatEquipmentBonuses(progress.statDistribution.assigned, combinedBonusStats);
 
   let attack = PLAYER_BALANCE.attack + classDefinition.growth.attackPerLevel * levelSteps;
   let defense = PLAYER_BALANCE.defense + classDefinition.growth.defensePerLevel * levelSteps;
@@ -138,9 +139,12 @@ export function calculatePlayerStats(progress: ProgressState): PlayerStats {
   const withEquipment = applyEquipmentStats({ attack, defense, maxHp, hpRegen, evasion }, equipmentStats);
   const withRelics = applyEquipmentStats(withEquipment, relicStats);
   const withRebirth = applyRebirthMultiplier(withRelics, rebirthStatMultiplier(progress.rebirth.count));
+  const moveSpeed = PLAYER_BALANCE.moveSpeed
+    * classDefinition.growth.moveSpeedMultiplier
+    * (1 + combinedBonusStats.moveSpeed / 100);
   return {
     ...withRebirth,
-    moveSpeed: roundTo(PLAYER_BALANCE.moveSpeed * classDefinition.growth.moveSpeedMultiplier, 2),
+    moveSpeed: roundTo(moveSpeed, 2),
     attackCooldown: roundTo(PLAYER_BALANCE.attackCooldown * classDefinition.growth.attackCooldownMultiplier, 3),
     attackRange: classDefinition.growth.attackRange,
   };
@@ -193,6 +197,33 @@ function addAllocation(base: StatAllocation, add: StatAllocation, scale: number)
     str: base.str + add.str * scale,
     grit: base.grit + add.grit * scale,
     agi: base.agi + add.agi * scale,
+  };
+}
+
+function applyStatEquipmentBonuses(base: StatAllocation, equipment: EquipmentStatAllocation): StatAllocation {
+  return {
+    str: roundTo((base.str + equipment.str) * (1 + equipment.strPercent / 100), 2),
+    grit: roundTo((base.grit + equipment.grit) * (1 + equipment.gritPercent / 100), 2),
+    agi: roundTo((base.agi + equipment.agi) * (1 + equipment.agiPercent / 100), 2),
+  };
+}
+
+function mergeEquipmentStats(a: EquipmentStatAllocation, b: EquipmentStatAllocation): EquipmentStatAllocation {
+  return {
+    atk: a.atk + b.atk,
+    atkPercent: a.atkPercent + b.atkPercent,
+    def: a.def + b.def,
+    hp: a.hp + b.hp,
+    reg: a.reg + b.reg,
+    accuracy: a.accuracy + b.accuracy,
+    evasion: a.evasion + b.evasion,
+    moveSpeed: a.moveSpeed + b.moveSpeed,
+    str: a.str + b.str,
+    grit: a.grit + b.grit,
+    agi: a.agi + b.agi,
+    strPercent: a.strPercent + b.strPercent,
+    gritPercent: a.gritPercent + b.gritPercent,
+    agiPercent: a.agiPercent + b.agiPercent,
   };
 }
 
